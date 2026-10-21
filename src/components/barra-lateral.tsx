@@ -45,8 +45,8 @@ export function BarraLateral({ nome, email }: { nome: string; email: string }) {
 
   return (
     <>
-      <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col bg-forest-deep text-paper md:flex">
-        <div className="px-6 pt-7">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 grid-rows-[auto_minmax(0,1fr)_auto] bg-forest-deep text-paper md:grid">
+        <div className="px-6 pt-6">
           <Link href="/" className="block">
             <span className="inline-flex size-10 items-center justify-center rounded-2xl bg-gold text-sm font-semibold text-forest-deep">
               GC
@@ -55,14 +55,14 @@ export function BarraLateral({ nome, email }: { nome: string; email: string }) {
             <span className="mt-2 block text-sm text-white/65">Clientes do PDVLegal</span>
           </Link>
         </div>
-        <div className="mt-8 px-4">{navegacao}</div>
-        <div className="mt-auto border-t border-white/10 px-6 py-5">
+        <div className="overflow-y-auto px-4 py-6">{navegacao}</div>
+        <div className="border-t border-white/10 px-5 py-4">
           <p className="truncate text-sm font-medium">{nome}</p>
           <p className="truncate text-xs text-white/60">{email}</p>
           <button
             type="button"
             onClick={sair}
-            className="mt-3 cursor-pointer text-sm text-white/80 underline-offset-4 hover:underline"
+            className="mt-3 w-full cursor-pointer rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-sm font-medium text-white hover:bg-white/15"
           >
             Sair
           </button>
