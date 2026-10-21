@@ -350,6 +350,12 @@ async function semearExemplos() {
 }
 
 async function main() {
+  if (process.env.NODE_ENV === "production") {
+    console.error(
+      "Este seed grava dados de exemplo e não roda em produção. Crie o acesso real com npm run criar-admin.",
+    );
+    process.exit(1);
+  }
   await semearAcesso();
   await semearExemplos();
 }

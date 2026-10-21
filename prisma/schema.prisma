@@ -8,6 +8,10 @@ generator client {
   output   = "../src/generated/prisma"
 }
 
+// Prisma 7 não aceita mais `url` nem `directUrl` neste bloco.
+// As migrations usam DIRECT_URL em prisma.config.ts.
+// A aplicação usa DATABASE_URL (no Supabase, pooler de transação na porta 6543,
+// com ?pgbouncer=true). Ver src/server/db.ts.
 datasource db {
   provider = "postgresql"
 }

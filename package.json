@@ -12,6 +12,7 @@
     "db:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed",
     "db:reset": "prisma migrate reset --force",
+    "criar-admin": "tsx scripts/criar-admin.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {

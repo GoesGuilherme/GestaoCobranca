@@ -51,7 +51,7 @@ O seed cria um acesso fictício, só para desenvolvimento:
 
 Os clientes gravados pelo seed têm **Exemplo** no nome. CPF, CNPJ, telefones e e-mails são inventados. Não são empresas reais.
 
-Em produção, defina `SEED_OWNER_EMAIL` e `SEED_OWNER_SENHA` com uma senha forte antes de rodar o seed, e use `SEED_EXEMPLOS=false` para não gravar esses clientes fictícios. Se o e-mail já existir, o seed não troca a senha.
+O seed recusa rodar quando `NODE_ENV` é `production`. Em produção o primeiro acesso sai de `npm run criar-admin`, não do seed.
 
 ## Testes
 
@@ -71,40 +71,83 @@ Os testes apagam apenas as tabelas de clientes e filiais desse banco de teste.
 
 | Variável | Para que serve |
 | --- | --- |
-| `DATABASE_URL` | Conexão usada pela aplicação. |
-| `DIRECT_URL` | Conexão usada pelo Prisma Migrate. No computador local, igual à `DATABASE_URL`. |
+| `DATABASE_URL` | Conexão da aplicação. Na Vercel, o pooler de transação do Supabase (porta 6543) com `?pgbouncer=true`. |
+| `DIRECT_URL` | Conexão do Prisma Migrate. Direta ou pooler em modo sessão, porta 5432. No computador local, igual à `DATABASE_URL`. |
 | `AUTH_SECRET` | Segredo do cookie de sessão. Use uma string longa e aleatória (`openssl rand -base64 32`). |
-| `SEED_OWNER_NOME` | Nome de quem acessa o sistema. |
+| `SEED_OWNER_NOME` | Nome do acesso fictício do seed local. |
 | `SEED_OWNER_EMAIL` | E-mail desse acesso. |
-| `SEED_OWNER_SENHA` | Senha inicial. Só é gravada se o e-mail ainda não existir. |
-| `SEED_EXEMPLOS` | `true` grava os clientes fictícios. `false` grava só o acesso. |
+| `SEED_OWNER_SENHA` | Senha do seed local. Só é gravada se o e-mail ainda não existir. |
+| `SEED_EXEMPLOS` | `true` grava os clientes fictícios no seed local. `false` grava só o acesso de exemplo. |
+| `ADMIN_NOME` | Nome do primeiro acesso real. Só para `npm run criar-admin`. |
+| `ADMIN_EMAIL` | E-mail desse acesso. |
+| `ADMIN_SENHA` | Senha em texto. O script grava o hash e não altera a senha se o e-mail já existir. |
 
-## Publicar
+## Publicar no Supabase e na Vercel
 
-O aplicativo é Next.js e o banco é PostgreSQL. A combinação prevista é a aplicação na Vercel (ou qualquer host Node 22) e o banco no Supabase.
+O banco de produção já está no Supabase, região sa-east-1. As tabelas e o RLS foram aplicados à mão, com o SQL de `prisma/migrations/20261020225413_init` e o de `20261021180000_enable_rls`. Esse banco ainda não tem a tabela `_prisma_migrations` e não tem linhas. A aplicação sobe na Vercel.
 
-### Banco no Supabase
+O Prisma 7 não aceita `url` nem `directUrl` dentro de `schema.prisma`. O papel do antigo `directUrl` está em `prisma.config.ts`: as migrations leem `DIRECT_URL`. O servidor Next lê `DATABASE_URL`.
 
-1. Crie um projeto no Supabase.
-2. Copie a conexão direta (host `db.<ref>.supabase.co`, porta 5432) para `DIRECT_URL`. Ela serve para `npx prisma migrate deploy`.
-3. Na aplicação de longa duração, `DATABASE_URL` pode ser a mesma conexão direta. Em ambiente serverless, use o pooler do Supabase em modo sessão e deixe a conexão direta só no `DIRECT_URL`.
-4. Rode as migrations contra esse banco: `npx prisma migrate deploy`.
-5. Defina `SEED_OWNER_SENHA` com uma senha forte e `SEED_EXEMPLOS=false`.
-6. Rode `npx prisma db seed` para criar o acesso. Apague os clientes de exemplo se eles tiverem sido gravados por engano.
+### Connection strings no painel do Supabase
 
-### Aplicação
+No projeto, abra **Connect** (ou **Project Settings → Database**). Escolha o formato URI e copie duas URLs.
 
-- Configure `DATABASE_URL`, `DIRECT_URL` e `AUTH_SECRET` no host.
-- O build executa `prisma generate` e em seguida `next build`.
-- As migrations não rodam no build. Aplique `prisma migrate deploy` no banco antes de abrir o tráfego.
-- O cookie de sessão fica `secure` quando `NODE_ENV` é `production`.
+- **Transaction pooler**, porta **6543**, host com `pooler.supabase.com` e a região `sa-east-1`. Essa é a `DATABASE_URL`. Confira se a URL termina com `?pgbouncer=true`. Se o painel não incluir esse parâmetro, acrescente. O adapter não usa prepared statements nomeados, que é o que o pooler de transação exige; o driver `pg` ignora o parâmetro `pgbouncer` em si.
+- **Session pooler** (porta 5432 no mesmo host do pooler) ou **Direct connection** (`db.<ref>.supabase.co`, porta 5432). Essa é a `DIRECT_URL`. Não use a porta 6543 aqui: o `prisma migrate` não atravessa o pooler de transação.
+
+Se a senha do banco tiver `@`, `#` ou espaço, troque esses caracteres pelo código percentual na URL, ou gere outra senha no painel.
+
+O RLS está ligado nas três tabelas e não há política. O papel `postgres`, usado por essas duas URLs, ignora o RLS. A API REST pública do Supabase continua sem acesso.
+
+### Variáveis na Vercel
+
+Em **Project Settings → Environment Variables**, no ambiente Production (e no Preview, se ele apontar para um banco):
+
+| Variável | Valor |
+| --- | --- |
+| `DATABASE_URL` | Pooler de transação, porta 6543, com `?pgbouncer=true` |
+| `DIRECT_URL` | Conexão direta ou pooler em modo sessão, porta 5432 |
+| `AUTH_SECRET` | Saída de `openssl rand -base64 32` |
+
+As três precisam existir no build e em runtime. O `postinstall` e o script `build` rodam `prisma generate`, e o arquivo `prisma.config.ts` lê `DIRECT_URL` ao carregar. A aplicação lê `DATABASE_URL` e `AUTH_SECRET` quando atende um pedido. O cookie de sessão sai com `secure` quando `NODE_ENV` é `production`.
+
+Não defina `ADMIN_SENHA` na Vercel e não rode `npm run db:seed` contra o banco de produção. O seed de exemplo está bloqueado quando `NODE_ENV` é `production`.
+
+O build da Vercel não aplica migration. O banco de produção já tem as tabelas.
+
+### Registrar as migrations que já rodaram
+
+Na sua máquina, com `DIRECT_URL` apontando para o Supabase de produção (confira o host antes de continuar):
+
+```bash
+npx prisma migrate resolve --applied 20261020225413_init
+npx prisma migrate resolve --applied 20261021180000_enable_rls
+```
+
+Isso só escreve o histórico em `_prisma_migrations`. Não rode `prisma migrate deploy` antes desses dois comandos: o deploy tentaria criar de novo os tipos e as tabelas, e falharia. Depois do resolve, `npx prisma migrate deploy` deve dizer que não há migration pendente.
+
+Num banco vazio, no futuro, o caminho normal continua sendo `npx prisma migrate deploy`, que aplica as duas migrations em ordem. A pasta `database/` é uma cópia legível desses SQLs; a fonte da verdade continua em `prisma/migrations`.
+
+### Primeiro acesso
+
+Com `DATABASE_URL` (ou, se só ela existir, `DIRECT_URL`) apontando para o mesmo banco:
+
+```bash
+ADMIN_NOME="Seu Nome" \
+ADMIN_EMAIL="voce@seudominio.com" \
+ADMIN_SENHA="uma-senha-longa" \
+npm run criar-admin
+```
+
+O script grava o hash da senha do mesmo jeito que o login confere. Se o e-mail já existir, ele para e não troca a senha.
 
 ## Como o código está organizado
 
 - `src/lib` — CPF/CNPJ, máscaras, rótulos e os esquemas de validação usados tanto na tela quanto no servidor.
 - `src/server/services` — regras de cliente, filial e painel. É a única camada que grava esses dados. O arquivo `src/server/services/index.ts` é o ponto de entrada estável.
 - `src/app/api` — rotas HTTP finas em cima desses serviços. As telas chamam essas rotas para criar, editar e excluir.
-- `prisma/schema.prisma` — `Cliente` 1-N `Filial`, mais o `Usuario` do acesso.
+- `prisma/schema.prisma` — `Cliente` 1-N `Filial`, mais o `Usuario` do acesso. As migrations em `prisma/migrations` são a fonte da verdade do banco.
+- `database/` — os mesmos SQLs, com comentário curto, para quem não usa o Prisma.
 
 Um servidor MCP futuro (`buscar cliente`, `listar filiais`, e as ações de escrita) deve importar os serviços, não o Prisma. Os próximos módulos entram como tabela, serviço e rota próprios, com chave para o cliente e, quando fizer sentido, para a filial:
 
