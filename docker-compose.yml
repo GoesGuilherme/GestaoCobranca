@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: gestaocobranca-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: gestao
+      POSTGRES_PASSWORD: gestao
+      POSTGRES_DB: gestaocobranca
+    ports:
+      - "5432:5432"
+    volumes:
+      - gestaocobranca_pg:/var/lib/postgresql/data
+      - ./docker/init-databases.sql:/docker-entrypoint-initdb.d/02-test-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gestao -d gestaocobranca"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  gestaocobranca_pg:
