@@ -4,6 +4,8 @@ export type StatusFilial = "ATIVA" | "INATIVA" | "EM_IMPLANTACAO";
 export type TipoDocumento = "CPF" | "CNPJ";
 export type StatusEmpresa = "ATIVA" | "SUSPENSA";
 export type PapelUsuario = "DONO" | "FINANCEIRO" | "SUPORTE";
+export type RecorrenciaServico = "MENSAL" | "AVULSO";
+export type StatusServicoCliente = "ATIVO" | "INATIVO";
 
 export type FilialDTO = {
   id: string;
@@ -34,6 +36,32 @@ export type ClienteResumo = {
   status: StatusCliente;
   observacoes: string | null;
   quantidadeFiliais: number;
+  valorMensalAtivo: string;
+  criadoEm: string;
+  atualizadoEm: string;
+};
+
+export type ServicoDTO = {
+  id: string;
+  nome: string;
+  descricao: string | null;
+  precoPadrao: string;
+  ativo: boolean;
+  quantidadeVinculos: number;
+  criadoEm: string;
+  atualizadoEm: string;
+};
+
+export type ClienteServicoDTO = {
+  id: string;
+  clienteId: string;
+  servicoId: string;
+  nomeServico: string;
+  valor: string;
+  recorrencia: RecorrenciaServico;
+  inicioEm: string;
+  status: StatusServicoCliente;
+  observacoes: string | null;
   criadoEm: string;
   atualizadoEm: string;
 };
@@ -71,4 +99,5 @@ export type Painel = {
   porStatus: Record<StatusCliente, number>;
   porSegmento: Record<Segmento, number>;
   recentes: ClienteResumo[];
+  receitaMensal: string;
 };

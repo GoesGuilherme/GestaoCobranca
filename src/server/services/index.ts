@@ -26,3 +26,16 @@ export {
   obterEmpresa,
 } from "./empresa-service";
 export { criarUsuarioDaEmpresa, listarUsuarios } from "./usuario-service";
+export {
+  atualizarServico,
+  criarServico,
+  excluirServico,
+  listarServicos,
+  obterServico,
+} from "./servico-service";
+export {
+  atualizarServicoDoCliente,
+  criarServicoDoCliente,
+  excluirServicoDoCliente,
+  listarServicosDoCliente,
+} from "./cliente-servico-service";

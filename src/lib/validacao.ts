@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { dataIsoValida } from "./data";
+import { normalizarDinheiro } from "./dinheiro";
 import { cnpjValido, identificarDocumento, whatsappValido } from "./documento";
 import { ufValida } from "./ufs";
 
@@ -171,8 +173,68 @@ export const esquemaStatusEmpresa = z.object({
   status: z.enum(["ATIVA", "SUSPENSA"], "Escolha o status."),
 });
 
+export const esquemaValor = z.preprocess(
+  (valor) => {
+    if (typeof valor === "number" && Number.isFinite(valor)) return valor.toFixed(2);
+    if (typeof valor === "string") return valor;
+    return "";
+  },
+  z
+    .string()
+    .trim()
+    .min(1, "Informe o valor.")
+    .refine((valor) => normalizarDinheiro(valor) !== null, "Informe um valor em reais, como 189,90.")
+    .transform((valor) => normalizarDinheiro(valor)!),
+);
+
+const esquemaAtivo = z.preprocess(
+  (valor) => {
+    if (valor === true || valor === "true") return true;
+    if (valor === false || valor === "false") return false;
+    return valor;
+  },
+  z.boolean("Informe se o serviço está ativo."),
+);
+
+export const esquemaServico = z.object({
+  nome: z
+    .string()
+    .trim()
+    .min(2, "Informe o nome do serviço.")
+    .max(120, "O nome do serviço pode ter no máximo 120 caracteres."),
+  descricao: z
+    .string()
+    .trim()
+    .max(2000, "A descrição pode ter no máximo 2000 caracteres.")
+    .optional(),
+  precoPadrao: esquemaValor,
+  ativo: esquemaAtivo,
+});
+
+export const esquemaClienteServico = z.object({
+  servicoId: z
+    .string()
+    .trim()
+    .min(1, "Escolha o serviço.")
+    .max(64, "Escolha um serviço do catálogo."),
+  valor: esquemaValor,
+  recorrencia: z.enum(["MENSAL", "AVULSO"], "Escolha se a cobrança é mensal ou avulsa."),
+  inicioEm: z
+    .string()
+    .trim()
+    .refine((valor) => dataIsoValida(valor), "Informe a data de início."),
+  status: z.enum(["ATIVO", "INATIVO"], "Escolha a situação."),
+  observacoes: z
+    .string()
+    .trim()
+    .max(2000, "As observações podem ter no máximo 2000 caracteres.")
+    .optional(),
+});
+
 export type EntradaCliente = z.infer<typeof esquemaCliente>;
 export type EntradaFilial = z.infer<typeof esquemaFilial>;
 export type EntradaDadosEmpresa = z.infer<typeof esquemaDadosEmpresa>;
 export type EntradaCadastroEmpresa = z.infer<typeof esquemaCadastroEmpresa>;
 export type EntradaNovoUsuario = z.infer<typeof esquemaNovoUsuario>;
+export type EntradaServico = z.infer<typeof esquemaServico>;
+export type EntradaClienteServico = z.infer<typeof esquemaClienteServico>;

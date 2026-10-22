@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CabecalhoPagina } from "@/components/cabecalho";
 import { Selo } from "@/components/selo";
 import { classeBotaoPrimario } from "@/components/estilos";
+import { formatarReais } from "@/lib/dinheiro";
 import { formatarNumero } from "@/lib/formatacao";
 import { rotuloSegmento, rotuloStatusCliente } from "@/lib/rotulos";
 import type { Segmento, StatusCliente } from "@/lib/tipos";
@@ -23,7 +24,7 @@ export default async function PaginaPainel() {
       <CabecalhoPagina
         olho="Visão geral"
         titulo="Painel"
-        descricao="Quantos clientes estão ativos, em implantação ou parados, e em qual segmento."
+        descricao="Quantos clientes estão ativos, em implantação ou parados, em qual segmento, e quanto está contratado por mês."
         acao={
           <Link href="/clientes/novo" className={classeBotaoPrimario}>
             Novo cliente
@@ -48,6 +49,9 @@ export default async function PaginaPainel() {
           <p className="mt-2 text-sm text-white/70">
             {formatarNumero(painel.totalFiliais)}{" "}
             {painel.totalFiliais === 1 ? "filial cadastrada" : "filiais cadastradas"}
+          </p>
+          <p className="mt-3 text-sm text-white/85">
+            {formatarReais(painel.receitaMensal)} em serviços mensais ativos
           </p>
         </article>
         {ordemStatus.map((status) => (
@@ -103,7 +107,8 @@ export default async function PaginaPainel() {
                     </Link>
                     <p className="text-sm text-muted">
                       {cliente.cidade}/{cliente.uf} · {cliente.quantidadeFiliais}{" "}
-                      {cliente.quantidadeFiliais === 1 ? "filial" : "filiais"}
+                      {cliente.quantidadeFiliais === 1 ? "filial" : "filiais"} ·{" "}
+                      {formatarReais(cliente.valorMensalAtivo)} / mês
                     </p>
                   </div>
                   <Selo valor={cliente.status} tipo="cliente" />

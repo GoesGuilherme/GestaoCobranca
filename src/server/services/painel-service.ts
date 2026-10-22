@@ -7,7 +7,7 @@ const SEGMENTOS: Segmento[] = ["RESTAURANTE", "MERCADO_AUTONOMO", "OUTRO"];
 
 export async function obterPainel(empresaId: string): Promise<Painel> {
   const onde = { empresaId };
-  const [totalClientes, totalFiliais, porStatusBruto, porSegmentoBruto, recentes] =
+  const [totalClientes, totalFiliais, porStatusBruto, porSegmentoBruto, recentes, mensais] =
     await Promise.all([
       prisma.cliente.count({ where: onde }),
       prisma.filial.count({ where: { cliente: onde } }),
@@ -17,7 +17,17 @@ export async function obterPainel(empresaId: string): Promise<Painel> {
         where: onde,
         orderBy: { criadoEm: "desc" },
         take: 5,
-        include: { _count: { select: { filiais: true } } },
+        include: {
+          _count: { select: { filiais: true } },
+          servicos: {
+            where: { status: "ATIVO", recorrencia: "MENSAL" },
+            select: { valor: true },
+          },
+        },
+      }),
+      prisma.clienteServico.aggregate({
+        where: { empresaId, status: "ATIVO", recorrencia: "MENSAL" },
+        _sum: { valor: true },
       }),
     ]);
 
@@ -39,5 +49,6 @@ export async function obterPainel(empresaId: string): Promise<Painel> {
     porStatus,
     porSegmento,
     recentes: recentes.map(paraCliente),
+    receitaMensal: mensais._sum.valor ? mensais._sum.valor.toFixed(2) : "0.00",
   };
 }

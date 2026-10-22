@@ -1,5 +1,10 @@
-import { rotuloSegmento, rotuloStatusCliente, rotuloStatusFilial } from "@/lib/rotulos";
-import type { Segmento, StatusCliente, StatusFilial } from "@/lib/tipos";
+import {
+  rotuloSegmento,
+  rotuloStatusCliente,
+  rotuloStatusFilial,
+  rotuloStatusServicoCliente,
+} from "@/lib/rotulos";
+import type { Segmento, StatusCliente, StatusFilial, StatusServicoCliente } from "@/lib/tipos";
 
 const cores: Record<string, string> = {
   ATIVO: "bg-leaf text-forest",
@@ -14,14 +19,16 @@ export function Selo({
   tipo,
 }: {
   valor: string;
-  tipo: "cliente" | "filial" | "segmento";
+  tipo: "cliente" | "filial" | "segmento" | "servico";
 }) {
   const rotulo =
     tipo === "segmento"
       ? rotuloSegmento(valor as Segmento)
       : tipo === "filial"
         ? rotuloStatusFilial(valor as StatusFilial)
-        : rotuloStatusCliente(valor as StatusCliente);
+        : tipo === "servico"
+          ? rotuloStatusServicoCliente(valor as StatusServicoCliente)
+          : rotuloStatusCliente(valor as StatusCliente);
   const cor = tipo === "segmento" ? "bg-sand text-ink" : (cores[valor] ?? "bg-sand text-ink");
 
   return (

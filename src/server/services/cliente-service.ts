@@ -62,8 +62,14 @@ async function garantirDocumentoLivre(empresaId: string, documento: string, igno
   }
 }
 
-function incluirContagem() {
-  return { _count: { select: { filiais: true } } } as const;
+function incluirResumo() {
+  return {
+    _count: { select: { filiais: true } },
+    servicos: {
+      where: { status: "ATIVO" as const, recorrencia: "MENSAL" as const },
+      select: { valor: true },
+    },
+  };
 }
 
 export async function listarClientes(
@@ -95,7 +101,7 @@ export async function listarClientes(
 
   const clientes = await prisma.cliente.findMany({
     where: onde,
-    include: incluirContagem(),
+    include: incluirResumo(),
     orderBy: { nomeFantasia: "asc" },
   });
 
@@ -106,7 +112,7 @@ export async function obterCliente(empresaId: string, id: string): Promise<Clien
   const cliente = await prisma.cliente.findFirst({
     where: { id, empresaId },
     include: {
-      ...incluirContagem(),
+      ...incluirResumo(),
       filiais: { orderBy: { nome: "asc" } },
     },
   });
@@ -124,7 +130,7 @@ export async function criarCliente(empresaId: string, entrada: unknown): Promise
     const cliente = await prisma.cliente.create({
       data: { ...dados, empresaId },
       include: {
-        ...incluirContagem(),
+        ...incluirResumo(),
         filiais: true,
       },
     });
@@ -162,7 +168,7 @@ export async function atualizarCliente(
   const cliente = await prisma.cliente.findFirstOrThrow({
     where: { id, empresaId },
     include: {
-      ...incluirContagem(),
+      ...incluirResumo(),
       filiais: { orderBy: { nome: "asc" } },
     },
   });
