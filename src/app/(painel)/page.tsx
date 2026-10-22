@@ -5,6 +5,8 @@ import { classeBotaoPrimario } from "@/components/estilos";
 import { formatarNumero } from "@/lib/formatacao";
 import { rotuloSegmento, rotuloStatusCliente } from "@/lib/rotulos";
 import type { Segmento, StatusCliente } from "@/lib/tipos";
+import { cnpjCollabPendente } from "@/lib/collab";
+import { acessoDaPagina } from "@/server/auth/pagina";
 import { obterPainel } from "@/server/services/painel-service";
 
 export const metadata = { title: "Painel" };
@@ -13,7 +15,8 @@ const ordemStatus: StatusCliente[] = ["ATIVO", "EM_IMPLANTACAO", "INATIVO"];
 const ordemSegmento: Segmento[] = ["RESTAURANTE", "MERCADO_AUTONOMO", "OUTRO"];
 
 export default async function PaginaPainel() {
-  const painel = await obterPainel();
+  const acesso = await acessoDaPagina();
+  const painel = await obterPainel(acesso.empresaId);
 
   return (
     <>
@@ -27,6 +30,16 @@ export default async function PaginaPainel() {
           </Link>
         }
       />
+
+      {acesso.papel === "DONO" && cnpjCollabPendente(acesso.cnpjEmpresa) ? (
+        <p className="mb-6 rounded-2xl border border-gold/40 bg-gold/15 px-4 py-3 text-sm">
+          O CNPJ da {acesso.nomeEmpresa} ainda é um placeholder.{" "}
+          <Link href="/empresa" className="font-medium text-canopy hover:underline">
+            Informe o CNPJ real
+          </Link>
+          .
+        </p>
+      ) : null}
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <article className="rounded-3xl bg-forest px-5 py-6 text-paper sm:col-span-2">

@@ -18,32 +18,42 @@ function dadosPersistidos(entrada: EntradaFilial) {
   };
 }
 
-async function garantirCliente(clienteId: string) {
-  const cliente = await prisma.cliente.findUnique({ where: { id: clienteId } });
+async function garantirCliente(empresaId: string, clienteId: string) {
+  const cliente = await prisma.cliente.findFirst({ where: { id: clienteId, empresaId } });
   if (!cliente) {
     throw new ErroAplicacao("Cliente não encontrado.", 404, "nao_encontrado");
   }
 }
 
-export async function listarFiliais(clienteId: string): Promise<FilialDTO[]> {
-  await garantirCliente(clienteId);
+async function buscarFilial(empresaId: string, id: string) {
+  const filial = await prisma.filial.findFirst({
+    where: { id, cliente: { empresaId } },
+  });
+  if (!filial) {
+    throw new ErroAplicacao("Filial não encontrada.", 404, "nao_encontrado");
+  }
+  return filial;
+}
+
+export async function listarFiliais(empresaId: string, clienteId: string): Promise<FilialDTO[]> {
+  await garantirCliente(empresaId, clienteId);
   const filiais = await prisma.filial.findMany({
-    where: { clienteId },
+    where: { clienteId, cliente: { empresaId } },
     orderBy: { nome: "asc" },
   });
   return filiais.map(paraFilial);
 }
 
-export async function obterFilial(id: string): Promise<FilialDTO> {
-  const filial = await prisma.filial.findUnique({ where: { id } });
-  if (!filial) {
-    throw new ErroAplicacao("Filial não encontrada.", 404, "nao_encontrado");
-  }
-  return paraFilial(filial);
+export async function obterFilial(empresaId: string, id: string): Promise<FilialDTO> {
+  return paraFilial(await buscarFilial(empresaId, id));
 }
 
-export async function criarFilial(clienteId: string, entrada: unknown): Promise<FilialDTO> {
-  await garantirCliente(clienteId);
+export async function criarFilial(
+  empresaId: string,
+  clienteId: string,
+  entrada: unknown,
+): Promise<FilialDTO> {
+  await garantirCliente(empresaId, clienteId);
   const dados = dadosPersistidos(lerEsquema(esquemaFilial, entrada));
   const filial = await prisma.filial.create({
     data: { ...dados, clienteId },
@@ -51,17 +61,29 @@ export async function criarFilial(clienteId: string, entrada: unknown): Promise<
   return paraFilial(filial);
 }
 
-export async function atualizarFilial(id: string, entrada: unknown): Promise<FilialDTO> {
-  await obterFilial(id);
+export async function atualizarFilial(
+  empresaId: string,
+  id: string,
+  entrada: unknown,
+): Promise<FilialDTO> {
+  const existente = await buscarFilial(empresaId, id);
   const dados = dadosPersistidos(lerEsquema(esquemaFilial, entrada));
-  const filial = await prisma.filial.update({
-    where: { id },
+  const alterada = await prisma.filial.updateMany({
+    where: { id: existente.id, cliente: { empresaId } },
     data: dados,
   });
-  return paraFilial(filial);
+  if (alterada.count !== 1) {
+    throw new ErroAplicacao("Filial não encontrada.", 404, "nao_encontrado");
+  }
+  return obterFilial(empresaId, id);
 }
 
-export async function excluirFilial(id: string): Promise<void> {
-  await obterFilial(id);
-  await prisma.filial.delete({ where: { id } });
+export async function excluirFilial(empresaId: string, id: string): Promise<void> {
+  await buscarFilial(empresaId, id);
+  const apagada = await prisma.filial.deleteMany({
+    where: { id, cliente: { empresaId } },
+  });
+  if (apagada.count !== 1) {
+    throw new ErroAplicacao("Filial não encontrada.", 404, "nao_encontrado");
+  }
 }

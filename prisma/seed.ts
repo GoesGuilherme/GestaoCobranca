@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { ID_EMPRESA_COLLAB } from "../src/lib/collab";
 import { completarCnpj, completarCpf, identificarDocumento } from "../src/lib/documento";
 import { prisma } from "../src/server/db";
 import { gerarHashSenha } from "../src/server/auth/senha";
@@ -307,22 +308,39 @@ const exemplos: ClienteExemplo[] = [
   },
 ];
 
+async function empresaCollab() {
+  const empresa = await prisma.empresa.findUnique({ where: { id: ID_EMPRESA_COLLAB } });
+  if (!empresa) {
+    throw new Error("A empresa Collab Software não existe. Rode as migrations antes do seed.");
+  }
+  return empresa;
+}
+
 async function semearAcesso() {
+  const empresa = await empresaCollab();
   const email = (process.env.SEED_OWNER_EMAIL ?? "marina@exemplo.test").toLowerCase();
   const senha = process.env.SEED_OWNER_SENHA ?? "exemplo-1234";
   const nome = process.env.SEED_OWNER_NOME ?? "Marina Exemplo";
   const existente = await prisma.usuario.findUnique({ where: { email } });
   if (existente) {
     console.log(`Acesso já existia: ${email}`);
-    return;
+    return empresa;
   }
   await prisma.usuario.create({
-    data: { nome, email, senhaHash: await gerarHashSenha(senha) },
+    data: {
+      nome,
+      email,
+      senhaHash: await gerarHashSenha(senha),
+      empresaId: empresa.id,
+      papel: "DONO",
+      superadministrador: false,
+    },
   });
   console.log(`Acesso de exemplo criado: ${email}`);
+  return empresa;
 }
 
-async function semearExemplos() {
+async function semearExemplos(empresaId: string) {
   const ligar = process.env.SEED_EXEMPLOS
     ? process.env.SEED_EXEMPLOS === "true"
     : process.env.NODE_ENV !== "production";
@@ -334,15 +352,17 @@ async function semearExemplos() {
   for (const exemplo of exemplos) {
     const documento = identificarDocumento(exemplo.documento);
     if (!documento) throw new Error(`Documento de exemplo inválido: ${exemplo.nomeFantasia}`);
-    const jaExiste = await prisma.cliente.findUnique({ where: { documento: documento.normalizado } });
+    const jaExiste = await prisma.cliente.findFirst({
+      where: { empresaId, documento: documento.normalizado },
+    });
     if (jaExiste) {
       console.log(`Cliente de exemplo já existia: ${exemplo.nomeFantasia}`);
       continue;
     }
     const { filiais, ...dados } = exemplo;
-    const cliente = await criarCliente(dados);
+    const cliente = await criarCliente(empresaId, dados);
     for (const filial of filiais) {
-      await criarFilial(cliente.id, filial);
+      await criarFilial(empresaId, cliente.id, filial);
     }
     const quantidade = filiais.length === 1 ? "1 filial" : `${filiais.length} filiais`;
     console.log(`Cliente de exemplo criado: ${exemplo.nomeFantasia} (${quantidade})`);
@@ -356,8 +376,8 @@ async function main() {
     );
     process.exit(1);
   }
-  await semearAcesso();
-  await semearExemplos();
+  const empresa = await semearAcesso();
+  await semearExemplos(empresa.id);
 }
 
 main()

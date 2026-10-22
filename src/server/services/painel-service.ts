@@ -5,14 +5,16 @@ import { paraCliente } from "./mapeadores";
 const STATUS: StatusCliente[] = ["ATIVO", "INATIVO", "EM_IMPLANTACAO"];
 const SEGMENTOS: Segmento[] = ["RESTAURANTE", "MERCADO_AUTONOMO", "OUTRO"];
 
-export async function obterPainel(): Promise<Painel> {
+export async function obterPainel(empresaId: string): Promise<Painel> {
+  const onde = { empresaId };
   const [totalClientes, totalFiliais, porStatusBruto, porSegmentoBruto, recentes] =
     await Promise.all([
-      prisma.cliente.count(),
-      prisma.filial.count(),
-      prisma.cliente.groupBy({ by: ["status"], _count: true }),
-      prisma.cliente.groupBy({ by: ["segmento"], _count: true }),
+      prisma.cliente.count({ where: onde }),
+      prisma.filial.count({ where: { cliente: onde } }),
+      prisma.cliente.groupBy({ by: ["status"], where: onde, _count: true }),
+      prisma.cliente.groupBy({ by: ["segmento"], where: onde, _count: true }),
       prisma.cliente.findMany({
+        where: onde,
         orderBy: { criadoEm: "desc" },
         take: 5,
         include: { _count: { select: { filiais: true } } },

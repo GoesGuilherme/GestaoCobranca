@@ -47,22 +47,71 @@ enum TipoDocumento {
   @@map("tipo_documento")
 }
 
-model Usuario {
-  id           String   @id @default(cuid())
-  nome         String
-  email        String   @unique
-  senhaHash    String   @map("senha_hash")
-  criadoEm     DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
-  atualizadoEm DateTime @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+enum StatusEmpresa {
+  ATIVA
+  SUSPENSA
 
+  @@map("status_empresa")
+}
+
+enum PapelUsuario {
+  DONO
+  FINANCEIRO
+  SUPORTE
+
+  @@map("papel_usuario")
+}
+
+// A empresa é a assinante do SaaS. Clientes e usuários ficam dentro dela.
+model Empresa {
+  id           String        @id @default(cuid())
+  razaoSocial  String        @map("razao_social")
+  nomeFantasia String        @map("nome_fantasia")
+  cnpj         String        @unique
+  emailContato String        @map("email_contato")
+  telefone     String
+  status       StatusEmpresa @default(ATIVA)
+  plano        String        @default("basico")
+  criadoEm     DateTime      @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm DateTime      @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  usuarios     Usuario[]
+  clientes     Cliente[]
+
+  @@map("empresas")
+}
+
+// Contagem simples de tentativas de autocadastro, por IP e por e-mail.
+model LimiteCadastro {
+  id       String   @id @default(cuid())
+  chave    String
+  criadoEm DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
+
+  @@index([chave, criadoEm])
+  @@map("limites_cadastro")
+}
+
+model Usuario {
+  id                 String       @id @default(cuid())
+  nome               String
+  email              String       @unique
+  senhaHash          String       @map("senha_hash")
+  empresaId          String       @map("empresa_id")
+  papel              PapelUsuario @default(SUPORTE)
+  superadministrador Boolean      @default(false)
+  criadoEm           DateTime     @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm       DateTime     @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  empresa            Empresa      @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+
+  @@index([empresaId])
   @@map("usuarios")
 }
 
 model Cliente {
   id            String         @id @default(cuid())
+  empresaId     String         @map("empresa_id")
   nomeFantasia  String         @map("nome_fantasia")
   razaoSocial   String         @map("razao_social")
-  documento     String         @unique
+  documento     String
   tipoDocumento TipoDocumento  @map("tipo_documento")
   segmento      Segmento
   contatoNome   String         @map("contato_nome")
@@ -74,8 +123,11 @@ model Cliente {
   observacoes   String?        @db.Text
   criadoEm      DateTime       @default(now()) @map("criado_em") @db.Timestamptz(3)
   atualizadoEm  DateTime       @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  empresa       Empresa        @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   filiais       Filial[]
 
+  @@unique([empresaId, documento])
+  @@index([empresaId])
   @@index([nomeFantasia])
   @@index([cidade])
   @@index([status])

@@ -12,10 +12,15 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get(COOKIE_SESSAO)?.value;
   const autenticado = token ? Boolean(await verificarToken(token)) : false;
-  const rotaPublica = pathname === "/login" || pathname === "/api/auth/entrar";
+  const rotaPublica =
+    pathname === "/login" ||
+    pathname === "/cadastro" ||
+    pathname === "/api/auth/entrar" ||
+    pathname === "/api/cadastro";
 
   if (rotaPublica) {
-    if (autenticado && pathname === "/login") {
+    const empresaSuspensa = request.nextUrl.searchParams.get("motivo") === "suspensa";
+    if (autenticado && pathname === "/login" && !empresaSuspensa) {
       return NextResponse.redirect(
         new URL(destinoSeguro(request.nextUrl.searchParams.get("next")), request.url),
       );

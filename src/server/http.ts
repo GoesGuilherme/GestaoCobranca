@@ -13,6 +13,13 @@ export async function lerJson(request: Request): Promise<unknown> {
   }
 }
 
+export function ipDaRequisicao(request: Request): string | null {
+  const encaminhado = request.headers.get("x-forwarded-for");
+  const bruto = (encaminhado?.split(",")[0] ?? request.headers.get("x-real-ip") ?? "").trim();
+  if (!bruto || bruto.length > 64) return null;
+  return bruto;
+}
+
 export function jsonErro(erro: unknown) {
   if (erro instanceof ErroAplicacao) {
     return NextResponse.json(

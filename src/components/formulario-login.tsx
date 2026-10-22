@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { enviarJson } from "@/lib/api-cliente";
@@ -20,6 +21,8 @@ export function FormularioLogin({ mostrarExemplo }: { mostrarExemplo: boolean })
   const [campos, setCampos] = useState<Record<string, string>>({});
   const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const suspensa = params.get("motivo") === "suspensa";
+  const cadastrado = params.get("cadastrado") === "1";
 
   async function enviar(evento: React.FormEvent) {
     evento.preventDefault();
@@ -48,7 +51,17 @@ export function FormularioLogin({ mostrarExemplo }: { mostrarExemplo: boolean })
   return (
     <form onSubmit={enviar} noValidate className="rounded-3xl border border-line bg-card p-6 shadow-sm md:p-8">
       <h1 className="font-display text-4xl">Entrar</h1>
-      <p className="mt-2 text-sm text-muted">Acesso reservado a quem administra os clientes.</p>
+      <p className="mt-2 text-sm text-muted">Entre com o acesso da sua empresa.</p>
+      {cadastrado ? (
+        <p className="mt-5 rounded-2xl bg-canopy/10 px-4 py-3 text-sm text-forest">
+          Empresa criada. Entre com o e-mail e a senha do dono.
+        </p>
+      ) : null}
+      {suspensa ? (
+        <p className="mt-5 rounded-2xl bg-clay-soft px-4 py-3 text-sm text-clay" role="alert">
+          Esta empresa está suspensa. O acesso volta quando a plataforma reativar a conta.
+        </p>
+      ) : null}
       {erro ? (
         <p className="mt-5 rounded-2xl bg-clay-soft px-4 py-3 text-sm text-clay" role="alert">
           {erro}
@@ -79,6 +92,12 @@ export function FormularioLogin({ mostrarExemplo }: { mostrarExemplo: boolean })
       <button type="submit" className={`${classeBotaoPrimario} mt-6 w-full`} disabled={enviando}>
         {enviando ? "Entrando..." : "Entrar"}
       </button>
+      <p className="mt-5 text-center text-sm text-muted">
+        Ainda não tem conta?{" "}
+        <Link href="/cadastro" className="font-medium text-canopy hover:underline">
+          Cadastrar minha empresa
+        </Link>
+      </p>
       {mostrarExemplo ? (
         <div className="mt-6 rounded-2xl bg-sand px-4 py-3 text-sm text-ink/80">
           <p className="font-medium">Acesso de exemplo, só neste ambiente</p>

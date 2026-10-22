@@ -50,14 +50,14 @@ function dadosPersistidos(entrada: EntradaCliente) {
   };
 }
 
-async function garantirDocumentoLivre(documento: string, ignorarId?: string) {
-  const existente = await prisma.cliente.findUnique({ where: { documento } });
+async function garantirDocumentoLivre(empresaId: string, documento: string, ignorarId?: string) {
+  const existente = await prisma.cliente.findFirst({ where: { empresaId, documento } });
   if (existente && existente.id !== ignorarId) {
     throw new ErroAplicacao(
-      "Já existe um cliente com este CPF/CNPJ.",
+      "Já existe um cliente com este CPF/CNPJ nesta empresa.",
       409,
       "documento_duplicado",
-      { documento: "Já existe um cliente com este CPF/CNPJ." },
+      { documento: "Já existe um cliente com este CPF/CNPJ nesta empresa." },
     );
   }
 }
@@ -66,13 +66,17 @@ function incluirContagem() {
   return { _count: { select: { filiais: true } } } as const;
 }
 
-export async function listarClientes(filtro: FiltroClientes = {}): Promise<ClienteResumo[]> {
+export async function listarClientes(
+  empresaId: string,
+  filtro: FiltroClientes = {},
+): Promise<ClienteResumo[]> {
   const termo = filtro.q?.trim();
   const documento = termo ? somenteDocumento(termo) : "";
   const segmento = comoSegmento(filtro.segmento);
   const status = comoStatus(filtro.status);
 
   const onde: Prisma.ClienteWhereInput = {
+    empresaId,
     ...(segmento ? { segmento } : {}),
     ...(status ? { status } : {}),
   };
@@ -98,9 +102,9 @@ export async function listarClientes(filtro: FiltroClientes = {}): Promise<Clien
   return clientes.map(paraCliente);
 }
 
-export async function obterCliente(id: string): Promise<ClienteDetalhe> {
-  const cliente = await prisma.cliente.findUnique({
-    where: { id },
+export async function obterCliente(empresaId: string, id: string): Promise<ClienteDetalhe> {
+  const cliente = await prisma.cliente.findFirst({
+    where: { id, empresaId },
     include: {
       ...incluirContagem(),
       filiais: { orderBy: { nome: "asc" } },
@@ -112,13 +116,13 @@ export async function obterCliente(id: string): Promise<ClienteDetalhe> {
   return paraClienteDetalhe(cliente);
 }
 
-export async function criarCliente(entrada: unknown): Promise<ClienteDetalhe> {
+export async function criarCliente(empresaId: string, entrada: unknown): Promise<ClienteDetalhe> {
   const dados = dadosPersistidos(lerEsquema(esquemaCliente, entrada));
-  await garantirDocumentoLivre(dados.documento);
+  await garantirDocumentoLivre(empresaId, dados.documento);
 
   try {
     const cliente = await prisma.cliente.create({
-      data: dados,
+      data: { ...dados, empresaId },
       include: {
         ...incluirContagem(),
         filiais: true,
@@ -128,24 +132,35 @@ export async function criarCliente(entrada: unknown): Promise<ClienteDetalhe> {
   } catch (erro) {
     if (codigoPrisma(erro) === "P2002") {
       throw new ErroAplicacao(
-        "Já existe um cliente com este CPF/CNPJ.",
+        "Já existe um cliente com este CPF/CNPJ nesta empresa.",
         409,
         "documento_duplicado",
-        { documento: "Já existe um cliente com este CPF/CNPJ." },
+        { documento: "Já existe um cliente com este CPF/CNPJ nesta empresa." },
       );
     }
     throw erro;
   }
 }
 
-export async function atualizarCliente(id: string, entrada: unknown): Promise<ClienteDetalhe> {
-  await obterCliente(id);
+export async function atualizarCliente(
+  empresaId: string,
+  id: string,
+  entrada: unknown,
+): Promise<ClienteDetalhe> {
+  await obterCliente(empresaId, id);
   const dados = dadosPersistidos(lerEsquema(esquemaCliente, entrada));
-  await garantirDocumentoLivre(dados.documento, id);
+  await garantirDocumentoLivre(empresaId, dados.documento, id);
 
-  const cliente = await prisma.cliente.update({
-    where: { id },
+  const alterado = await prisma.cliente.updateMany({
+    where: { id, empresaId },
     data: dados,
+  });
+  if (alterado.count !== 1) {
+    throw new ErroAplicacao("Cliente não encontrado.", 404, "nao_encontrado");
+  }
+
+  const cliente = await prisma.cliente.findFirstOrThrow({
+    where: { id, empresaId },
     include: {
       ...incluirContagem(),
       filiais: { orderBy: { nome: "asc" } },
@@ -154,9 +169,12 @@ export async function atualizarCliente(id: string, entrada: unknown): Promise<Cl
   return paraClienteDetalhe(cliente);
 }
 
-export async function excluirCliente(id: string): Promise<void> {
-  await obterCliente(id);
-  await prisma.cliente.delete({ where: { id } });
+export async function excluirCliente(empresaId: string, id: string): Promise<void> {
+  await obterCliente(empresaId, id);
+  const apagado = await prisma.cliente.deleteMany({ where: { id, empresaId } });
+  if (apagado.count !== 1) {
+    throw new ErroAplicacao("Cliente não encontrado.", 404, "nao_encontrado");
+  }
 }
 
 function codigoPrisma(erro: unknown): string | undefined {
