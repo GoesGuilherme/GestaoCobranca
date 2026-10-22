@@ -1,4 +1,12 @@
-import type { PapelUsuario, Segmento, StatusCliente, StatusEmpresa, StatusFilial } from "./tipos";
+import type {
+  PapelUsuario,
+  RecorrenciaServico,
+  Segmento,
+  StatusCliente,
+  StatusEmpresa,
+  StatusFilial,
+  StatusServicoCliente,
+} from "./tipos";
 
 export const SEGMENTOS: { valor: Segmento; rotulo: string }[] = [
   { valor: "RESTAURANTE", rotulo: "Restaurante" },
@@ -47,4 +55,22 @@ export function rotuloStatusEmpresa(valor: StatusEmpresa): string {
 
 export function rotuloPapel(valor: PapelUsuario): string {
   return PAPEIS.find((item) => item.valor === valor)?.rotulo ?? valor;
+}
+
+export const RECORRENCIAS: { valor: RecorrenciaServico; rotulo: string }[] = [
+  { valor: "MENSAL", rotulo: "Mensal" },
+  { valor: "AVULSO", rotulo: "Avulso" },
+];
+
+export const STATUS_SERVICO_CLIENTE: { valor: StatusServicoCliente; rotulo: string }[] = [
+  { valor: "ATIVO", rotulo: "Ativo" },
+  { valor: "INATIVO", rotulo: "Inativo" },
+];
+
+export function rotuloRecorrencia(valor: RecorrenciaServico): string {
+  return RECORRENCIAS.find((item) => item.valor === valor)?.rotulo ?? valor;
+}
+
+export function rotuloStatusServicoCliente(valor: StatusServicoCliente): string {
+  return STATUS_SERVICO_CLIENTE.find((item) => item.valor === valor)?.rotulo ?? valor;
 }

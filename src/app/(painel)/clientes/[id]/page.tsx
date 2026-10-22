@@ -3,13 +3,18 @@ import { notFound } from "next/navigation";
 import { BotaoExcluir } from "@/components/botao-excluir";
 import { classeBotaoSecundario } from "@/components/estilos";
 import { PainelFiliais } from "@/components/painel-filiais";
+import { PainelServicosCliente } from "@/components/painel-servicos-cliente";
 import { Selo } from "@/components/selo";
+import { formatarReais } from "@/lib/dinheiro";
 import { formatarData } from "@/lib/formatacao";
 import { somenteDigitos } from "@/lib/documento";
-import type { ClienteDetalhe } from "@/lib/tipos";
+import { podeAlterarServicos } from "@/lib/permissoes";
+import type { ClienteDetalhe, ClienteServicoDTO, ServicoDTO } from "@/lib/tipos";
 import { acessoDaPagina } from "@/server/auth/pagina";
 import { ErroAplicacao } from "@/server/erros";
 import { obterCliente } from "@/server/services/cliente-service";
+import { listarServicosDoCliente } from "@/server/services/cliente-servico-service";
+import { listarServicos } from "@/server/services/servico-service";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -35,8 +40,14 @@ export default async function PaginaCliente({ params }: { params: Promise<{ id: 
   const { id } = await params;
   const acesso = await acessoDaPagina();
   let cliente: ClienteDetalhe;
+  let vinculos: ClienteServicoDTO[];
+  let catalogo: ServicoDTO[];
   try {
-    cliente = await obterCliente(acesso.empresaId, id);
+    [cliente, vinculos, catalogo] = await Promise.all([
+      obterCliente(acesso.empresaId, id),
+      listarServicosDoCliente(acesso.empresaId, id),
+      listarServicos(acesso.empresaId),
+    ]);
   } catch (erro) {
     if (erro instanceof ErroAplicacao && erro.status === 404) notFound();
     throw erro;
@@ -65,7 +76,7 @@ export default async function PaginaCliente({ params }: { params: Promise<{ id: 
           <BotaoExcluir
             url={`/api/clientes/${cliente.id}`}
             redirecionar="/clientes"
-            mensagem={`Excluir ${cliente.nomeFantasia}? As filiais vinculadas também serão apagadas. Esta ação não pode ser desfeita.`}
+            mensagem={`Excluir ${cliente.nomeFantasia}? As filiais e os serviços vendidos a este cliente também serão apagados. O catálogo de serviços da empresa permanece. Esta ação não pode ser desfeita.`}
           />
         </div>
       </div>
@@ -87,6 +98,7 @@ export default async function PaginaCliente({ params }: { params: Promise<{ id: 
           {cliente.cidade}/{cliente.uf}
         </Item>
         <Item rotulo="Filiais">{cliente.quantidadeFiliais}</Item>
+        <Item rotulo="Mensal ativo">{formatarReais(cliente.valorMensalAtivo)}</Item>
       </dl>
 
       {cliente.observacoes ? (
@@ -99,6 +111,13 @@ export default async function PaginaCliente({ params }: { params: Promise<{ id: 
       <p className="mt-4 text-xs text-muted">
         Cadastrado em {formatarData(cliente.criadoEm)} · Atualizado em {formatarData(cliente.atualizadoEm)}
       </p>
+
+      <PainelServicosCliente
+        clienteId={cliente.id}
+        vinculos={vinculos}
+        catalogo={catalogo}
+        podeEditar={podeAlterarServicos(acesso.papel)}
+      />
 
       <PainelFiliais
         clienteId={cliente.id}

@@ -22,6 +22,19 @@ import {
   obterFilial,
 } from "./filial-service";
 import { obterPainel } from "./painel-service";
+import {
+  atualizarServicoDoCliente,
+  criarServicoDoCliente,
+  excluirServicoDoCliente,
+  listarServicosDoCliente,
+} from "./cliente-servico-service";
+import {
+  atualizarServico,
+  criarServico,
+  excluirServico,
+  listarServicos,
+  obterServico,
+} from "./servico-service";
 import { criarEmpresaDeTeste, usarBancoDeTeste } from "./teste-db";
 import { criarUsuarioDaEmpresa } from "./usuario-service";
 
@@ -122,6 +135,110 @@ describe("isolamento entre empresas", () => {
     expect(gravado.empresaId).toBe(empresaA);
     expect(await listarClientes(empresaA, { q: documento })).toHaveLength(1);
     expect(await listarClientes(empresaB, { q: documento })).toHaveLength(1);
+  });
+
+  it("serviço e valor combinado de uma empresa não aparecem na outra", async () => {
+    const servicoA = await criarServico(acessoDe(empresaA, "DONO"), {
+      nome: "Licença isolada",
+      precoPadrao: "189,90",
+      ativo: true,
+    });
+    const clienteA = await criarCliente(empresaA, cliente(completarCnpj("560000000010")));
+    const vinculoA = await criarServicoDoCliente(acessoDe(empresaA, "FINANCEIRO"), clienteA.id, {
+      servicoId: servicoA.id,
+      valor: "100,00",
+      recorrencia: "MENSAL",
+      inicioEm: "2026-04-01",
+      status: "ATIVO",
+    });
+    const clienteB = await criarCliente(empresaB, cliente(completarCnpj("560000000011"), "Cliente B"));
+    const servicoB = await criarServico(acessoDe(empresaB, "DONO"), {
+      nome: "Licença isolada",
+      precoPadrao: "50,00",
+      ativo: true,
+    });
+
+    expect(await listarServicos(empresaB)).toEqual([
+      expect.objectContaining({ id: servicoB.id, precoPadrao: "50.00" }),
+    ]);
+    expect(await listarServicosDoCliente(empresaB, clienteB.id)).toEqual([]);
+    expect((await obterPainel(empresaB)).receitaMensal).toBe("0.00");
+    expect((await obterPainel(empresaA)).receitaMensal).toBe("100.00");
+
+    await expect(obterServico(empresaB, servicoA.id)).rejects.toMatchObject({ status: 404 });
+    await expect(
+      atualizarServico(acessoDe(empresaB, "DONO"), servicoA.id, {
+        nome: "Nome invadido",
+        precoPadrao: "1,00",
+        ativo: true,
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(excluirServico(acessoDe(empresaB, "DONO"), servicoA.id)).rejects.toMatchObject({
+      status: 404,
+    });
+    await expect(listarServicosDoCliente(empresaB, clienteA.id)).rejects.toMatchObject({ status: 404 });
+    await expect(
+      criarServicoDoCliente(acessoDe(empresaB, "DONO"), clienteA.id, {
+        servicoId: servicoB.id,
+        valor: "1,00",
+        recorrencia: "AVULSO",
+        inicioEm: "2026-04-01",
+        status: "ATIVO",
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(
+      criarServicoDoCliente(acessoDe(empresaB, "DONO"), clienteB.id, {
+        servicoId: servicoA.id,
+        valor: "1,00",
+        recorrencia: "MENSAL",
+        inicioEm: "2026-04-01",
+        status: "ATIVO",
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(
+      atualizarServicoDoCliente(acessoDe(empresaB, "DONO"), vinculoA.id, {
+        servicoId: servicoB.id,
+        valor: "1,00",
+        recorrencia: "MENSAL",
+        inicioEm: "2026-04-01",
+        status: "ATIVO",
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(excluirServicoDoCliente(acessoDe(empresaB, "DONO"), vinculoA.id)).rejects.toMatchObject({
+      status: 404,
+    });
+
+    const intacto = await obterServico(empresaA, servicoA.id);
+    expect(intacto.nome).toBe("Licença isolada");
+    expect(intacto.precoPadrao).toBe("189.90");
+    expect((await listarServicosDoCliente(empresaA, clienteA.id))[0].valor).toBe("100.00");
+
+    await expect(
+      prisma.clienteServico.create({
+        data: {
+          empresaId: empresaB,
+          clienteId: clienteA.id,
+          servicoId: servicoB.id,
+          valor: "1.00",
+          recorrencia: "MENSAL",
+          inicioEm: new Date("2026-04-01T00:00:00.000Z"),
+          status: "ATIVO",
+        },
+      }),
+    ).rejects.toThrow(/cliente_outra_empresa/);
+    await expect(
+      prisma.clienteServico.create({
+        data: {
+          empresaId: empresaA,
+          clienteId: clienteA.id,
+          servicoId: servicoB.id,
+          valor: "1.00",
+          recorrencia: "MENSAL",
+          inicioEm: new Date("2026-04-01T00:00:00.000Z"),
+          status: "ATIVO",
+        },
+      }),
+    ).rejects.toThrow(/servico_outra_empresa/);
   });
 });
 

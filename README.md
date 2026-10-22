@@ -21,6 +21,9 @@ Cada empresa assinante vê só os próprios clientes e filiais. O CPF/CNPJ do cl
 - Filtrar por segmento (restaurante, mercado autônomo, outro) e por status (ativo, inativo, em implantação).
 - Cadastrar, editar e excluir clientes.
 - Na página do cliente, cadastrar, editar e excluir filiais. A exclusão pede confirmação. Excluir o cliente também apaga as filiais dele.
+- Manter um catálogo de serviços da empresa (nome, descrição e preço padrão) em Serviços.
+- Na ficha e na edição do cliente, vincular um ou mais serviços com o valor combinado, se a cobrança é mensal ou avulsa, a data de início e se está ativo. O preço do catálogo não reescreve um valor já combinado.
+- Dono e financeiro alteram serviços e valores. Suporte consulta. Os outros papéis continuam como antes: todo mundo autenticado altera clientes e filiais; só o dono altera usuários e os dados da empresa.
 
 ## Como rodar neste computador
 
@@ -71,10 +74,11 @@ O comando cria o banco `gestaocobranca_test` se ele ainda não existir (usando o
 - a validação de CPF e CNPJ, inclusive o CNPJ alfanumérico;
 - o serviço de clientes (cadastro, busca, filtro, atualização, exclusão em cascata);
 - o serviço de filiais;
-- o isolamento: a empresa A não lê, edita nem apaga cliente ou filial da empresa B, e o mesmo documento pode existir nas duas;
+- o isolamento: a empresa A não lê, edita nem apaga cliente, filial, serviço ou valor combinado da empresa B, e o mesmo documento pode existir nas duas;
+- o catálogo de serviços, o valor combinado, o papel de quem pode alterá-lo e a receita mensal do painel;
 - o autocadastro, o limite de tentativas, a empresa suspensa e o papel de quem cadastra usuário.
 
-Os testes apagam empresas, usuários, clientes, filiais e o limite de cadastro desse banco de teste.
+Os testes apagam empresas, usuários, clientes, filiais, serviços, vínculos e o limite de cadastro desse banco de teste.
 
 ## Variáveis
 
@@ -160,16 +164,15 @@ O script grava o hash da senha do mesmo jeito que o login confere, na empresa Co
 - `src/lib` — CPF/CNPJ, máscaras, rótulos e os esquemas de validação usados tanto na tela quanto no servidor.
 - `src/server/services` — regras de empresa, usuário, cliente, filial e painel. Cliente e filial sempre recebem a empresa da sessão, nunca um id vindo do navegador. O arquivo `src/server/services/index.ts` é o ponto de entrada estável.
 - `src/app/api` — rotas HTTP finas em cima desses serviços. As telas chamam essas rotas para criar, editar e excluir.
-- `prisma/schema.prisma` — `Empresa` 1-N `Usuario` e `Cliente`, e `Cliente` 1-N `Filial`. As migrations em `prisma/migrations` são a fonte da verdade do banco.
+- `prisma/schema.prisma` — `Empresa` 1-N `Usuario`, `Cliente` e `Servico`. `Cliente` 1-N `Filial` e 1-N `ClienteServico`. `ClienteServico` guarda o valor combinado daquele cliente. O campo `Empresa.plano` continua sendo a assinatura da empresa na plataforma, separado desse catálogo. As migrations em `prisma/migrations` são a fonte da verdade do banco.
 - `database/` — os mesmos SQLs, com comentário curto, para quem não usa o Prisma.
 
-Um servidor MCP futuro (`buscar cliente`, `listar filiais`, e as ações de escrita) deve importar os serviços, não o Prisma. Os próximos módulos entram como tabela, serviço e rota próprios, com chave para o cliente e, quando fizer sentido, para a filial:
+Um servidor MCP futuro (`buscar cliente`, `listar filiais`, e as ações de escrita) deve importar os serviços, não o Prisma. Os próximos módulos entram como tabela, serviço e rota próprios, com chave para o cliente e, quando fizer sentido, para o serviço vendido ou para a filial:
 
-- licenças do PDVLegal;
-- certificados digitais A1 e a data de vencimento;
-- boletos e a situação do pagamento na Cora;
+- boletos e a situação do pagamento na Cora, podendo apontar para o serviço vendido;
 - histórico de chamados de suporte;
-- cobrança, que é o módulo central do nome do repositório.
+- cobrança recorrente gerada a partir dos vínculos mensais ativos;
+- planos da plataforma para a empresa assinante, separados do catálogo que ela vende aos clientes dela.
 
 ## CPF e CNPJ
 

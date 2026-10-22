@@ -7,6 +7,7 @@ import { enviarJson } from "@/lib/api-cliente";
 const itensBase = [
   { href: "/", rotulo: "Painel" },
   { href: "/clientes", rotulo: "Clientes" },
+  { href: "/servicos", rotulo: "Serviços" },
 ];
 
 function ativo(pathname: string, href: string) {
@@ -43,7 +44,7 @@ export function BarraLateral({
   }
 
   const navegacao = (
-    <nav className="flex gap-2 md:flex-col">
+    <nav className="flex flex-wrap gap-2 md:flex-col">
       {itens.map((item) => {
         const ligado = ativo(pathname, item.href);
         return (

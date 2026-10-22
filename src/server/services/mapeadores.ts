@@ -1,8 +1,15 @@
-import type { Cliente, Filial } from "@/generated/prisma/client";
+import type { Cliente, ClienteServico, Filial, Servico } from "@/generated/prisma/client";
+import { isoDeData } from "@/lib/data";
+import { somarDinheiro } from "@/lib/dinheiro";
 import { formatarDocumento, formatarWhatsapp } from "@/lib/documento";
-import type { ClienteDetalhe, ClienteResumo, FilialDTO } from "@/lib/tipos";
+import type { ClienteDetalhe, ClienteResumo, ClienteServicoDTO, FilialDTO, ServicoDTO } from "@/lib/tipos";
 
-type ClienteComContagem = Cliente & { _count?: { filiais: number } };
+type ValorDecimal = { toFixed(casas: number): string };
+
+type ClienteComContagem = Omit<Cliente, "servicos"> & {
+  _count?: { filiais: number };
+  servicos?: { valor: ValorDecimal }[];
+};
 
 export function paraFilial(filial: Filial): FilialDTO {
   return {
@@ -36,6 +43,7 @@ export function paraCliente(cliente: ClienteComContagem): ClienteResumo {
     status: cliente.status,
     observacoes: cliente.observacoes,
     quantidadeFiliais: cliente._count?.filiais ?? 0,
+    valorMensalAtivo: somarDinheiro((cliente.servicos ?? []).map((item) => item.valor.toFixed(2))),
     criadoEm: cliente.criadoEm.toISOString(),
     atualizadoEm: cliente.atualizadoEm.toISOString(),
   };
@@ -47,5 +55,36 @@ export function paraClienteDetalhe(
   return {
     ...paraCliente({ ...cliente, _count: { filiais: cliente.filiais.length } }),
     filiais: cliente.filiais.map(paraFilial),
+  };
+}
+
+export function paraServico(servico: Servico & { _count?: { vinculos: number } }): ServicoDTO {
+  return {
+    id: servico.id,
+    nome: servico.nome,
+    descricao: servico.descricao,
+    precoPadrao: servico.precoPadrao.toFixed(2),
+    ativo: servico.ativo,
+    quantidadeVinculos: servico._count?.vinculos ?? 0,
+    criadoEm: servico.criadoEm.toISOString(),
+    atualizadoEm: servico.atualizadoEm.toISOString(),
+  };
+}
+
+export function paraClienteServico(
+  vinculo: ClienteServico & { servico: { nome: string } },
+): ClienteServicoDTO {
+  return {
+    id: vinculo.id,
+    clienteId: vinculo.clienteId,
+    servicoId: vinculo.servicoId,
+    nomeServico: vinculo.servico.nome,
+    valor: vinculo.valor.toFixed(2),
+    recorrencia: vinculo.recorrencia,
+    inicioEm: isoDeData(vinculo.inicioEm),
+    status: vinculo.status,
+    observacoes: vinculo.observacoes,
+    criadoEm: vinculo.criadoEm.toISOString(),
+    atualizadoEm: vinculo.atualizadoEm.toISOString(),
   };
 }

@@ -3,6 +3,7 @@ import { CabecalhoPagina } from "@/components/cabecalho";
 import { classeBotaoPrimario, classeBotaoSecundario } from "@/components/estilos";
 import { classeCampo } from "@/components/campo";
 import { Selo } from "@/components/selo";
+import { formatarReais } from "@/lib/dinheiro";
 import { SEGMENTOS, STATUS_CLIENTE } from "@/lib/rotulos";
 import { acessoDaPagina } from "@/server/auth/pagina";
 import { listarClientes } from "@/server/services/cliente-service";
@@ -94,7 +95,7 @@ export default async function PaginaClientes({
         </div>
       ) : (
         <div className="overflow-x-auto rounded-3xl border border-line bg-card">
-          <table className="w-full min-w-[760px] text-left text-sm">
+          <table className="w-full min-w-[860px] text-left text-sm">
             <thead className="border-b border-line text-xs uppercase tracking-wide text-muted">
               <tr>
                 <th className="px-5 py-3 font-medium">Cliente</th>
@@ -103,6 +104,7 @@ export default async function PaginaClientes({
                 <th className="px-5 py-3 font-medium">Segmento</th>
                 <th className="px-5 py-3 font-medium">Status</th>
                 <th className="px-5 py-3 font-medium">Filiais</th>
+                <th className="px-5 py-3 font-medium">Mensal</th>
               </tr>
             </thead>
             <tbody>
@@ -125,6 +127,7 @@ export default async function PaginaClientes({
                     <Selo valor={cliente.status} tipo="cliente" />
                   </td>
                   <td className="px-5 py-4 tabular-nums">{cliente.quantidadeFiliais}</td>
+                  <td className="px-5 py-4 tabular-nums">{formatarReais(cliente.valorMensalAtivo)}</td>
                 </tr>
               ))}
             </tbody>

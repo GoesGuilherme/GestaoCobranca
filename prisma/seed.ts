@@ -4,7 +4,9 @@ import { completarCnpj, completarCpf, identificarDocumento } from "../src/lib/do
 import { prisma } from "../src/server/db";
 import { gerarHashSenha } from "../src/server/auth/senha";
 import { criarCliente } from "../src/server/services/cliente-service";
+import { criarServicoDoCliente } from "../src/server/services/cliente-servico-service";
 import { criarFilial } from "../src/server/services/filial-service";
+import { criarServico } from "../src/server/services/servico-service";
 
 type FilialExemplo = {
   nome: string;
@@ -366,6 +368,86 @@ async function semearExemplos(empresaId: string) {
     }
     const quantidade = filiais.length === 1 ? "1 filial" : `${filiais.length} filiais`;
     console.log(`Cliente de exemplo criado: ${exemplo.nomeFantasia} (${quantidade})`);
+  }
+
+  await semearServicos(empresaId);
+}
+
+async function semearServicos(empresaId: string) {
+  const autor = { empresaId, papel: "DONO" as const };
+  const catalogo = [
+    {
+      nome: "Licença PDVLegal",
+      descricao: "Mensalidade da licença do sistema. Dado fictício de exemplo.",
+      precoPadrao: "189,90",
+      ativo: true,
+    },
+    {
+      nome: "Suporte mensal",
+      descricao: "Atendimento no mês. Dado fictício de exemplo.",
+      precoPadrao: "99,00",
+      ativo: true,
+    },
+    {
+      nome: "Certificado digital A1",
+      descricao: "Emissão avulsa. Dado fictício de exemplo.",
+      precoPadrao: "250,00",
+      ativo: true,
+    },
+  ];
+
+  for (const item of catalogo) {
+    const existe = await prisma.servico.findFirst({
+      where: { empresaId, nome: { equals: item.nome, mode: "insensitive" } },
+    });
+    if (existe) continue;
+    await criarServico(autor, item);
+    console.log(`Serviço de exemplo criado: ${item.nome}`);
+  }
+
+  const licenca = await prisma.servico.findFirst({
+    where: { empresaId, nome: "Licença PDVLegal" },
+  });
+  const certificado = await prisma.servico.findFirst({
+    where: { empresaId, nome: "Certificado digital A1" },
+  });
+  const cliente = await prisma.cliente.findFirst({
+    where: { empresaId, nomeFantasia: "Grupo Costa Verde Exemplo" },
+  });
+  if (!cliente) return;
+
+  if (licenca) {
+    const jaExiste = await prisma.clienteServico.findFirst({
+      where: { empresaId, clienteId: cliente.id, servicoId: licenca.id },
+    });
+    if (!jaExiste) {
+      await criarServicoDoCliente(autor, cliente.id, {
+        servicoId: licenca.id,
+        valor: "189,90",
+        recorrencia: "MENSAL",
+        inicioEm: "2026-01-01",
+        status: "ATIVO",
+        observacoes: "Valor de tabela. Dado fictício de exemplo.",
+      });
+      console.log("Serviço de exemplo vinculado: Licença PDVLegal");
+    }
+  }
+
+  if (certificado) {
+    const jaExiste = await prisma.clienteServico.findFirst({
+      where: { empresaId, clienteId: cliente.id, servicoId: certificado.id },
+    });
+    if (!jaExiste) {
+      await criarServicoDoCliente(autor, cliente.id, {
+        servicoId: certificado.id,
+        valor: "220,00",
+        recorrencia: "AVULSO",
+        inicioEm: "2026-03-15",
+        status: "ATIVO",
+        observacoes: "Valor combinado, diferente do preço padrão. Dado fictício de exemplo.",
+      });
+      console.log("Serviço de exemplo vinculado: Certificado digital A1");
+    }
   }
 }
 

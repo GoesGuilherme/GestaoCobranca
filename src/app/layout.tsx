@@ -17,7 +17,7 @@ export const metadata: Metadata = {
     default: "Gestão Cobrança",
     template: "%s · Gestão Cobrança",
   },
-  description: "Cadastro de clientes e filiais do PDVLegal.",
+  description: "Cadastro de clientes, filiais e serviços vendidos.",
   robots: { index: false, follow: false },
 };
 
