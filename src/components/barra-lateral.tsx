@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { enviarJson } from "@/lib/api-cliente";
 
-const itens = [
+const itensBase = [
   { href: "/", rotulo: "Painel" },
   { href: "/clientes", rotulo: "Clientes" },
 ];
@@ -14,9 +14,27 @@ function ativo(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function BarraLateral({ nome, email }: { nome: string; email: string }) {
+export function BarraLateral({
+  nome,
+  email,
+  nomeEmpresa,
+  mostrarUsuarios,
+  mostrarAdmin,
+}: {
+  nome: string;
+  email: string;
+  nomeEmpresa: string;
+  mostrarUsuarios: boolean;
+  mostrarAdmin: boolean;
+}) {
   const pathname = usePathname();
   const router = useRouter();
+  const itens = [
+    ...itensBase,
+    ...(mostrarUsuarios ? [{ href: "/usuarios", rotulo: "Usuários" }] : []),
+    ...(mostrarUsuarios ? [{ href: "/empresa", rotulo: "Empresa" }] : []),
+    ...(mostrarAdmin ? [{ href: "/admin", rotulo: "Plataforma" }] : []),
+  ];
 
   async function sair() {
     await enviarJson("/api/auth/sair", "POST");
@@ -52,7 +70,7 @@ export function BarraLateral({ nome, email }: { nome: string; email: string }) {
               GC
             </span>
             <span className="mt-4 block font-display text-2xl leading-none">Gestão Cobrança</span>
-            <span className="mt-2 block text-sm text-white/65">Clientes do PDVLegal</span>
+            <span className="mt-2 block text-sm text-white/65">{nomeEmpresa}</span>
           </Link>
         </div>
         <div className="overflow-y-auto px-4 py-6">{navegacao}</div>

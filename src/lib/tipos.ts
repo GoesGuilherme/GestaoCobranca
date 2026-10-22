@@ -2,6 +2,8 @@ export type Segmento = "RESTAURANTE" | "MERCADO_AUTONOMO" | "OUTRO";
 export type StatusCliente = "ATIVO" | "INATIVO" | "EM_IMPLANTACAO";
 export type StatusFilial = "ATIVA" | "INATIVA" | "EM_IMPLANTACAO";
 export type TipoDocumento = "CPF" | "CNPJ";
+export type StatusEmpresa = "ATIVA" | "SUSPENSA";
+export type PapelUsuario = "DONO" | "FINANCEIRO" | "SUPORTE";
 
 export type FilialDTO = {
   id: string;
@@ -38,6 +40,29 @@ export type ClienteResumo = {
 
 export type ClienteDetalhe = ClienteResumo & {
   filiais: FilialDTO[];
+};
+
+export type EmpresaResumo = {
+  id: string;
+  razaoSocial: string;
+  nomeFantasia: string;
+  cnpj: string;
+  emailContato: string;
+  telefone: string;
+  status: StatusEmpresa;
+  plano: string;
+  quantidadeUsuarios: number;
+  quantidadeClientes: number;
+  criadoEm: string;
+};
+
+export type UsuarioResumo = {
+  id: string;
+  nome: string;
+  email: string;
+  papel: PapelUsuario;
+  superadministrador: boolean;
+  criadoEm: string;
 };
 
 export type Painel = {

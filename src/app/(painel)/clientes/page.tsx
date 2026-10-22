@@ -4,6 +4,7 @@ import { classeBotaoPrimario, classeBotaoSecundario } from "@/components/estilos
 import { classeCampo } from "@/components/campo";
 import { Selo } from "@/components/selo";
 import { SEGMENTOS, STATUS_CLIENTE } from "@/lib/rotulos";
+import { acessoDaPagina } from "@/server/auth/pagina";
 import { listarClientes } from "@/server/services/cliente-service";
 
 export const metadata = { title: "Clientes" };
@@ -20,10 +21,11 @@ export default async function PaginaClientes({
   searchParams: Promise<Busca>;
 }) {
   const params = await searchParams;
+  const acesso = await acessoDaPagina();
   const q = params.q?.trim() ?? "";
   const segmento = params.segmento ?? "";
   const status = params.status ?? "";
-  const clientes = await listarClientes({ q, segmento, status });
+  const clientes = await listarClientes(acesso.empresaId, { q, segmento, status });
   const filtrando = Boolean(q || segmento || status);
 
   return (

@@ -1,10 +1,12 @@
-import { criarCliente, listarClientes } from "@/server/services/cliente-service";
+import { exigirAcesso } from "@/server/auth/acesso";
 import { jsonErro, jsonOk, lerJson } from "@/server/http";
+import { criarCliente, listarClientes } from "@/server/services/cliente-service";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
   try {
-    const clientes = await listarClientes({
+    const acesso = await exigirAcesso();
+    const clientes = await listarClientes(acesso.empresaId, {
       q: url.searchParams.get("q") ?? undefined,
       segmento: url.searchParams.get("segmento") ?? undefined,
       status: url.searchParams.get("status") ?? undefined,
@@ -17,7 +19,8 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const cliente = await criarCliente(await lerJson(request));
+    const acesso = await exigirAcesso();
+    const cliente = await criarCliente(acesso.empresaId, await lerJson(request));
     return jsonOk({ cliente }, 201);
   } catch (erro) {
     return jsonErro(erro);

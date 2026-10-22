@@ -17,3 +17,12 @@ export {
   obterFilial,
 } from "./filial-service";
 export { obterPainel } from "./painel-service";
+export {
+  alterarStatusEmpresa,
+  atualizarEmpresa,
+  cadastrarEmpresaPeloAdmin,
+  cadastrarEmpresaPublica,
+  listarEmpresas,
+  obterEmpresa,
+} from "./empresa-service";
+export { criarUsuarioDaEmpresa, listarUsuarios } from "./usuario-service";

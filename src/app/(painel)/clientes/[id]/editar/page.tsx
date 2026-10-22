@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { CabecalhoPagina } from "@/components/cabecalho";
 import { FormularioCliente } from "@/components/formulario-cliente";
 import type { ClienteDetalhe } from "@/lib/tipos";
+import { acessoDaPagina } from "@/server/auth/pagina";
 import { ErroAplicacao } from "@/server/erros";
 import { obterCliente } from "@/server/services/cliente-service";
 
@@ -13,9 +14,10 @@ export default async function PaginaEditarCliente({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const acesso = await acessoDaPagina();
   let cliente: ClienteDetalhe;
   try {
-    cliente = await obterCliente(id);
+    cliente = await obterCliente(acesso.empresaId, id);
   } catch (erro) {
     if (erro instanceof ErroAplicacao && erro.status === 404) notFound();
     throw erro;

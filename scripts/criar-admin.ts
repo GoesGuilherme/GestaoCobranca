@@ -27,10 +27,17 @@ async function main() {
     process.exit(1);
   }
 
+  const { ID_EMPRESA_COLLAB } = await import("../src/lib/collab");
   const { prisma } = await import("../src/server/db");
   const { gerarHashSenha } = await import("../src/server/auth/senha");
 
   try {
+    const empresa = await prisma.empresa.findUnique({ where: { id: ID_EMPRESA_COLLAB } });
+    if (!empresa) {
+      console.error("A empresa Collab Software ainda não existe. Rode as migrations antes.");
+      return 1;
+    }
+
     const existente = await prisma.usuario.findUnique({ where: { email } });
     if (existente) {
       console.error(`Já existe um acesso com o e-mail ${email}. A senha não foi alterada.`);
@@ -42,9 +49,12 @@ async function main() {
         nome,
         email,
         senhaHash: await gerarHashSenha(senha),
+        empresaId: empresa.id,
+        papel: "DONO",
+        superadministrador: true,
       },
     });
-    console.log(`Acesso criado: ${email}`);
+    console.log(`Acesso de superadministrador criado na Collab Software: ${email}`);
     return 0;
   } finally {
     await prisma.$disconnect();

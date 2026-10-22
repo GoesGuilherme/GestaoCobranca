@@ -1,9 +1,15 @@
 import { SignJWT, jwtVerify } from "jose";
+import type { PapelUsuario } from "@/lib/tipos";
+
+const PAPEIS = new Set<PapelUsuario>(["DONO", "FINANCEIRO", "SUPORTE"]);
 
 export type Sessao = {
   sub: string;
   email: string;
   nome: string;
+  empresaId: string;
+  papel: PapelUsuario;
+  superadministrador: boolean;
 };
 
 function segredo() {
@@ -15,7 +21,13 @@ function segredo() {
 }
 
 export async function emitirToken(sessao: Sessao): Promise<string> {
-  return new SignJWT({ email: sessao.email, nome: sessao.nome })
+  return new SignJWT({
+    email: sessao.email,
+    nome: sessao.nome,
+    empresaId: sessao.empresaId,
+    papel: sessao.papel,
+    superadministrador: sessao.superadministrador,
+  })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(sessao.sub)
     .setIssuedAt()
@@ -26,10 +38,25 @@ export async function emitirToken(sessao: Sessao): Promise<string> {
 export async function verificarToken(token: string): Promise<Sessao | null> {
   try {
     const { payload } = await jwtVerify(token, segredo());
-    if (!payload.sub || typeof payload.email !== "string" || typeof payload.nome !== "string") {
+    const papel = payload.papel;
+    if (
+      !payload.sub ||
+      typeof payload.email !== "string" ||
+      typeof payload.nome !== "string" ||
+      typeof payload.empresaId !== "string" ||
+      typeof papel !== "string" ||
+      !PAPEIS.has(papel as PapelUsuario)
+    ) {
       return null;
     }
-    return { sub: payload.sub, email: payload.email, nome: payload.nome };
+    return {
+      sub: payload.sub,
+      email: payload.email,
+      nome: payload.nome,
+      empresaId: payload.empresaId,
+      papel: papel as PapelUsuario,
+      superadministrador: payload.superadministrador === true,
+    };
   } catch {
     return null;
   }

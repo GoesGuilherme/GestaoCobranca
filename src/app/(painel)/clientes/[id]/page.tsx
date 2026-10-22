@@ -7,13 +7,15 @@ import { Selo } from "@/components/selo";
 import { formatarData } from "@/lib/formatacao";
 import { somenteDigitos } from "@/lib/documento";
 import type { ClienteDetalhe } from "@/lib/tipos";
+import { acessoDaPagina } from "@/server/auth/pagina";
 import { ErroAplicacao } from "@/server/erros";
 import { obterCliente } from "@/server/services/cliente-service";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const acesso = await acessoDaPagina();
   try {
-    const cliente = await obterCliente(id);
+    const cliente = await obterCliente(acesso.empresaId, id);
     return { title: cliente.nomeFantasia };
   } catch {
     return { title: "Cliente" };
@@ -31,9 +33,10 @@ function Item({ rotulo, children }: { rotulo: string; children: React.ReactNode 
 
 export default async function PaginaCliente({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const acesso = await acessoDaPagina();
   let cliente: ClienteDetalhe;
   try {
-    cliente = await obterCliente(id);
+    cliente = await obterCliente(acesso.empresaId, id);
   } catch (erro) {
     if (erro instanceof ErroAplicacao && erro.status === 404) notFound();
     throw erro;

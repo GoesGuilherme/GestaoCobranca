@@ -7,7 +7,7 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node scripts/preparar-teste.mjs && vitest run",
+    "test": "node scripts/preparar-teste.mjs && vitest run --no-file-parallelism",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed",

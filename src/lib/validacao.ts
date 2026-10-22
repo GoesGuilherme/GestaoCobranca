@@ -101,5 +101,78 @@ export const esquemaFilial = z.object({
     .optional(),
 });
 
+const email = z
+  .string()
+  .trim()
+  .min(1, "Informe o e-mail.")
+  .refine((valor) => z.email().safeParse(valor).success, "Informe um e-mail válido.")
+  .max(160, "O e-mail pode ter no máximo 160 caracteres.");
+
+const senhaNova = z
+  .string()
+  .min(8, "A senha precisa ter pelo menos 8 caracteres.")
+  .max(72, "A senha pode ter no máximo 72 caracteres.");
+
+export const esquemaDadosEmpresa = z.object({
+  razaoSocial: z
+    .string()
+    .trim()
+    .min(2, "Informe a razão social.")
+    .max(160, "A razão social pode ter no máximo 160 caracteres."),
+  nomeFantasia: z
+    .string()
+    .trim()
+    .min(2, "Informe o nome fantasia.")
+    .max(120, "O nome fantasia pode ter no máximo 120 caracteres."),
+  cnpj: z
+    .string()
+    .trim()
+    .min(1, "Informe o CNPJ.")
+    .refine((valor) => cnpjValido(valor), "Informe um CNPJ válido."),
+  emailContato: email,
+  telefone: z
+    .string()
+    .trim()
+    .min(1, "Informe o telefone.")
+    .refine((valor) => whatsappValido(valor), "Informe um telefone válido com DDD."),
+});
+
+export const esquemaCadastroEmpresa = esquemaDadosEmpresa.extend({
+  nome: z
+    .string()
+    .trim()
+    .min(2, "Informe o nome de quem vai administrar.")
+    .max(120, "O nome pode ter no máximo 120 caracteres."),
+  email,
+  senha: senhaNova,
+});
+
+export const esquemaCadastroAdmin = esquemaCadastroEmpresa.extend({
+  plano: z
+    .string()
+    .trim()
+    .min(2, "Informe o plano.")
+    .max(40, "O plano pode ter no máximo 40 caracteres.")
+    .optional(),
+});
+
+export const esquemaNovoUsuario = z.object({
+  nome: z
+    .string()
+    .trim()
+    .min(2, "Informe o nome.")
+    .max(120, "O nome pode ter no máximo 120 caracteres."),
+  email,
+  senha: senhaNova,
+  papel: z.enum(["DONO", "FINANCEIRO", "SUPORTE"], "Escolha o papel."),
+});
+
+export const esquemaStatusEmpresa = z.object({
+  status: z.enum(["ATIVA", "SUSPENSA"], "Escolha o status."),
+});
+
 export type EntradaCliente = z.infer<typeof esquemaCliente>;
 export type EntradaFilial = z.infer<typeof esquemaFilial>;
+export type EntradaDadosEmpresa = z.infer<typeof esquemaDadosEmpresa>;
+export type EntradaCadastroEmpresa = z.infer<typeof esquemaCadastroEmpresa>;
+export type EntradaNovoUsuario = z.infer<typeof esquemaNovoUsuario>;
