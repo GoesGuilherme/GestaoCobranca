@@ -10,6 +10,6 @@ Estes arquivos existem para quem quiser ler o banco sem abrir o Prisma. Eles esp
 
 A fonte da verdade é a pasta `prisma/migrations`. Se uma migration nova entrar, estes scripts precisam ser atualizados para continuar iguais a ela. Não rode os dois jeitos no mesmo banco: ou o Prisma Migrate, ou estes arquivos, nunca os dois em sequência no mesmo esquema vazio.
 
-No projeto de produção do Supabase (região sa-east-1, ref `ziqjcworupopkcnfddjr`) os scripts 001 a 004 já foram aplicados. O `005_custo_imposto_servico.sql` ainda não: ele entra com `npx prisma migrate deploy` depois do merge, como está na seção "Publicar no Supabase e na Vercel" do README da raiz. Este repositório não aplica migration no banco de produção.
+No projeto de produção do Supabase (região sa-east-1, ref `ziqjcworupopkcnfddjr`) as migrations até `20261023143138_custo_imposto_servico` já foram aplicadas com o Prisma Migrate. Estes arquivos só espelham esse SQL para leitura. Este repositório não aplica migration no banco de produção.
 
 Esse terceiro script cria a empresa Collab Software com o CNPJ placeholder `00000000000000`. Esse número não é um CNPJ válido e precisa ser trocado na tela Empresa. O usuário `guilherme.goes@collabsoftware.com.br` fica dono dessa empresa e superadministrador da plataforma. Clientes que já existirem passam a pertencer a ela.
