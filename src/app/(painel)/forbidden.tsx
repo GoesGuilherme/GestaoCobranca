@@ -1,0 +1,19 @@
+import Link from "next/link";
+
+export default function AcessoNegado() {
+  return (
+    <div className="rounded-3xl border border-line bg-card px-6 py-12">
+      <p className="text-sm font-medium text-gold">Acesso negado</p>
+      <h1 className="mt-2 font-display text-4xl">Só o dono vê esta página</h1>
+      <p className="mt-3 max-w-lg text-muted">
+        O resultado de custo e faturamento fica com o dono da empresa. Financeiro e suporte não entram aqui.
+      </p>
+      <Link
+        href="/"
+        className="mt-6 inline-flex rounded-full bg-forest px-4 py-2 text-sm font-medium text-paper"
+      >
+        Voltar ao painel
+      </Link>
+    </div>
+  );
+}

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { podeVerResultado } from "@/lib/permissoes";
 import { COOKIE_SESSAO } from "@/server/auth/constantes";
 import { verificarToken } from "@/server/auth/token";
 
@@ -8,10 +9,25 @@ function destinoSeguro(valor: string | null): string {
   return valor;
 }
 
+function resultadoProibido(pathname: string) {
+  if (pathname.startsWith("/api/")) {
+    return NextResponse.json(
+      { erro: "Só o dono da empresa pode ver o resultado.", codigo: "sem_permissao" },
+      { status: 403 },
+    );
+  }
+  const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Acesso negado · Gestão Cobrança</title></head><body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#f3eee4;color:#1c1915;font-family:Georgia,serif"><main style="max-width:36rem;padding:2rem"><p style="letter-spacing:.14em;text-transform:uppercase;font-size:.75rem;color:#a97816">Acesso negado</p><h1 style="font-size:2.5rem;font-weight:500">Só o dono vê esta página</h1><p style="color:#6d655c">O resultado de custo e faturamento fica com o dono da empresa. Financeiro e suporte não entram aqui.</p><p><a href="/" style="color:#2f6a52">Voltar ao painel</a></p></main></body></html>`;
+  return new NextResponse(html, {
+    status: 403,
+    headers: { "content-type": "text/html; charset=utf-8" },
+  });
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get(COOKIE_SESSAO)?.value;
-  const autenticado = token ? Boolean(await verificarToken(token)) : false;
+  const sessao = token ? await verificarToken(token) : null;
+  const autenticado = Boolean(sessao);
   const rotaPublica =
     pathname === "/login" ||
     pathname === "/cadastro" ||
@@ -28,13 +44,18 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (!autenticado) {
+  if (!autenticado || !sessao) {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ erro: "Não autenticado." }, { status: 401 });
     }
     const login = new URL("/login", request.url);
     login.searchParams.set("next", pathname);
     return NextResponse.redirect(login);
+  }
+
+  const rotaResultado = pathname === "/resultado" || pathname.startsWith("/resultado/") || pathname === "/api/resultado";
+  if (rotaResultado && !podeVerResultado(sessao.papel)) {
+    return resultadoProibido(pathname);
   }
 
   return NextResponse.next();

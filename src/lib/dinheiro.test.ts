@@ -1,16 +1,22 @@
 import { describe, expect, it } from "vitest";
 import { dataHojeIso, dataIsoValida } from "./data";
 import {
+  calcularImposto,
   calcularMargem,
+  compararDinheiro,
   formatarAliquota,
+  formatarPercentual,
   formatarReais,
   formatarReaisAssinado,
   formatarValorCampo,
+  margemFinanceira,
   normalizarAliquota,
   normalizarDinheiro,
+  percentualSobre,
   somarDinheiro,
+  somarDinheiroAssinado,
 } from "./dinheiro";
-import { podeAlterarServicos, podeVerCustoServico } from "./permissoes";
+import { podeAlterarServicos, podeVerCustoServico, podeVerResultado } from "./permissoes";
 
 describe("dinheiro em reais", () => {
   it("aceita os formatos usados no Brasil e devolve duas casas", () => {
@@ -49,6 +55,17 @@ describe("dinheiro em reais", () => {
     expect(calcularMargem("10.00", "30.00", null)).toBe("-20.00");
     expect(formatarReaisAssinado("-20.00")).toBe("-R$ 20,00");
     expect(formatarReaisAssinado("140.00")).toBe("R$ 140,00");
+    expect(calcularImposto("189.90", "5.00")).toBe("9.50");
+    expect(calcularImposto("100.00", null)).toBe("0.00");
+    expect(margemFinanceira("100.00", null, null)).toBe("100.00");
+    expect(percentualSobre("320.40", "389.90")).toBe("82.17");
+    expect(percentualSobre("-20.00", "10.00")).toBe("-200.00");
+    expect(percentualSobre("10.00", "0.00")).toBeNull();
+    expect(formatarPercentual("70.00")).toBe("70%");
+    expect(formatarPercentual("-200.00")).toBe("-200%");
+    expect(formatarPercentual("82.17")).toBe("82,17%");
+    expect(somarDinheiroAssinado(["140.00", "-20.00"])).toBe("120.00");
+    expect(compararDinheiro("10.00", "2.00")).toBe(1);
   });
 
   it("soma sem usar número de ponto flutuante e formata em reais", () => {
@@ -76,5 +93,8 @@ describe("datas e permissão de serviços", () => {
     expect(podeVerCustoServico("DONO")).toBe(true);
     expect(podeVerCustoServico("FINANCEIRO")).toBe(true);
     expect(podeVerCustoServico("SUPORTE")).toBe(false);
+    expect(podeVerResultado("DONO")).toBe(true);
+    expect(podeVerResultado("FINANCEIRO")).toBe(false);
+    expect(podeVerResultado("SUPORTE")).toBe(false);
   });
 });
