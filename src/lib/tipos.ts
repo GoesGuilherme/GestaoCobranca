@@ -128,6 +128,38 @@ export type Resultado = {
   avulso: BlocoResultado;
 };
 
+export type AmbienteAsaas = "SANDBOX" | "PRODUCAO";
+export type FormaCobranca = "BOLETO" | "PIX" | "UNDEFINED";
+export type SituacaoFatura = "em_aberto" | "vencidas" | "pagas" | "canceladas" | "todas";
+
+export type FaturaDTO = {
+  id: string;
+  clienteId: string;
+  nomeCliente: string;
+  clienteServicoId: string | null;
+  nomeServico: string | null;
+  asaasPaymentId: string;
+  valor: string;
+  vencimento: string;
+  status: string;
+  formaCobranca: string;
+  boletoUrl: string | null;
+  linhaDigitavel: string | null;
+  pixCopiaCola: string | null;
+  faturaUrl: string | null;
+  descricao: string | null;
+  excluida: boolean;
+};
+
+export type ConfiguracaoAsaasDTO = {
+  configurado: boolean;
+  ambiente: AmbienteAsaas | null;
+  chaveMascarada: string | null;
+  tokenWebhook: string | null;
+  simulado: boolean;
+  aviso: string | null;
+};
+
 export type Painel = {
   totalClientes: number;
   totalFiliais: number;

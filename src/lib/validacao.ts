@@ -280,6 +280,46 @@ export const esquemaClienteServico = z.object({
     .optional(),
 });
 
+export const esquemaValorPositivo = esquemaValor.refine(
+  (valor) => valor !== "0.00",
+  "Informe um valor maior que zero.",
+);
+
+export const esquemaConfiguracaoAsaas = z.object({
+  ambiente: z.enum(["SANDBOX", "PRODUCAO"], "Escolha sandbox ou produção."),
+  chaveApi: z.preprocess(
+    (valor) => (typeof valor === "string" && valor.trim() === "" ? undefined : valor),
+    z
+      .string()
+      .trim()
+      .min(20, "A chave da API parece incompleta.")
+      .max(400, "A chave da API passa do tamanho esperado.")
+      .refine((valor) => !/\s/.test(valor), "A chave da API não pode ter espaço.")
+      .optional(),
+  ),
+});
+
+export const esquemaFatura = z.object({
+  valor: esquemaValorPositivo,
+  vencimento: z
+    .string()
+    .trim()
+    .refine((valor) => dataIsoValida(valor), "Informe o vencimento."),
+  formaCobranca: z
+    .enum(["BOLETO", "PIX", "UNDEFINED"], "Escolha boleto, Pix ou deixar o cliente escolher.")
+    .optional(),
+  descricao: z
+    .string()
+    .trim()
+    .max(500, "A descrição pode ter no máximo 500 caracteres.")
+    .optional(),
+  clienteServicoId: z
+    .string()
+    .trim()
+    .max(64, "Escolha um serviço deste cliente.")
+    .optional(),
+});
+
 export type EntradaCliente = z.infer<typeof esquemaCliente>;
 export type EntradaFilial = z.infer<typeof esquemaFilial>;
 export type EntradaDadosEmpresa = z.infer<typeof esquemaDadosEmpresa>;
@@ -287,3 +327,5 @@ export type EntradaCadastroEmpresa = z.infer<typeof esquemaCadastroEmpresa>;
 export type EntradaNovoUsuario = z.infer<typeof esquemaNovoUsuario>;
 export type EntradaServico = z.infer<typeof esquemaServico>;
 export type EntradaClienteServico = z.infer<typeof esquemaClienteServico>;
+export type EntradaConfiguracaoAsaas = z.infer<typeof esquemaConfiguracaoAsaas>;
+export type EntradaFatura = z.infer<typeof esquemaFatura>;

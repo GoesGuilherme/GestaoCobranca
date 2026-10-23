@@ -2,8 +2,9 @@
 // Servico é o catálogo da empresa assinante (o que ela vende aos clientes dela).
 // ClienteServico guarda o valor combinado daquele cliente. O plano da Empresa
 // (string `plano`) é a assinatura dela na plataforma e não se mistura com este catálogo.
-// Módulos seguintes — boletos da Cora, chamados e a cobrança recorrente —
-// entram como tabelas novas com chave para Cliente e, quando couber, ClienteServico.
+// A cobrança nova é do Asaas: configuração por empresa, cliente e fatura avulsa.
+// Assinatura recorrente e importação de cobranças antigas ficam para a etapa seguinte.
+// A Cora não entra neste modelo.
 
 generator client {
   provider = "prisma-client"
@@ -78,6 +79,13 @@ enum StatusServicoCliente {
   @@map("status_servico_cliente")
 }
 
+enum AmbienteAsaas {
+  SANDBOX
+  PRODUCAO
+
+  @@map("ambiente_asaas")
+}
+
 // A empresa é a assinante do SaaS. Clientes e usuários ficam dentro dela.
 model Empresa {
   id               String           @id @default(cuid())
@@ -94,6 +102,9 @@ model Empresa {
   clientes         Cliente[]
   servicos         Servico[]
   servicosVendidos ClienteServico[]
+  asaas            ConfiguracaoAsaas?
+  faturas          Fatura[]
+  eventosAsaas     EventoAsaas[]
 
   @@map("empresas")
 }
@@ -137,13 +148,17 @@ model Cliente {
   email         String
   cidade        String
   uf            String
-  status        StatusCliente
-  observacoes   String?          @db.Text
-  criadoEm      DateTime         @default(now()) @map("criado_em") @db.Timestamptz(3)
-  atualizadoEm  DateTime         @updatedAt @map("atualizado_em") @db.Timestamptz(3)
-  empresa       Empresa          @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  filiais       Filial[]
-  servicos      ClienteServico[]
+  status          StatusCliente
+  observacoes     String?          @db.Text
+  asaasCustomerId String?          @map("asaas_customer_id")
+  criadoEm        DateTime         @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm    DateTime         @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  empresa         Empresa          @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  filiais         Filial[]
+  servicos        ClienteServico[]
+  faturas         Fatura[]
+
+  @@index([asaasCustomerId])
 
   @@unique([empresaId, documento])
   @@index([empresaId])
@@ -217,10 +232,74 @@ model ClienteServico {
   empresa      Empresa              @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   cliente      Cliente              @relation(fields: [clienteId], references: [id], onDelete: Cascade)
   servico      Servico              @relation(fields: [servicoId], references: [id], onDelete: Restrict)
+  faturas      Fatura[]
 
   @@index([empresaId])
   @@index([clienteId])
   @@index([servicoId])
   @@index([empresaId, status, recorrencia])
   @@map("clientes_servicos")
+}
+
+// Uma configuração por empresa. A chave da API e o token do webhook ficam
+// cifrados com ASAAS_ENCRYPTION_KEY. O hash do token serve para achar a
+// empresa no webhook sem decifrar todas as chaves.
+model ConfiguracaoAsaas {
+  id                  String        @id @default(cuid())
+  empresaId           String        @unique @map("empresa_id")
+  ambiente            AmbienteAsaas
+  chaveApiCifrada     String        @map("chave_api_cifrada") @db.Text
+  chaveApiUltimos4    String        @map("chave_api_ultimos4")
+  tokenWebhookCifrado String        @map("token_webhook_cifrado") @db.Text
+  tokenWebhookHash    String        @unique @map("token_webhook_hash")
+  criadoEm            DateTime      @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm        DateTime      @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  empresa             Empresa       @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+
+  @@map("configuracoes_asaas")
+}
+
+// Espelho local de uma cobrança do Asaas. O id do pagamento é único dentro
+// da empresa. Assinatura recorrente não entra nesta etapa.
+model Fatura {
+  id               String    @id @default(cuid())
+  empresaId        String    @map("empresa_id")
+  clienteId        String    @map("cliente_id")
+  clienteServicoId String?   @map("cliente_servico_id")
+  asaasPaymentId   String    @map("asaas_payment_id")
+  valor            Decimal   @db.Decimal(12, 2)
+  vencimento       DateTime  @map("vencimento") @db.Date
+  status           String
+  formaCobranca    String    @map("forma_cobranca")
+  boletoUrl        String?   @map("boleto_url") @db.Text
+  linhaDigitavel   String?   @map("linha_digitavel") @db.Text
+  pixCopiaCola     String?   @map("pix_copia_cola") @db.Text
+  faturaUrl        String?   @map("fatura_url") @db.Text
+  descricao        String?   @db.Text
+  excluida         Boolean   @default(false)
+  criadoEm         DateTime  @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm     DateTime  @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  empresa          Empresa   @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  cliente          Cliente   @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  clienteServico   ClienteServico? @relation(fields: [clienteServicoId], references: [id], onDelete: SetNull)
+
+  @@unique([empresaId, asaasPaymentId])
+  @@index([empresaId, excluida, status])
+  @@index([clienteId])
+  @@index([clienteServicoId])
+  @@map("faturas")
+}
+
+// Id do evento do Asaas, único por empresa, para o webhook ser idempotente.
+model EventoAsaas {
+  id           String   @id @default(cuid())
+  empresaId    String   @map("empresa_id")
+  asaasEventId String   @map("asaas_event_id")
+  tipo         String
+  recebidoEm   DateTime @default(now()) @map("recebido_em") @db.Timestamptz(3)
+  empresa      Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+
+  @@unique([empresaId, asaasEventId])
+  @@index([empresaId])
+  @@map("eventos_asaas")
 }

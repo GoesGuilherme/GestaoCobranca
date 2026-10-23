@@ -4,7 +4,7 @@ Cadastro interno dos clientes de uma revenda de PDVLegal (automação comercial 
 
 No back office do PDVLegal, cada cliente é um **grupo** e cada ponto de venda é uma **filial**. Um grupo pode ter várias filiais. Esta primeira versão cuida só desse cadastro: quem é o cliente e quais são as unidades.
 
-Licenças do PDVLegal, certificados digitais A1, boletos da Cora, chamados de suporte e a cobrança em si ficam para as próximas versões. O código já separa a regra de negócio da tela para esses módulos entrarem sem reescrever o cadastro.
+Licenças do PDVLegal, certificados digitais A1 e chamados de suporte ficam para as próximas versões. A cobrança nova, a partir desta etapa, usa o Asaas em sandbox: cada empresa guarda a própria chave, emite fatura avulsa e recebe o webhook. Assinatura mensal e a importação de cobranças que já existem no Asaas vêm depois. A Cora não entra neste código.
 
 A interface, as mensagens de validação e este texto estão em português do Brasil.
 
@@ -25,6 +25,9 @@ Cada empresa assinante vê só os próprios clientes e filiais. O CPF/CNPJ do cl
 - Na ficha e na edição do cliente, vincular um ou mais serviços com o valor combinado, o custo daquela venda, se a cobrança é mensal ou avulsa, a data de início e se está ativo. Preço e custo do catálogo só sugerem o vínculo novo; não reescrevem o que já foi vendido. A alíquota continua no catálogo e incide sobre o valor combinado.
 - Dono e financeiro alteram serviços, valores, custo e impostos, e veem a margem. Suporte consulta o preço e não vê custo, impostos nem margem. Os outros papéis continuam como antes: todo mundo autenticado altera clientes e filiais; só o dono altera usuários e os dados da empresa.
 - Ver o resultado de custo e faturamento em Resultado, só o dono. O mensal reúne serviços recorrentes ativos de clientes ativos ou em implantação. O avulso fica separado. Custo vazio entra como zero e a página avisa que a margem pode estar alta demais.
+- O dono configura o Asaas da empresa em Asaas: ambiente sandbox ou produção, chave da API cifrada e token do webhook. A tela mostra a chave mascarada e tem o botão Testar conexão.
+- Dono e financeiro emitem e cancelam cobrança avulsa na ficha do cliente (boleto, Pix ou o cliente escolhe). Suporte vê a situação e a segunda via, sem emitir nem cancelar. A lista Faturas em aberto filtra em aberto, vencidas, pagas e canceladas. O cliente é criado no Asaas na primeira cobrança, ou reaproveitado pelo CPF/CNPJ.
+- O webhook `POST /api/webhooks/asaas` autentica o cabeçalho `asaas-access-token` de cada empresa e atualiza a situação da cobrança sem processar o mesmo evento duas vezes.
 
 ## Como rodar neste computador
 
@@ -77,9 +80,11 @@ O comando cria o banco `gestaocobranca_test` se ele ainda não existir (usando o
 - o serviço de filiais;
 - o isolamento: a empresa A não lê, edita nem apaga cliente, filial, serviço ou valor combinado da empresa B, e o mesmo documento pode existir nas duas;
 - o catálogo de serviços, o valor combinado, o papel de quem pode alterá-lo e a receita mensal do painel;
+- o resultado de custo e faturamento, visível só ao dono;
+- a configuração do Asaas, a emissão e o cancelamento de fatura com cliente HTTP simulado, o webhook idempotente e o papel de quem pode emitir;
 - o autocadastro, o limite de tentativas, a empresa suspensa e o papel de quem cadastra usuário.
 
-Os testes apagam empresas, usuários, clientes, filiais, serviços, vínculos e o limite de cadastro desse banco de teste.
+Os testes apagam empresas, usuários, clientes, filiais, serviços, vínculos, faturas, a configuração do Asaas, os eventos de webhook e o limite de cadastro desse banco de teste.
 
 ## Variáveis
 
@@ -95,6 +100,8 @@ Os testes apagam empresas, usuários, clientes, filiais, serviços, vínculos e 
 | `ADMIN_NOME` | Nome do primeiro acesso real. Só para `npm run criar-admin`. |
 | `ADMIN_EMAIL` | E-mail desse acesso. |
 | `ADMIN_SENHA` | Senha em texto. O script grava o hash e não altera a senha se o e-mail já existir. |
+| `ASAAS_ENCRYPTION_KEY` | 32 bytes em base64 (`openssl rand -base64 32`). Cifra, no banco, a chave da API do Asaas e o token do webhook de cada empresa. Não é a chave da API e não pode ir para o repositório. Sem ela, a tela Asaas não grava nem lê esses segredos. |
+| `ASAAS_MOCK` | Só no computador de desenvolvimento. `true` usa um Asaas em memória, sem rede e sem chave real, para a tela funcionar antes de existir a chave. Se `NODE_ENV` for `production`, a aplicação recusa esse modo. Não defina na Vercel. |
 
 ## Publicar no Supabase e na Vercel
 
@@ -138,8 +145,11 @@ Em **Project Settings → Environment Variables**, no ambiente Production (e no 
 | `DATABASE_URL` | Pooler de transação, porta 6543, com `?pgbouncer=true` |
 | `DIRECT_URL` | Conexão direta ou pooler em modo sessão, porta 5432 |
 | `AUTH_SECRET` | Saída de `openssl rand -base64 32` |
+| `ASAAS_ENCRYPTION_KEY` | Outra saída de `openssl rand -base64 32`, diferente do `AUTH_SECRET` e diferente da chave da API do Asaas |
 
-As três precisam existir no build e em runtime. O `postinstall` e o script `build` rodam `prisma generate`, e o arquivo `prisma.config.ts` lê `DIRECT_URL` ao carregar. A aplicação lê `DATABASE_URL` e `AUTH_SECRET` quando atende um pedido. O cookie de sessão sai com `secure` quando `NODE_ENV` é `production`.
+Não defina `ASAAS_MOCK` na Vercel. Em produção a integração chama `https://api.asaas.com/v3` ou `https://api-sandbox.asaas.com/v3`, conforme o ambiente salvo pelo dono, e envia a chave no cabeçalho `access_token`. A chave real ainda não entra neste repositório.
+
+Essas variáveis precisam existir no build e em runtime. O `postinstall` e o script `build` rodam `prisma generate`, e o arquivo `prisma.config.ts` lê `DIRECT_URL` ao carregar. A aplicação lê `DATABASE_URL` e `AUTH_SECRET` quando atende um pedido. O cookie de sessão sai com `secure` quando `NODE_ENV` é `production`.
 
 Não defina `ADMIN_SENHA` na Vercel e não rode `npm run db:seed` contra o banco de produção. O seed de exemplo está bloqueado quando `NODE_ENV` é `production`.
 
@@ -163,17 +173,19 @@ O script grava o hash da senha do mesmo jeito que o login confere, na empresa Co
 ## Como o código está organizado
 
 - `src/lib` — CPF/CNPJ, máscaras, rótulos e os esquemas de validação usados tanto na tela quanto no servidor.
-- `src/server/services` — regras de empresa, usuário, cliente, filial e painel. Cliente e filial sempre recebem a empresa da sessão, nunca um id vindo do navegador. O arquivo `src/server/services/index.ts` é o ponto de entrada estável.
-- `src/app/api` — rotas HTTP finas em cima desses serviços. As telas chamam essas rotas para criar, editar e excluir.
-- `prisma/schema.prisma` — `Empresa` 1-N `Usuario`, `Cliente` e `Servico`. `Cliente` 1-N `Filial` e 1-N `ClienteServico`. `ClienteServico` guarda o valor combinado daquele cliente. O campo `Empresa.plano` continua sendo a assinatura da empresa na plataforma, separado desse catálogo. As migrations em `prisma/migrations` são a fonte da verdade do banco.
+- `src/server/services` — regras de empresa, usuário, cliente, filial, serviço, resultado, Asaas e fatura. Cliente, fatura e configuração sempre recebem a empresa da sessão, nunca um id vindo do navegador. O arquivo `src/server/services/index.ts` é o ponto de entrada estável.
+- `src/app/api` — rotas HTTP finas em cima desses serviços. As telas chamam essas rotas para criar, editar e excluir. `POST /api/webhooks/asaas` não usa o cookie: autentica o token da empresa.
+- `prisma/schema.prisma` — `Empresa` 1-N `Usuario`, `Cliente` e `Servico`. `Cliente` 1-N `Filial`, `ClienteServico` e `Fatura`. `ClienteServico` guarda o valor combinado daquele cliente. `ConfiguracaoAsaas` é uma por empresa. O campo `Empresa.plano` continua sendo a assinatura da empresa na plataforma, separado desse catálogo e separado da cobrança no Asaas. As migrations em `prisma/migrations` são a fonte da verdade do banco.
 - `database/` — os mesmos SQLs, com comentário curto, para quem não usa o Prisma.
 
-Um servidor MCP futuro (`buscar cliente`, `listar filiais`, e as ações de escrita) deve importar os serviços, não o Prisma. Os próximos módulos entram como tabela, serviço e rota próprios, com chave para o cliente e, quando fizer sentido, para o serviço vendido ou para a filial:
+Um servidor MCP futuro (`buscar cliente`, `listar filiais`, e as ações de escrita) deve importar os serviços, não o Prisma. Os próximos módulos entram como tabela, serviço e rota próprios:
 
-- boletos e a situação do pagamento na Cora, podendo apontar para o serviço vendido;
+- assinatura mensal no Asaas para os vínculos `MENSAL`, com o dia de vencimento escolhido na hora;
+- importação das cobranças que já existem no Asaas para os clientes já vinculados;
 - histórico de chamados de suporte;
-- cobrança recorrente gerada a partir dos vínculos mensais ativos;
 - planos da plataforma para a empresa assinante, separados do catálogo que ela vende aos clientes dela.
+
+A Cora não é alterada por estes módulos.
 
 ## CPF e CNPJ
 

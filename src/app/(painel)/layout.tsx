@@ -14,6 +14,7 @@ export default async function LayoutPainel({ children }: { children: React.React
         nomeEmpresa={acesso.nomeEmpresa}
         mostrarUsuarios={acesso.papel === "DONO"}
         mostrarResultado={acesso.papel === "DONO"}
+        mostrarAsaas={acesso.papel === "DONO"}
         mostrarAdmin={acesso.superadministrador}
       />
       <div className="md:pl-64">

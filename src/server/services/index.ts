@@ -39,3 +39,11 @@ export {
   excluirServicoDoCliente,
   listarServicosDoCliente,
 } from "./cliente-servico-service";
+export {
+  obterConfiguracaoAsaas,
+  regenerarTokenWebhookAsaas,
+  salvarConfiguracaoAsaas,
+  testarConexaoAsaas,
+} from "./asaas-config-service";
+export { cancelarFatura, emitirFatura, listarFaturas } from "./fatura-service";
+export { processarWebhookAsaas } from "./asaas-webhook-service";
