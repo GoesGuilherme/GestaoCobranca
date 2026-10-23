@@ -11,7 +11,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const situacao = situacaoFatura(url.searchParams.get("situacao") ?? undefined) as SituacaoFatura;
     const busca = url.searchParams.get("busca") ?? "";
-    const faturas = await listarFaturas(acesso.empresaId, { situacao, busca });
+    const faturas = await listarFaturas(acesso, { situacao, busca });
     return jsonOk({ faturas, podeEmitir: podeEmitirCobranca(acesso.papel) });
   } catch (erro) {
     return jsonErro(erro);

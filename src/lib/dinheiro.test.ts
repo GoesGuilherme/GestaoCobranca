@@ -16,7 +16,7 @@ import {
   somarDinheiro,
   somarDinheiroAssinado,
 } from "./dinheiro";
-import { podeAlterarServicos, podeVerCustoServico, podeVerResultado } from "./permissoes";
+import { podeAlterarServicos, podeVerCustoServico, podeVerFaturas, podeVerResultado } from "./permissoes";
 
 describe("dinheiro em reais", () => {
   it("aceita os formatos usados no Brasil e devolve duas casas", () => {
@@ -96,5 +96,8 @@ describe("datas e permissão de serviços", () => {
     expect(podeVerResultado("DONO")).toBe(true);
     expect(podeVerResultado("FINANCEIRO")).toBe(false);
     expect(podeVerResultado("SUPORTE")).toBe(false);
+    expect(podeVerFaturas("DONO")).toBe(true);
+    expect(podeVerFaturas("FINANCEIRO")).toBe(true);
+    expect(podeVerFaturas("SUPORTE")).toBe(false);
   });
 });

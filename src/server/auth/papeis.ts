@@ -1,4 +1,10 @@
-import { podeAlterarServicos, podeConfigurarAsaas, podeEmitirCobranca, podeVerResultado } from "@/lib/permissoes";
+import {
+  podeAlterarServicos,
+  podeConfigurarAsaas,
+  podeEmitirCobranca,
+  podeVerFaturas,
+  podeVerResultado,
+} from "@/lib/permissoes";
 import type { PapelUsuario } from "@/lib/tipos";
 import { ErroAplicacao } from "@/server/erros";
 
@@ -31,6 +37,16 @@ export function exigirAsaas(autor: AutorEmpresa) {
   if (!podeConfigurarAsaas(autor.papel)) {
     throw new ErroAplicacao(
       "Só o dono da empresa pode configurar o Asaas.",
+      403,
+      "sem_permissao",
+    );
+  }
+}
+
+export function exigirVerFaturas(autor: AutorEmpresa) {
+  if (!podeVerFaturas(autor.papel)) {
+    throw new ErroAplicacao(
+      "Só o dono ou o financeiro pode ver as faturas.",
       403,
       "sem_permissao",
     );

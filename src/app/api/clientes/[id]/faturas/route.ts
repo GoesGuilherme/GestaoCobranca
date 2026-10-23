@@ -7,7 +7,7 @@ export async function GET(_request: Request, contexto: { params: Promise<{ id: s
   try {
     const acesso = await exigirAcesso();
     const { id } = await contexto.params;
-    const faturas = await listarFaturas(acesso.empresaId, {
+    const faturas = await listarFaturas(acesso, {
       clienteId: id,
       situacao: "todas",
       ordem: "desc",

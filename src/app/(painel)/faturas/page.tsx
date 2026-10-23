@@ -3,7 +3,7 @@ import { CabecalhoPagina } from "@/components/cabecalho";
 import { classeCampo } from "@/components/campo";
 import { classeBotaoPrimario } from "@/components/estilos";
 import { TabelaFaturas } from "@/components/tabela-faturas";
-import { podeEmitirCobranca } from "@/lib/permissoes";
+import { podeEmitirCobranca, podeVerFaturas } from "@/lib/permissoes";
 import { SITUACOES_FATURA, situacaoFatura } from "@/lib/rotulos";
 import { acessoDaPagina } from "@/server/auth/pagina";
 import { listarFaturas } from "@/server/services/fatura-service";
@@ -18,9 +18,18 @@ type Busca = {
 export default async function PaginaFaturas({ searchParams }: { searchParams: Promise<Busca> }) {
   const params = await searchParams;
   const acesso = await acessoDaPagina();
+  if (!podeVerFaturas(acesso.papel)) {
+    return (
+      <CabecalhoPagina
+        olho="Acesso negado"
+        titulo="Faturas ficam com o dono e o financeiro"
+        descricao="Só o dono ou o financeiro pode ver as faturas."
+      />
+    );
+  }
   const situacao = situacaoFatura(params.situacao);
   const busca = params.busca?.trim() ?? "";
-  const faturas = await listarFaturas(acesso.empresaId, { situacao, busca });
+  const faturas = await listarFaturas(acesso, { situacao, busca });
 
   return (
     <>

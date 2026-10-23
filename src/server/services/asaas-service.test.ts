@@ -116,6 +116,11 @@ describe("Asaas por empresa", () => {
 
     await expect(emitirFatura(autor("SUPORTE"), cadastro.id, cobranca(), memoria)).rejects.toMatchObject({
       status: 403,
+      codigo: "sem_permissao",
+    });
+    await expect(listarFaturas(autor("SUPORTE"), { situacao: "todas" })).rejects.toMatchObject({
+      status: 403,
+      codigo: "sem_permissao",
     });
     expect(memoria.cobrancas.size).toBe(0);
 
@@ -137,9 +142,9 @@ describe("Asaas por empresa", () => {
     expect(segunda.boletoUrl).toBeNull();
     expect(memoria.clientes).toHaveLength(1);
 
-    const abertas = await listarFaturas(empresaId, { situacao: "em_aberto" });
+    const abertas = await listarFaturas(autor("FINANCEIRO"), { situacao: "em_aberto" });
     expect(abertas.map((item) => item.id).sort()).toEqual([fatura.id, segunda.id].sort());
-    expect(await listarFaturas(outraEmpresaId, { situacao: "todas" })).toEqual([]);
+    expect(await listarFaturas(autor("DONO", outraEmpresaId), { situacao: "todas" })).toEqual([]);
 
     await expect(cancelarFatura(autor("SUPORTE"), fatura.id, memoria)).rejects.toMatchObject({ status: 403 });
     await expect(cancelarFatura(autor("DONO", outraEmpresaId), fatura.id, memoria)).rejects.toMatchObject({
@@ -148,8 +153,8 @@ describe("Asaas por empresa", () => {
     const cancelada = await cancelarFatura(autor("DONO"), fatura.id, memoria);
     expect(cancelada.excluida).toBe(true);
     expect(memoria.cobrancas.get(fatura.asaasPaymentId)?.excluida).toBe(true);
-    expect((await listarFaturas(empresaId, { situacao: "em_aberto" })).map((item) => item.id)).toEqual([segunda.id]);
-    expect((await listarFaturas(empresaId, { situacao: "canceladas" })).map((item) => item.id)).toEqual([fatura.id]);
+    expect((await listarFaturas(autor("DONO"), { situacao: "em_aberto" })).map((item) => item.id)).toEqual([segunda.id]);
+    expect((await listarFaturas(autor("DONO"), { situacao: "canceladas" })).map((item) => item.id)).toEqual([fatura.id]);
 
     await expect(emitirFatura(autor("DONO"), cadastro.id, cobranca({ valor: "0" }), memoria)).rejects.toMatchObject({
       status: 400,

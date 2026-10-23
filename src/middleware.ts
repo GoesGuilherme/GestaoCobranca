@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { podeConfigurarAsaas, podeVerResultado } from "@/lib/permissoes";
+import { podeConfigurarAsaas, podeVerFaturas, podeVerResultado } from "@/lib/permissoes";
 import { COOKIE_SESSAO } from "@/server/auth/constantes";
 import { verificarToken } from "@/server/auth/token";
 
@@ -68,6 +68,20 @@ export async function middleware(request: NextRequest) {
   const rotaResultado = pathname === "/resultado" || pathname.startsWith("/resultado/") || pathname === "/api/resultado";
   if (rotaResultado && !podeVerResultado(sessao.papel)) {
     return resultadoProibido(pathname);
+  }
+
+  const rotaFaturas =
+    pathname === "/faturas" ||
+    pathname.startsWith("/faturas/") ||
+    pathname === "/api/faturas" ||
+    pathname.startsWith("/api/faturas/") ||
+    /^\/api\/clientes\/[^/]+\/faturas\/?$/.test(pathname);
+  if (rotaFaturas && !podeVerFaturas(sessao.papel)) {
+    return paginaProibida(
+      pathname,
+      "Faturas ficam com o dono e o financeiro",
+      "Só o dono ou o financeiro pode ver as faturas.",
+    );
   }
 
   const rotaAsaas = pathname === "/asaas" || pathname.startsWith("/asaas/") || pathname.startsWith("/api/asaas");

@@ -10,7 +10,7 @@ import { Selo } from "@/components/selo";
 import { formatarReais } from "@/lib/dinheiro";
 import { formatarData } from "@/lib/formatacao";
 import { somenteDigitos } from "@/lib/documento";
-import { podeAlterarServicos, podeEmitirCobranca, podeVerCustoServico } from "@/lib/permissoes";
+import { podeAlterarServicos, podeEmitirCobranca, podeVerCustoServico, podeVerFaturas } from "@/lib/permissoes";
 import type { ClienteDetalhe, ClienteServicoDTO, FaturaDTO, ServicoDTO } from "@/lib/tipos";
 import { acessoDaPagina } from "@/server/auth/pagina";
 import { ErroAplicacao } from "@/server/erros";
@@ -43,16 +43,19 @@ export default async function PaginaCliente({ params }: { params: Promise<{ id: 
   const { id } = await params;
   const acesso = await acessoDaPagina();
   const verCusto = podeVerCustoServico(acesso.papel);
+  const verFaturas = podeVerFaturas(acesso.papel);
   let cliente: ClienteDetalhe;
   let vinculos: ClienteServicoDTO[];
   let catalogo: ServicoDTO[];
-  let faturas: FaturaDTO[];
+  let faturas: FaturaDTO[] = [];
   try {
     [cliente, vinculos, catalogo, faturas] = await Promise.all([
       obterCliente(acesso.empresaId, id),
       listarServicosDoCliente(acesso.empresaId, id, verCusto),
       listarServicos(acesso.empresaId, verCusto),
-      listarFaturas(acesso.empresaId, { clienteId: id, situacao: "todas", ordem: "desc" }),
+      verFaturas
+        ? listarFaturas(acesso, { clienteId: id, situacao: "todas", ordem: "desc" })
+        : Promise.resolve([]),
     ]);
   } catch (erro) {
     if (erro instanceof ErroAplicacao && erro.status === 404) notFound();
@@ -125,20 +128,18 @@ export default async function PaginaCliente({ params }: { params: Promise<{ id: 
         podeEditar={podeAlterarServicos(acesso.papel)}
       />
 
-      <section className="mt-10">
-        <h2 className="font-display text-3xl">Faturas</h2>
-        <p className="mt-2 max-w-2xl text-sm text-muted">
-          Em aberto, vencidas e pagas deste cliente. A segunda via abre o boleto ou a página da cobrança no Asaas.
-        </p>
-        {podeEmitirCobranca(acesso.papel) ? (
+      {verFaturas ? (
+        <section className="mt-10">
+          <h2 className="font-display text-3xl">Faturas</h2>
+          <p className="mt-2 max-w-2xl text-sm text-muted">
+            Em aberto, vencidas e pagas deste cliente. A segunda via abre o boleto ou a página da cobrança no Asaas.
+          </p>
           <FormularioFatura clienteId={cliente.id} vinculos={vinculos} />
-        ) : (
-          <p className="mt-4 text-sm text-muted">Suporte consulta a situação. Emitir e cancelar ficam com o dono e o financeiro.</p>
-        )}
-        <div className="mt-4">
-          <TabelaFaturas faturas={faturas} podeCancelar={podeEmitirCobranca(acesso.papel)} mostrarCliente={false} />
-        </div>
-      </section>
+          <div className="mt-4">
+            <TabelaFaturas faturas={faturas} podeCancelar={podeEmitirCobranca(acesso.papel)} mostrarCliente={false} />
+          </div>
+        </section>
+      ) : null}
 
       <PainelFiliais
         clienteId={cliente.id}

@@ -6,7 +6,7 @@ import { abrirClienteAsaas, traduzirErroAsaas } from "@/server/asaas/abrir";
 import type { ClienteHttpAsaas } from "@/server/asaas/contrato";
 import { ErroAsaas } from "@/server/asaas/contrato";
 import type { AutorEmpresa } from "@/server/auth/papeis";
-import { exigirCobranca } from "@/server/auth/papeis";
+import { exigirCobranca, exigirVerFaturas } from "@/server/auth/papeis";
 import { prisma } from "@/server/db";
 import { ErroAplicacao } from "@/server/erros";
 import { lerEsquema } from "@/server/validar";
@@ -69,13 +69,14 @@ function filtroSituacao(situacao: SituacaoFatura) {
 }
 
 export async function listarFaturas(
-  empresaId: string,
+  autor: AutorEmpresa,
   filtro: { situacao?: SituacaoFatura; busca?: string; clienteId?: string; ordem?: "asc" | "desc" } = {},
 ): Promise<FaturaDTO[]> {
+  exigirVerFaturas(autor);
   const busca = filtro.busca?.trim() ?? "";
   const faturas = await prisma.fatura.findMany({
     where: {
-      empresaId,
+      empresaId: autor.empresaId,
       ...filtroSituacao(filtro.situacao ?? "em_aberto"),
       ...(filtro.clienteId ? { clienteId: filtro.clienteId } : {}),
       ...(busca

@@ -7,7 +7,6 @@ import { enviarJson } from "@/lib/api-cliente";
 const itensBase = [
   { href: "/", rotulo: "Painel" },
   { href: "/clientes", rotulo: "Clientes" },
-  { href: "/faturas", rotulo: "Faturas" },
   { href: "/servicos", rotulo: "Serviços" },
 ];
 
@@ -21,6 +20,7 @@ export function BarraLateral({
   email,
   nomeEmpresa,
   mostrarUsuarios,
+  mostrarFaturas,
   mostrarResultado,
   mostrarAsaas,
   mostrarAdmin,
@@ -29,6 +29,7 @@ export function BarraLateral({
   email: string;
   nomeEmpresa: string;
   mostrarUsuarios: boolean;
+  mostrarFaturas: boolean;
   mostrarResultado: boolean;
   mostrarAsaas: boolean;
   mostrarAdmin: boolean;
@@ -36,7 +37,10 @@ export function BarraLateral({
   const pathname = usePathname();
   const router = useRouter();
   const itens = [
-    ...itensBase,
+    itensBase[0],
+    itensBase[1],
+    ...(mostrarFaturas ? [{ href: "/faturas", rotulo: "Faturas" }] : []),
+    itensBase[2],
     ...(mostrarResultado ? [{ href: "/resultado", rotulo: "Resultado" }] : []),
     ...(mostrarAsaas ? [{ href: "/asaas", rotulo: "Asaas" }] : []),
     ...(mostrarUsuarios ? [{ href: "/usuarios", rotulo: "Usuários" }] : []),

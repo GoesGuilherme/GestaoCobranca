@@ -26,7 +26,7 @@ Cada empresa assinante vê só os próprios clientes e filiais. O CPF/CNPJ do cl
 - Dono e financeiro alteram serviços, valores, custo e impostos, e veem a margem. Suporte consulta o preço e não vê custo, impostos nem margem. Os outros papéis continuam como antes: todo mundo autenticado altera clientes e filiais; só o dono altera usuários e os dados da empresa.
 - Ver o resultado de custo e faturamento em Resultado, só o dono. O mensal reúne serviços recorrentes ativos de clientes ativos ou em implantação. O avulso fica separado. Custo vazio entra como zero e a página avisa que a margem pode estar alta demais.
 - O dono configura o Asaas da empresa em Asaas: ambiente sandbox ou produção, chave da API cifrada e token do webhook. A tela mostra a chave mascarada e tem o botão Testar conexão.
-- Dono e financeiro emitem e cancelam cobrança avulsa na ficha do cliente (boleto, Pix ou o cliente escolhe). Suporte vê a situação e a segunda via, sem emitir nem cancelar. A lista Faturas em aberto filtra em aberto, vencidas, pagas e canceladas. O cliente é criado no Asaas na primeira cobrança, ou reaproveitado pelo CPF/CNPJ.
+- Dono e financeiro veem, emitem e cancelam cobrança avulsa (boleto, Pix ou o cliente escolhe) e a lista Faturas em aberto. Suporte não vê o menu, a seção na ficha do cliente, a segunda via nem as rotas de fatura. O cliente é criado no Asaas na primeira cobrança, ou reaproveitado pelo CPF/CNPJ.
 - O webhook `POST /api/webhooks/asaas` autentica o cabeçalho `asaas-access-token` de cada empresa e atualiza a situação da cobrança sem processar o mesmo evento duas vezes.
 
 ## Como rodar neste computador
@@ -81,7 +81,7 @@ O comando cria o banco `gestaocobranca_test` se ele ainda não existir (usando o
 - o isolamento: a empresa A não lê, edita nem apaga cliente, filial, serviço ou valor combinado da empresa B, e o mesmo documento pode existir nas duas;
 - o catálogo de serviços, o valor combinado, o papel de quem pode alterá-lo e a receita mensal do painel;
 - o resultado de custo e faturamento, visível só ao dono;
-- a configuração do Asaas, a emissão e o cancelamento de fatura com cliente HTTP simulado, o webhook idempotente e o papel de quem pode emitir;
+- a configuração do Asaas, a emissão e o cancelamento de fatura com cliente HTTP simulado, o webhook idempotente, e a regra de que só dono e financeiro veem faturas;
 - o autocadastro, o limite de tentativas, a empresa suspensa e o papel de quem cadastra usuário.
 
 Os testes apagam empresas, usuários, clientes, filiais, serviços, vínculos, faturas, a configuração do Asaas, os eventos de webhook e o limite de cadastro desse banco de teste.
