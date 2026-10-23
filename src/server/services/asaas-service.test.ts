@@ -161,6 +161,21 @@ describe("Asaas por empresa", () => {
     });
   });
 
+  it("recria o cliente no Asaas quando o id guardado sumiu", async () => {
+    await salvarConfiguracaoAsaas(autor("DONO"), { ambiente: "SANDBOX", chaveApi: CHAVE });
+    const cadastro = await criarCliente(empresaId, cliente(completarCnpj("570000000009")));
+    await prisma.cliente.update({
+      where: { id: cadastro.id },
+      data: { asaasCustomerId: "cus_sumiu" },
+    });
+    const memoria = new AsaasMemoria("sumiu");
+    const fatura = await emitirFatura(autor("DONO"), cadastro.id, cobranca(), memoria);
+    const atual = await prisma.cliente.findUniqueOrThrow({ where: { id: cadastro.id } });
+    expect(atual.asaasCustomerId).not.toBe("cus_sumiu");
+    expect(memoria.clientes.some((item) => item.id === atual.asaasCustomerId)).toBe(true);
+    expect(fatura.status).toBe("PENDING");
+  });
+
   it("atualiza a fatura pelo webhook uma vez e ignora a repetição", async () => {
     const config = await salvarConfiguracaoAsaas(autor("DONO"), { ambiente: "SANDBOX", chaveApi: CHAVE });
     const cadastro = await criarCliente(empresaId, cliente(completarCnpj("570000000004")));

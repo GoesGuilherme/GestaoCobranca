@@ -197,6 +197,16 @@ export function criarClienteHttpAsaas(opcoes: {
       return lerCliente(primeiro);
     },
 
+    async obterCliente(id) {
+      try {
+        const { json } = await pedir("GET", `/customers/${idAsaasSeguro(id)}`);
+        return lerCliente(json);
+      } catch (erro) {
+        if (erro instanceof ErroAsaas && erro.status === 404) return null;
+        throw erro;
+      }
+    },
+
     async criarCliente(dados: NovoClienteAsaas) {
       const corpo: Record<string, unknown> = {
         name: dados.nome,

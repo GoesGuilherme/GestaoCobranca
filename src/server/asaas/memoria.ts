@@ -42,6 +42,10 @@ export class AsaasMemoria implements ClienteHttpAsaas {
     return this.clientes.find((cliente) => cliente.cpfCnpj === documento) ?? null;
   }
 
+  async obterCliente(id: string) {
+    return this.clientes.find((cliente) => cliente.id === id) ?? null;
+  }
+
   async criarCliente(dados: NovoClienteAsaas) {
     this.sequencia += 1;
     const cliente: ClienteGuardado = {

@@ -81,6 +81,7 @@ export type NovaCobrancaAsaas = {
 export interface ClienteHttpAsaas {
   testarConexao(): Promise<{ nome: string }>;
   buscarClientePorDocumento(cpfCnpj: string): Promise<ClienteAsaas | null>;
+  obterCliente(id: string): Promise<ClienteAsaas | null>;
   criarCliente(dados: NovoClienteAsaas): Promise<ClienteAsaas>;
   criarCobranca(dados: NovaCobrancaAsaas): Promise<CobrancaAsaas>;
   cancelarCobranca(id: string): Promise<void>;

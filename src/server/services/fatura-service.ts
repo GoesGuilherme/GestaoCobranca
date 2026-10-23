@@ -109,7 +109,10 @@ export async function garantirClienteAsaas(
   },
   http: ClienteHttpAsaas,
 ) {
-  if (cliente.asaasCustomerId) return cliente.asaasCustomerId;
+  if (cliente.asaasCustomerId) {
+    const conhecido = await http.obterCliente(cliente.asaasCustomerId);
+    if (conhecido) return cliente.asaasCustomerId;
+  }
   const documento = somenteDocumento(cliente.documento);
   const existente = await http.buscarClientePorDocumento(documento);
   const remoto =
@@ -121,8 +124,9 @@ export async function garantirClienteAsaas(
       telefone: cliente.whatsapp || undefined,
       referencia: cliente.id,
     }));
+  if (remoto.id === cliente.asaasCustomerId) return remoto.id;
   const gravado = await prisma.cliente.updateMany({
-    where: { id: cliente.id, empresaId, asaasCustomerId: null },
+    where: { id: cliente.id, empresaId },
     data: { asaasCustomerId: remoto.id },
   });
   if (gravado.count === 1) return remoto.id;

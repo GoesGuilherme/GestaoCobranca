@@ -21,14 +21,23 @@ export async function abrirClienteAsaas(empresaId: string, injetado?: ClienteHtt
   };
 }
 
+function comoErroAsaas(erro: unknown): ErroAsaas | null {
+  if (erro instanceof ErroAsaas) return erro;
+  if (erro instanceof Error && erro.name === "ErroAsaas" && "status" in erro && typeof erro.status === "number") {
+    return erro as ErroAsaas;
+  }
+  return null;
+}
+
 export function traduzirErroAsaas(erro: unknown): never {
   if (erro instanceof ErroAplicacao) throw erro;
-  if (erro instanceof ErroAsaas) {
-    if (erro.status === 401) {
-      throw new ErroAplicacao(erro.message, 400, "asaas_nao_autorizado");
+  const asaas = comoErroAsaas(erro);
+  if (asaas) {
+    if (asaas.status === 401) {
+      throw new ErroAplicacao(asaas.message, 400, "asaas_nao_autorizado");
     }
-    const status = erro.status >= 400 && erro.status < 500 && erro.status !== 401 ? erro.status : 502;
-    throw new ErroAplicacao(erro.message, status, "asaas");
+    const status = asaas.status >= 400 && asaas.status < 500 && asaas.status !== 401 ? asaas.status : 502;
+    throw new ErroAplicacao(asaas.message, status, "asaas");
   }
   throw erro;
 }
