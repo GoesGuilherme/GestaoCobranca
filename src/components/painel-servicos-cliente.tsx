@@ -40,7 +40,7 @@ export function PainelServicosCliente({
         <div>
           <h2 className="font-display text-3xl">Serviços vendidos</h2>
           <p className="mt-1 max-w-2xl text-sm text-muted">
-            O que esta empresa cobra deste cliente. O valor combinado não muda se o preço do catálogo mudar.
+            O que esta empresa cobra deste cliente. O valor combinado e o custo desta venda não mudam se o catálogo mudar. A alíquota continua no serviço.
           </p>
         </div>
         {podeEditar && modo === "lista" ? (

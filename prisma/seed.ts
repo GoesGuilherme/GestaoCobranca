@@ -428,6 +428,7 @@ async function semearServicos(empresaId: string) {
       await criarServicoDoCliente(autor, cliente.id, {
         servicoId: licenca.id,
         valor: "189,90",
+        custo: "40,00",
         recorrencia: "MENSAL",
         inicioEm: "2026-01-01",
         status: "ATIVO",

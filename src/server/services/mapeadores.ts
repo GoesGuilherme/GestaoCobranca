@@ -88,14 +88,13 @@ export function paraClienteServico(
   vinculo: ClienteServico & {
     servico: {
       nome: string;
-      custo: { toFixed(casas: number): string } | null;
       aliquotaImposto: { toFixed(casas: number): string } | null;
     };
   },
   incluirCusto = false,
 ): ClienteServicoDTO {
   const valor = vinculo.valor.toFixed(2);
-  const custo = incluirCusto ? textoDecimal(vinculo.servico.custo) : null;
+  const custo = incluirCusto ? textoDecimal(vinculo.custo) : null;
   const aliquotaImposto = incluirCusto ? textoDecimal(vinculo.servico.aliquotaImposto) : null;
   return {
     id: vinculo.id,

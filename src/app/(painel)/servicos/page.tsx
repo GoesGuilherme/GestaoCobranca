@@ -16,7 +16,7 @@ export default async function PaginaServicos() {
       <CabecalhoPagina
         olho={acesso.nomeEmpresa}
         titulo="Serviços"
-        descricao="Catálogo do que esta empresa vende. Custo e alíquota de impostos são opcionais. A margem fica visível para o dono e o financeiro."
+        descricao="Catálogo do que esta empresa vende. O custo padrão e a alíquota são opcionais. O custo de cada venda fica no cliente. A margem fica visível para o dono e o financeiro."
       />
       <PainelCatalogoServicos servicos={servicos} podeEditar={podeAlterarServicos(acesso.papel)} />
     </>

@@ -266,6 +266,7 @@ export const esquemaClienteServico = z.object({
     .min(1, "Escolha o serviço.")
     .max(64, "Escolha um serviço do catálogo."),
   valor: esquemaValor,
+  custo: esquemaCustoOpcional,
   recorrencia: z.enum(["MENSAL", "AVULSO"], "Escolha se a cobrança é mensal ou avulsa."),
   inicioEm: z
     .string()
