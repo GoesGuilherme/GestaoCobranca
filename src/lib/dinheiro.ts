@@ -84,3 +84,57 @@ export function formatarValorCampo(texto: string): string {
   const comMilhar = inteiro.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   return `${comMilhar},${frac}`;
 }
+
+export function formatarReaisAssinado(texto: string): string {
+  if (texto.startsWith("-")) return `-${formatarReais(texto.slice(1))}`;
+  return formatarReais(texto);
+}
+
+const ALIQUOTA_MAX = BigInt(10000);
+
+export function normalizarAliquota(entrada: unknown): string | null {
+  const tratado = typeof entrada === "string" ? entrada.trim().replace(/\s/g, "").replace(/%$/, "") : entrada;
+  const normal = normalizarDinheiro(tratado);
+  if (normal === null) return null;
+  const centavos = centavosDeTexto(normal);
+  if (centavos === null || centavos > ALIQUOTA_MAX) return null;
+  return normal;
+}
+
+export function formatarAliquota(texto: string): string {
+  const normal = normalizarAliquota(texto);
+  if (!normal) return "";
+  const [inteiro, frac] = normal.split(".");
+  if (frac === "00") return `${inteiro}%`;
+  return `${inteiro},${frac}%`;
+}
+
+export function formatarAliquotaCampo(texto: string): string {
+  const normal = normalizarAliquota(texto);
+  if (!normal) return "";
+  const [inteiro, frac] = normal.split(".");
+  return `${inteiro},${frac}`;
+}
+
+// Margem = preço − custo − (preço × alíquota). Custo ou alíquota ausentes contam como zero.
+// Se os dois faltam, não há margem para mostrar. O imposto arredonda meio centavo para cima.
+export function calcularMargem(preco: string, custo: string | null, aliquota: string | null): string | null {
+  if (custo === null && aliquota === null) return null;
+  const precoCentavos = centavosDeTexto(preco);
+  if (precoCentavos === null) return null;
+  const custoCentavos = custo === null ? BigInt(0) : centavosDeTexto(custo);
+  if (custoCentavos === null) return null;
+
+  let imposto = BigInt(0);
+  if (aliquota !== null) {
+    const pontos = centavosDeTexto(aliquota);
+    if (pontos === null || pontos > ALIQUOTA_MAX) return null;
+    imposto = (precoCentavos * pontos + BigInt(5000)) / BigInt(10000);
+  }
+
+  const margem = precoCentavos - custoCentavos - imposto;
+  const negativo = margem < BigInt(0);
+  const absoluto = negativo ? -margem : margem;
+  const texto = textoDeCentavos(absoluto);
+  return negativo ? `-${texto}` : texto;
+}

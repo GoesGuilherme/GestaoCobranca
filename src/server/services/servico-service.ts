@@ -11,6 +11,8 @@ function dadosPersistidos(entrada: EntradaServico) {
     nome: entrada.nome,
     descricao: entrada.descricao?.trim() ? entrada.descricao.trim() : null,
     precoPadrao: entrada.precoPadrao,
+    custo: entrada.custo,
+    aliquotaImposto: entrada.aliquotaImposto,
     ativo: entrada.ativo,
   };
 }
@@ -51,17 +53,21 @@ async function buscar(empresaId: string, id: string) {
   return servico;
 }
 
-export async function listarServicos(empresaId: string): Promise<ServicoDTO[]> {
+export async function listarServicos(empresaId: string, incluirCusto = false): Promise<ServicoDTO[]> {
   const servicos = await prisma.servico.findMany({
     where: { empresaId },
     include: { _count: { select: { vinculos: true } } },
     orderBy: [{ ativo: "desc" }, { nome: "asc" }],
   });
-  return servicos.map(paraServico);
+  return servicos.map((servico) => paraServico(servico, incluirCusto));
 }
 
-export async function obterServico(empresaId: string, id: string): Promise<ServicoDTO> {
-  return paraServico(await buscar(empresaId, id));
+export async function obterServico(
+  empresaId: string,
+  id: string,
+  incluirCusto = false,
+): Promise<ServicoDTO> {
+  return paraServico(await buscar(empresaId, id), incluirCusto);
 }
 
 export async function criarServico(autor: AutorEmpresa, entrada: unknown): Promise<ServicoDTO> {
@@ -74,7 +80,7 @@ export async function criarServico(autor: AutorEmpresa, entrada: unknown): Promi
       data: { ...dados, empresaId: autor.empresaId },
       include: { _count: { select: { vinculos: true } } },
     });
-    return paraServico(servico);
+    return paraServico(servico, true);
   } catch (erro) {
     const conflito = conflitoDeNome(erro);
     if (conflito) throw conflito;
@@ -106,7 +112,7 @@ export async function atualizarServico(
     throw erro;
   }
 
-  return obterServico(autor.empresaId, id);
+  return obterServico(autor.empresaId, id, true);
 }
 
 export async function excluirServico(autor: AutorEmpresa, id: string): Promise<void> {

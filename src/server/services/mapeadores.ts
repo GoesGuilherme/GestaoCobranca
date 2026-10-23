@@ -1,6 +1,6 @@
 import type { Cliente, ClienteServico, Filial, Servico } from "@/generated/prisma/client";
 import { isoDeData } from "@/lib/data";
-import { somarDinheiro } from "@/lib/dinheiro";
+import { calcularMargem, somarDinheiro } from "@/lib/dinheiro";
 import { formatarDocumento, formatarWhatsapp } from "@/lib/documento";
 import type { ClienteDetalhe, ClienteResumo, ClienteServicoDTO, FilialDTO, ServicoDTO } from "@/lib/tipos";
 
@@ -58,12 +58,25 @@ export function paraClienteDetalhe(
   };
 }
 
-export function paraServico(servico: Servico & { _count?: { vinculos: number } }): ServicoDTO {
+function textoDecimal(valor: { toFixed(casas: number): string } | null): string | null {
+  return valor ? valor.toFixed(2) : null;
+}
+
+export function paraServico(
+  servico: Servico & { _count?: { vinculos: number } },
+  incluirCusto = false,
+): ServicoDTO {
+  const precoPadrao = servico.precoPadrao.toFixed(2);
+  const custo = incluirCusto ? textoDecimal(servico.custo) : null;
+  const aliquotaImposto = incluirCusto ? textoDecimal(servico.aliquotaImposto) : null;
   return {
     id: servico.id,
     nome: servico.nome,
     descricao: servico.descricao,
-    precoPadrao: servico.precoPadrao.toFixed(2),
+    precoPadrao,
+    custo,
+    aliquotaImposto,
+    margem: incluirCusto ? calcularMargem(precoPadrao, custo, aliquotaImposto) : null,
     ativo: servico.ativo,
     quantidadeVinculos: servico._count?.vinculos ?? 0,
     criadoEm: servico.criadoEm.toISOString(),
@@ -72,14 +85,27 @@ export function paraServico(servico: Servico & { _count?: { vinculos: number } }
 }
 
 export function paraClienteServico(
-  vinculo: ClienteServico & { servico: { nome: string } },
+  vinculo: ClienteServico & {
+    servico: {
+      nome: string;
+      custo: { toFixed(casas: number): string } | null;
+      aliquotaImposto: { toFixed(casas: number): string } | null;
+    };
+  },
+  incluirCusto = false,
 ): ClienteServicoDTO {
+  const valor = vinculo.valor.toFixed(2);
+  const custo = incluirCusto ? textoDecimal(vinculo.servico.custo) : null;
+  const aliquotaImposto = incluirCusto ? textoDecimal(vinculo.servico.aliquotaImposto) : null;
   return {
     id: vinculo.id,
     clienteId: vinculo.clienteId,
     servicoId: vinculo.servicoId,
     nomeServico: vinculo.servico.nome,
-    valor: vinculo.valor.toFixed(2),
+    valor,
+    custo,
+    aliquotaImposto,
+    margem: incluirCusto ? calcularMargem(valor, custo, aliquotaImposto) : null,
     recorrencia: vinculo.recorrencia,
     inicioEm: isoDeData(vinculo.inicioEm),
     status: vinculo.status,

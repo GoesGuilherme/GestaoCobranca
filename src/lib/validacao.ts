@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { dataIsoValida } from "./data";
-import { normalizarDinheiro } from "./dinheiro";
+import { normalizarAliquota, normalizarDinheiro } from "./dinheiro";
 import { cnpjValido, identificarDocumento, whatsappValido } from "./documento";
 import { ufValida } from "./ufs";
 
@@ -196,6 +196,52 @@ const esquemaAtivo = z.preprocess(
   z.boolean("Informe se o serviço está ativo."),
 );
 
+function vazioComoNulo(valor: unknown): unknown {
+  if (valor === null || valor === undefined) return null;
+  if (typeof valor === "string" && valor.trim() === "") return null;
+  return valor;
+}
+
+export const esquemaCustoOpcional = z.preprocess(
+  (valor) => {
+    const tratado = vazioComoNulo(valor);
+    if (tratado === null) return null;
+    if (typeof tratado === "number" && Number.isFinite(tratado)) return tratado.toFixed(2);
+    return tratado;
+  },
+  z.union([
+    z.null(),
+    z
+      .string()
+      .trim()
+      .refine(
+        (valor) => normalizarDinheiro(valor) !== null,
+        "Informe o custo em reais, como 40,00, ou deixe em branco.",
+      )
+      .transform((valor) => normalizarDinheiro(valor)!),
+  ]),
+);
+
+export const esquemaAliquotaOpcional = z.preprocess(
+  (valor) => {
+    const tratado = vazioComoNulo(valor);
+    if (tratado === null) return null;
+    if (typeof tratado === "number" && Number.isFinite(tratado)) return tratado.toFixed(2);
+    return tratado;
+  },
+  z.union([
+    z.null(),
+    z
+      .string()
+      .trim()
+      .refine(
+        (valor) => normalizarAliquota(valor) !== null,
+        "Informe a alíquota de 0 a 100, como 5 ou 5,5, ou deixe em branco.",
+      )
+      .transform((valor) => normalizarAliquota(valor)!),
+  ]),
+);
+
 export const esquemaServico = z.object({
   nome: z
     .string()
@@ -208,6 +254,8 @@ export const esquemaServico = z.object({
     .max(2000, "A descrição pode ter no máximo 2000 caracteres.")
     .optional(),
   precoPadrao: esquemaValor,
+  custo: esquemaCustoOpcional,
+  aliquotaImposto: esquemaAliquotaOpcional,
   ativo: esquemaAtivo,
 });
 

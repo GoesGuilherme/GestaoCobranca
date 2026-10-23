@@ -17,7 +17,7 @@ export default async function PaginaUsuarios() {
       <CabecalhoPagina
         olho={acesso.nomeEmpresa}
         titulo="Usuários"
-        descricao="Quem entra nesta empresa. O dono cadastra a equipe. Financeiro altera clientes, serviços e valores. Suporte altera o cadastro de clientes e só consulta serviços e valores."
+        descricao="Quem entra nesta empresa. O dono cadastra a equipe. Financeiro altera clientes, serviços, custo e impostos. Suporte altera o cadastro de clientes, consulta o preço e não vê custo, impostos nem margem."
       />
       <div className="mb-6 overflow-x-auto rounded-3xl border border-line bg-card">
         <table className="w-full min-w-[640px] text-left text-sm">

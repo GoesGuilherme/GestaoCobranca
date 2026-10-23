@@ -6,7 +6,9 @@ import { exigirFinanceiro, type AutorEmpresa } from "@/server/auth/papeis";
 import { lerEsquema } from "@/server/validar";
 import { paraClienteServico } from "./mapeadores";
 
-const incluirServico = { servico: { select: { nome: true } } } as const;
+const incluirServico = {
+  servico: { select: { nome: true, custo: true, aliquotaImposto: true } },
+} as const;
 
 function dadosPersistidos(entrada: EntradaClienteServico) {
   return {
@@ -51,6 +53,7 @@ async function buscarVinculo(empresaId: string, id: string) {
 export async function listarServicosDoCliente(
   empresaId: string,
   clienteId: string,
+  incluirCusto = false,
 ): Promise<ClienteServicoDTO[]> {
   await garantirCliente(empresaId, clienteId);
   const vinculos = await prisma.clienteServico.findMany({
@@ -58,7 +61,7 @@ export async function listarServicosDoCliente(
     include: incluirServico,
     orderBy: [{ status: "asc" }, { servico: { nome: "asc" } }],
   });
-  return vinculos.map(paraClienteServico);
+  return vinculos.map((vinculo) => paraClienteServico(vinculo, incluirCusto));
 }
 
 export async function criarServicoDoCliente(
@@ -86,7 +89,7 @@ export async function criarServicoDoCliente(
     },
     include: incluirServico,
   });
-  return paraClienteServico(vinculo);
+  return paraClienteServico(vinculo, true);
 }
 
 export async function atualizarServicoDoCliente(
@@ -113,7 +116,7 @@ export async function atualizarServicoDoCliente(
   if (alterado.count !== 1) {
     throw new ErroAplicacao("Serviço do cliente não encontrado.", 404, "nao_encontrado");
   }
-  return paraClienteServico(await buscarVinculo(autor.empresaId, id));
+  return paraClienteServico(await buscarVinculo(autor.empresaId, id), true);
 }
 
 export async function excluirServicoDoCliente(autor: AutorEmpresa, id: string): Promise<void> {

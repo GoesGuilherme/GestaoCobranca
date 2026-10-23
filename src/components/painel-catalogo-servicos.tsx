@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { formatarReais } from "@/lib/dinheiro";
+import { formatarAliquota, formatarReais, formatarReaisAssinado } from "@/lib/dinheiro";
 import type { ServicoDTO } from "@/lib/tipos";
 import { BotaoExcluir } from "./botao-excluir";
 import { classeBotaoPrimario, classeBotaoSecundario } from "./estilos";
@@ -28,7 +28,7 @@ export function PainelCatalogoServicos({
     <section>
       {!podeEditar ? (
         <p className="mb-4 rounded-2xl border border-line bg-card px-4 py-3 text-sm text-muted">
-          Você pode consultar o catálogo. Quem altera serviços e valores é o dono ou o financeiro.
+          Você pode consultar o catálogo e o preço. Custo, impostos e margem ficam com o dono ou o financeiro.
         </p>
       ) : null}
 
@@ -77,6 +77,15 @@ export function PainelCatalogoServicos({
                 <div>
                   <p className="font-medium">{servico.nome}</p>
                   <p className="mt-1 text-sm tabular-nums">{formatarReais(servico.precoPadrao)}</p>
+                  {servico.margem ? (
+                    <p className="mt-1 text-sm tabular-nums text-muted">
+                      {servico.custo ? `Custo ${formatarReais(servico.custo)} · ` : null}
+                      {servico.aliquotaImposto
+                        ? `Impostos ${formatarAliquota(servico.aliquotaImposto)} · `
+                        : null}
+                      Margem {formatarReaisAssinado(servico.margem)}
+                    </p>
+                  ) : null}
                   {servico.descricao ? (
                     <p className="mt-1 text-sm text-muted">{servico.descricao}</p>
                   ) : null}

@@ -46,6 +46,9 @@ export type ServicoDTO = {
   nome: string;
   descricao: string | null;
   precoPadrao: string;
+  custo: string | null;
+  aliquotaImposto: string | null;
+  margem: string | null;
   ativo: boolean;
   quantidadeVinculos: number;
   criadoEm: string;
@@ -58,6 +61,9 @@ export type ClienteServicoDTO = {
   servicoId: string;
   nomeServico: string;
   valor: string;
+  custo: string | null;
+  aliquotaImposto: string | null;
+  margem: string | null;
   recorrencia: RecorrenciaServico;
   inicioEm: string;
   status: StatusServicoCliente;

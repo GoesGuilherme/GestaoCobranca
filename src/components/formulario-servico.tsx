@@ -3,7 +3,14 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { enviarJson } from "@/lib/api-cliente";
-import { formatarValorCampo } from "@/lib/dinheiro";
+import {
+  calcularMargem,
+  formatarAliquotaCampo,
+  formatarReaisAssinado,
+  formatarValorCampo,
+  normalizarAliquota,
+  normalizarDinheiro,
+} from "@/lib/dinheiro";
 import type { ServicoDTO } from "@/lib/tipos";
 import { esquemaServico, mensagensDoZod } from "@/lib/validacao";
 import { Campo, classeCampo } from "./campo";
@@ -13,6 +20,8 @@ type Valores = {
   nome: string;
   descricao: string;
   precoPadrao: string;
+  custo: string;
+  aliquotaImposto: string;
   ativo: string;
 };
 
@@ -30,6 +39,8 @@ export function FormularioServico({
     nome: servico?.nome ?? "",
     descricao: servico?.descricao ?? "",
     precoPadrao: servico ? formatarValorCampo(servico.precoPadrao) : "",
+    custo: servico?.custo ? formatarValorCampo(servico.custo) : "",
+    aliquotaImposto: servico?.aliquotaImposto ? formatarAliquotaCampo(servico.aliquotaImposto) : "",
     ativo: servico ? String(servico.ativo) : "true",
   });
   const [campos, setCampos] = useState<Record<string, string>>({});
@@ -39,6 +50,14 @@ export function FormularioServico({
   function alterar(nome: keyof Valores, valor: string) {
     setValores((atual) => ({ ...atual, [nome]: valor }));
   }
+
+  const preco = normalizarDinheiro(valores.precoPadrao);
+  const custo = valores.custo.trim() ? normalizarDinheiro(valores.custo) : null;
+  const aliquota = valores.aliquotaImposto.trim() ? normalizarAliquota(valores.aliquotaImposto) : null;
+  const custoInvalido = Boolean(valores.custo.trim()) && custo === null;
+  const aliquotaInvalida = Boolean(valores.aliquotaImposto.trim()) && aliquota === null;
+  const margem =
+    preco && !custoInvalido && !aliquotaInvalida ? calcularMargem(preco, custo, aliquota) : null;
 
   async function enviar(evento: React.FormEvent) {
     evento.preventDefault();
@@ -105,6 +124,36 @@ export function FormularioServico({
             onChange={(evento) => alterar("precoPadrao", evento.target.value)}
           />
         </Campo>
+        <Campo label="Custo" htmlFor="servico-custo" erro={campos.custo} dica="Opcional. O que o serviço custa para a empresa.">
+          <input
+            id="servico-custo"
+            inputMode="decimal"
+            className={classeCampo}
+            placeholder="40,00"
+            value={valores.custo}
+            onChange={(evento) => alterar("custo", evento.target.value)}
+          />
+        </Campo>
+        <Campo
+          label="Impostos"
+          htmlFor="servico-aliquota"
+          erro={campos.aliquotaImposto}
+          dica="Opcional. Alíquota sobre o preço cobrado. Exemplo: 5 para 5%."
+        >
+          <input
+            id="servico-aliquota"
+            inputMode="decimal"
+            className={classeCampo}
+            placeholder="5"
+            value={valores.aliquotaImposto}
+            onChange={(evento) => alterar("aliquotaImposto", evento.target.value)}
+          />
+        </Campo>
+        {margem ? (
+          <p className="text-sm tabular-nums text-muted md:col-span-2">
+            Margem no preço padrão: {formatarReaisAssinado(margem)}. No cliente, o imposto incide sobre o valor combinado.
+          </p>
+        ) : null}
         <Campo label="No catálogo" htmlFor="servico-ativo" erro={campos.ativo}>
           <select
             id="servico-ativo"

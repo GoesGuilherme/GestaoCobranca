@@ -8,7 +8,7 @@ import { Selo } from "@/components/selo";
 import { formatarReais } from "@/lib/dinheiro";
 import { formatarData } from "@/lib/formatacao";
 import { somenteDigitos } from "@/lib/documento";
-import { podeAlterarServicos } from "@/lib/permissoes";
+import { podeAlterarServicos, podeVerCustoServico } from "@/lib/permissoes";
 import type { ClienteDetalhe, ClienteServicoDTO, ServicoDTO } from "@/lib/tipos";
 import { acessoDaPagina } from "@/server/auth/pagina";
 import { ErroAplicacao } from "@/server/erros";
@@ -39,14 +39,15 @@ function Item({ rotulo, children }: { rotulo: string; children: React.ReactNode 
 export default async function PaginaCliente({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const acesso = await acessoDaPagina();
+  const verCusto = podeVerCustoServico(acesso.papel);
   let cliente: ClienteDetalhe;
   let vinculos: ClienteServicoDTO[];
   let catalogo: ServicoDTO[];
   try {
     [cliente, vinculos, catalogo] = await Promise.all([
       obterCliente(acesso.empresaId, id),
-      listarServicosDoCliente(acesso.empresaId, id),
-      listarServicos(acesso.empresaId),
+      listarServicosDoCliente(acesso.empresaId, id, verCusto),
+      listarServicos(acesso.empresaId, verCusto),
     ]);
   } catch (erro) {
     if (erro instanceof ErroAplicacao && erro.status === 404) notFound();
