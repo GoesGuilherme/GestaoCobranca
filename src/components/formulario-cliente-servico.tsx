@@ -4,7 +4,12 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { enviarJson } from "@/lib/api-cliente";
 import { dataHojeIso } from "@/lib/data";
-import { formatarValorCampo } from "@/lib/dinheiro";
+import {
+  calcularMargem,
+  formatarReaisAssinado,
+  formatarValorCampo,
+  normalizarDinheiro,
+} from "@/lib/dinheiro";
 import { RECORRENCIAS, STATUS_SERVICO_CLIENTE } from "@/lib/rotulos";
 import type { ClienteServicoDTO, ServicoDTO } from "@/lib/tipos";
 import { esquemaClienteServico, mensagensDoZod } from "@/lib/validacao";
@@ -14,11 +19,16 @@ import { classeBotaoPrimario, classeBotaoSecundario } from "./estilos";
 type Valores = {
   servicoId: string;
   valor: string;
+  custo: string;
   recorrencia: string;
   inicioEm: string;
   status: string;
   observacoes: string;
 };
+
+function textoCusto(custo: string | null | undefined) {
+  return custo ? formatarValorCampo(custo) : "";
+}
 
 export function FormularioClienteServico({
   clienteId,
@@ -36,10 +46,11 @@ export function FormularioClienteServico({
   const router = useRouter();
   const opcoes = catalogo.filter((servico) => servico.ativo || servico.id === vinculo?.servicoId);
   const inicial = vinculo?.servicoId ?? opcoes[0]?.id ?? "";
-  const precoInicial = catalogo.find((servico) => servico.id === inicial)?.precoPadrao ?? "";
+  const servicoInicial = catalogo.find((servico) => servico.id === inicial);
   const [valores, setValores] = useState<Valores>({
     servicoId: inicial,
-    valor: vinculo ? formatarValorCampo(vinculo.valor) : formatarValorCampo(precoInicial),
+    valor: vinculo ? formatarValorCampo(vinculo.valor) : formatarValorCampo(servicoInicial?.precoPadrao ?? ""),
+    custo: vinculo ? textoCusto(vinculo.custo) : textoCusto(servicoInicial?.custo),
     recorrencia: vinculo?.recorrencia ?? "MENSAL",
     inicioEm: vinculo?.inicioEm ?? dataHojeIso(),
     status: vinculo?.status ?? "ATIVO",
@@ -59,8 +70,18 @@ export function FormularioClienteServico({
       ...atual,
       servicoId,
       valor: servico ? formatarValorCampo(servico.precoPadrao) : atual.valor,
+      custo: servico ? textoCusto(servico.custo) : atual.custo,
     }));
   }
+
+  const servicoEscolhido = catalogo.find((item) => item.id === valores.servicoId);
+  const valorNormal = normalizarDinheiro(valores.valor);
+  const custoInformado = valores.custo.trim() ? normalizarDinheiro(valores.custo) : null;
+  const custoInvalido = Boolean(valores.custo.trim()) && custoInformado === null;
+  const margem =
+    valorNormal && !custoInvalido
+      ? calcularMargem(valorNormal, custoInformado, servicoEscolhido?.aliquotaImposto ?? null)
+      : null;
 
   async function enviar(evento: React.FormEvent) {
     evento.preventDefault();
@@ -100,7 +121,7 @@ export function FormularioClienteServico({
     <form onSubmit={enviar} noValidate className="rounded-2xl border border-line bg-paper p-4 md:p-5">
       <h3 className="font-display text-2xl">{vinculo ? "Editar serviço vendido" : "Vender serviço"}</h3>
       <p className="mt-1 text-sm text-muted">
-        O valor combinado fica neste cliente. Trocar o preço do catálogo não altera o que já foi vendido.
+        O valor combinado e o custo ficam neste cliente. Trocar o preço ou o custo padrão do catálogo não altera o que já foi vendido.
       </p>
       {erro ? (
         <p className="mt-4 rounded-2xl bg-clay-soft px-4 py-3 text-sm text-clay" role="alert">
@@ -130,7 +151,7 @@ export function FormularioClienteServico({
             label="Valor combinado"
             htmlFor="vinculo-valor"
             erro={campos.valor}
-            dica="Ao trocar o serviço, o campo volta ao preço padrão."
+            dica="Ao trocar o serviço, o valor e o custo voltam à sugestão do catálogo."
           >
             <input
               id="vinculo-valor"
@@ -141,6 +162,26 @@ export function FormularioClienteServico({
               onChange={(evento) => alterar("valor", evento.target.value)}
             />
           </Campo>
+          <Campo
+            label="Custo"
+            htmlFor="vinculo-custo"
+            erro={campos.custo}
+            dica="Opcional. Começa com o custo padrão do catálogo."
+          >
+            <input
+              id="vinculo-custo"
+              inputMode="decimal"
+              className={classeCampo}
+              placeholder="40,00"
+              value={valores.custo}
+              onChange={(evento) => alterar("custo", evento.target.value)}
+            />
+          </Campo>
+          {margem ? (
+            <p className="text-sm tabular-nums text-muted md:col-span-2">
+              Margem neste cliente: {formatarReaisAssinado(margem)}. O imposto usa a alíquota do catálogo sobre o valor combinado.
+            </p>
+          ) : null}
           <Campo label="Cobrança" htmlFor="vinculo-recorrencia" erro={campos.recorrencia}>
             <select
               id="vinculo-recorrencia"

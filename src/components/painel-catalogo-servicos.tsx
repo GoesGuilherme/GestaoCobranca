@@ -79,7 +79,7 @@ export function PainelCatalogoServicos({
                   <p className="mt-1 text-sm tabular-nums">{formatarReais(servico.precoPadrao)}</p>
                   {servico.margem ? (
                     <p className="mt-1 text-sm tabular-nums text-muted">
-                      {servico.custo ? `Custo ${formatarReais(servico.custo)} · ` : null}
+                      {servico.custo ? `Custo padrão ${formatarReais(servico.custo)} · ` : null}
                       {servico.aliquotaImposto
                         ? `Impostos ${formatarAliquota(servico.aliquotaImposto)} · `
                         : null}

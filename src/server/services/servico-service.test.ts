@@ -209,14 +209,42 @@ describe("serviços vendidos", () => {
     ).rejects.toMatchObject({ status: 400 });
 
     const cadastro = await criarCliente(empresaId, cliente(completarCnpj("560000000004")));
-    const vinculo = await criarServicoDoCliente(autor("DONO"), cadastro.id, venda(servico.id, { valor: "100,00" }));
+    const semCustoNoVinculo = await criarServicoDoCliente(
+      autor("DONO"),
+      cadastro.id,
+      venda(servico.id, { valor: "100,00" }),
+    );
+    expect(semCustoNoVinculo.custo).toBeNull();
+    expect(semCustoNoVinculo.margem).toBe("95.00");
+
+    const vinculo = await criarServicoDoCliente(
+      autor("DONO"),
+      cadastro.id,
+      venda(servico.id, { valor: "100,00", custo: "50,00" }),
+    );
+    expect(vinculo.custo).toBe("50.00");
     expect(vinculo.margem).toBe("45.00");
     expect(vinculo.valor).toBe("100.00");
 
-    const visivel = await listarServicosDoCliente(empresaId, cadastro.id, true);
-    expect(visivel[0]).toMatchObject({ custo: "50.00", aliquotaImposto: "5.00", margem: "45.00" });
+    await expect(
+      criarServicoDoCliente(autor("DONO"), cadastro.id, venda(servico.id, { custo: "-1" })),
+    ).rejects.toMatchObject({ status: 400 });
+
+    const catalogoAlterado = await atualizarServico(autor("DONO"), servico.id, {
+      ...catalogo("Licença com margem", "200,00"),
+      custo: "80,00",
+      aliquotaImposto: "10",
+    });
+    expect(catalogoAlterado.custo).toBe("80.00");
+    expect(catalogoAlterado.margem).toBe("100.00");
+    const depoisDoCatalogo = await listarServicosDoCliente(empresaId, cadastro.id, true);
+    const gravado = depoisDoCatalogo.find((item) => item.id === vinculo.id);
+    expect(gravado).toMatchObject({ custo: "50.00", aliquotaImposto: "10.00", margem: "40.00" });
+
+    const visivel = depoisDoCatalogo.find((item) => item.id === vinculo.id);
+    expect(visivel).toMatchObject({ custo: "50.00", aliquotaImposto: "10.00", margem: "40.00" });
     const oculto = await listarServicosDoCliente(empresaId, cadastro.id, false);
-    expect(oculto[0]).toMatchObject({
+    expect(oculto.find((item) => item.id === vinculo.id)).toMatchObject({
       valor: "100.00",
       custo: null,
       aliquotaImposto: null,
@@ -230,18 +258,23 @@ describe("serviços vendidos", () => {
       margem: null,
     });
 
-    expect((await obterPainel(empresaId)).receitaMensal).toBe("100.00");
+    expect((await obterPainel(empresaId)).receitaMensal).toBe("200.00");
 
-    const limpo = await atualizarServico(autor("DONO"), servico.id, {
+    const limpo = await atualizarServicoDoCliente(autor("DONO"), vinculo.id, {
+      ...venda(servico.id, { valor: "100,00", custo: "" }),
+    });
+    expect(limpo.custo).toBeNull();
+    expect(limpo.aliquotaImposto).toBe("10.00");
+    expect(limpo.margem).toBe("90.00");
+    const linha = await prisma.clienteServico.findUniqueOrThrow({ where: { id: vinculo.id } });
+    expect(linha.custo).toBeNull();
+    const catalogoLimpo = await atualizarServico(autor("DONO"), servico.id, {
       ...catalogo("Licença com margem", "200,00"),
       custo: "",
       aliquotaImposto: "",
     });
-    expect(limpo.custo).toBeNull();
-    expect(limpo.aliquotaImposto).toBeNull();
-    expect(limpo.margem).toBeNull();
-    const linha = await prisma.servico.findUniqueOrThrow({ where: { id: servico.id } });
-    expect(linha.custo).toBeNull();
-    expect(linha.aliquotaImposto).toBeNull();
+    expect(catalogoLimpo.custo).toBeNull();
+    expect(catalogoLimpo.aliquotaImposto).toBeNull();
+    expect(catalogoLimpo.margem).toBeNull();
   });
 });

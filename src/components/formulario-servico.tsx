@@ -97,7 +97,7 @@ export function FormularioServico({
     <form onSubmit={enviar} noValidate className="rounded-2xl border border-line bg-paper p-4 md:p-5">
       <h3 className="font-display text-2xl">{servico ? "Editar serviço" : "Novo serviço"}</h3>
       <p className="mt-1 text-sm text-muted">
-        O preço padrão só sugere o valor na hora de vincular um cliente. O combinado fica no cliente.
+        O preço padrão e o custo padrão só sugerem os valores na hora de vincular um cliente. O combinado e o custo da venda ficam no cliente.
       </p>
       {erro ? (
         <p className="mt-4 rounded-2xl bg-clay-soft px-4 py-3 text-sm text-clay" role="alert">
@@ -124,7 +124,12 @@ export function FormularioServico({
             onChange={(evento) => alterar("precoPadrao", evento.target.value)}
           />
         </Campo>
-        <Campo label="Custo" htmlFor="servico-custo" erro={campos.custo} dica="Opcional. O que o serviço custa para a empresa.">
+        <Campo
+          label="Custo padrão"
+          htmlFor="servico-custo"
+          erro={campos.custo}
+          dica="Opcional. Sugestão ao vender. O custo de cada cliente fica no vínculo."
+        >
           <input
             id="servico-custo"
             inputMode="decimal"
@@ -151,7 +156,7 @@ export function FormularioServico({
         </Campo>
         {margem ? (
           <p className="text-sm tabular-nums text-muted md:col-span-2">
-            Margem no preço padrão: {formatarReaisAssinado(margem)}. No cliente, o imposto incide sobre o valor combinado.
+            Margem no preço padrão: {formatarReaisAssinado(margem)}. No cliente, a margem usa o custo do vínculo e a alíquota sobre o valor combinado.
           </p>
         ) : null}
         <Campo label="No catálogo" htmlFor="servico-ativo" erro={campos.ativo}>

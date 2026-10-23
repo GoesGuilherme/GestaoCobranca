@@ -175,10 +175,9 @@ model Filial {
   @@map("filiais")
 }
 
-// Catálogo do que a empresa assinante vende. O preço padrão só sugere o valor
-// no momento do vínculo; o combinado fica em ClienteServico.
-// Custo e alíquota são opcionais e ficam só aqui: a margem da ficha do cliente
-// recalcula com o custo atual e com o percentual sobre o valor combinado.
+// Catálogo do que a empresa assinante vende. O preço padrão e o custo padrão
+// só sugerem os valores no momento do vínculo. A alíquota fica aqui e incide
+// sobre o valor combinado de cada venda.
 model Servico {
   id              String           @id @default(cuid())
   empresaId       String           @map("empresa_id")
@@ -198,15 +197,17 @@ model Servico {
   @@map("servicos")
 }
 
-// Serviço vendido a um cliente, com o valor combinado. empresaId repete o da
-// sessão para a consulta não depender só do join. Um gatilho na migration
-// recusa cliente ou serviço de outra empresa.
+// Serviço vendido a um cliente. valor e custo são deste vínculo: mudar o
+// catálogo depois não reescreve a linha. empresaId repete o da sessão para a
+// consulta não depender só do join. Um gatilho na migration recusa cliente
+// ou serviço de outra empresa.
 model ClienteServico {
   id           String               @id @default(cuid())
   empresaId    String               @map("empresa_id")
   clienteId    String               @map("cliente_id")
   servicoId    String               @map("servico_id")
   valor        Decimal              @db.Decimal(12, 2)
+  custo        Decimal?             @db.Decimal(12, 2)
   recorrencia  RecorrenciaServico
   inicioEm     DateTime             @map("inicio_em") @db.Date
   status       StatusServicoCliente @default(ATIVO)

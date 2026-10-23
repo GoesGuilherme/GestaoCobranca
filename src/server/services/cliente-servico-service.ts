@@ -7,13 +7,14 @@ import { lerEsquema } from "@/server/validar";
 import { paraClienteServico } from "./mapeadores";
 
 const incluirServico = {
-  servico: { select: { nome: true, custo: true, aliquotaImposto: true } },
+  servico: { select: { nome: true, aliquotaImposto: true } },
 } as const;
 
 function dadosPersistidos(entrada: EntradaClienteServico) {
   return {
     servicoId: entrada.servicoId,
     valor: entrada.valor,
+    custo: entrada.custo,
     recorrencia: entrada.recorrencia,
     inicioEm: new Date(`${entrada.inicioEm}T00:00:00.000Z`),
     status: entrada.status,
