@@ -99,6 +99,35 @@ export type UsuarioResumo = {
   criadoEm: string;
 };
 
+export type LinhaResultado = {
+  id: string;
+  nome: string;
+  faturamento: string;
+  custo: string;
+  impostos: string;
+  margem: string;
+  margemPercentual: string | null;
+  semCusto: number;
+};
+
+export type BlocoResultado = {
+  faturamento: string;
+  custo: string;
+  impostos: string;
+  margem: string;
+  margemPercentual: string | null;
+  quantidade: number;
+  semCusto: number;
+  porCliente: LinhaResultado[];
+  porServico: LinhaResultado[];
+  clientesSemCusto: { id: string; nome: string }[];
+};
+
+export type Resultado = {
+  mensal: BlocoResultado;
+  avulso: BlocoResultado;
+};
+
 export type Painel = {
   totalClientes: number;
   totalFiliais: number;

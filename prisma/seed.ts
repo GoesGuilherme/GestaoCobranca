@@ -412,48 +412,88 @@ async function semearServicos(empresaId: string) {
   const licenca = await prisma.servico.findFirst({
     where: { empresaId, nome: "Licença PDVLegal" },
   });
+  const suporte = await prisma.servico.findFirst({
+    where: { empresaId, nome: "Suporte mensal" },
+  });
   const certificado = await prisma.servico.findFirst({
     where: { empresaId, nome: "Certificado digital A1" },
   });
-  const cliente = await prisma.cliente.findFirst({
-    where: { empresaId, nomeFantasia: "Grupo Costa Verde Exemplo" },
+
+  async function vincular(
+    nomeCliente: string,
+    servico: { id: string; nome: string } | null,
+    dados: {
+      valor: string;
+      custo?: string;
+      recorrencia: "MENSAL" | "AVULSO";
+      inicioEm: string;
+      observacoes: string;
+    },
+  ) {
+    if (!servico) return;
+    const cliente = await prisma.cliente.findFirst({
+      where: { empresaId, nomeFantasia: nomeCliente },
+    });
+    if (!cliente) return;
+    const jaExiste = await prisma.clienteServico.findFirst({
+      where: { empresaId, clienteId: cliente.id, servicoId: servico.id },
+    });
+    if (jaExiste) return;
+    await criarServicoDoCliente(autor, cliente.id, {
+      servicoId: servico.id,
+      status: "ATIVO",
+      ...dados,
+    });
+    console.log(`Serviço de exemplo vinculado: ${servico.nome} em ${nomeCliente}`);
+  }
+
+  await vincular("Grupo Costa Verde Exemplo", licenca, {
+    valor: "189,90",
+    custo: "40,00",
+    recorrencia: "MENSAL",
+    inicioEm: "2026-01-01",
+    observacoes: "Valor de tabela. Dado fictício de exemplo.",
   });
-  if (!cliente) return;
-
-  if (licenca) {
-    const jaExiste = await prisma.clienteServico.findFirst({
-      where: { empresaId, clienteId: cliente.id, servicoId: licenca.id },
-    });
-    if (!jaExiste) {
-      await criarServicoDoCliente(autor, cliente.id, {
-        servicoId: licenca.id,
-        valor: "189,90",
-        custo: "40,00",
-        recorrencia: "MENSAL",
-        inicioEm: "2026-01-01",
-        status: "ATIVO",
-        observacoes: "Valor de tabela. Dado fictício de exemplo.",
-      });
-      console.log("Serviço de exemplo vinculado: Licença PDVLegal");
-    }
-  }
-
-  if (certificado) {
-    const jaExiste = await prisma.clienteServico.findFirst({
-      where: { empresaId, clienteId: cliente.id, servicoId: certificado.id },
-    });
-    if (!jaExiste) {
-      await criarServicoDoCliente(autor, cliente.id, {
-        servicoId: certificado.id,
-        valor: "220,00",
-        recorrencia: "AVULSO",
-        inicioEm: "2026-03-15",
-        status: "ATIVO",
-        observacoes: "Valor combinado, diferente do preço padrão. Dado fictício de exemplo.",
-      });
-      console.log("Serviço de exemplo vinculado: Certificado digital A1");
-    }
-  }
+  await vincular("Grupo Costa Verde Exemplo", certificado, {
+    valor: "220,00",
+    recorrencia: "AVULSO",
+    inicioEm: "2026-03-15",
+    observacoes: "Valor combinado, diferente do preço padrão. Dado fictício de exemplo.",
+  });
+  await vincular("Mercado Autônomo Vila Nova Exemplo", licenca, {
+    valor: "189,90",
+    custo: "40,00",
+    recorrencia: "MENSAL",
+    inicioEm: "2026-02-01",
+    observacoes: "Custo informado. Dado fictício de exemplo.",
+  });
+  await vincular("Mercado Autônomo Vila Nova Exemplo", suporte, {
+    valor: "99,00",
+    recorrencia: "MENSAL",
+    inicioEm: "2026-02-01",
+    observacoes: "Custo ainda não informado. Dado fictício de exemplo.",
+  });
+  await vincular("Mercado Autônomo Vila Nova Exemplo", certificado, {
+    valor: "180,00",
+    custo: "30,00",
+    recorrencia: "AVULSO",
+    inicioEm: "2026-04-10",
+    observacoes: "Avulso com custo. Dado fictício de exemplo.",
+  });
+  await vincular("Cantina da Nonna Exemplo", suporte, {
+    valor: "99,00",
+    custo: "20,00",
+    recorrencia: "MENSAL",
+    inicioEm: "2026-05-01",
+    observacoes: "Cliente em implantação. Dado fictício de exemplo.",
+  });
+  await vincular("Hortifruti do Seu Zé Exemplo", licenca, {
+    valor: "100,00",
+    custo: "10,00",
+    recorrencia: "MENSAL",
+    inicioEm: "2026-01-15",
+    observacoes: "Cliente inativo: não entra no resultado. Dado fictício de exemplo.",
+  });
 }
 
 async function main() {

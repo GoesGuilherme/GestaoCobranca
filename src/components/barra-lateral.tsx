@@ -20,18 +20,21 @@ export function BarraLateral({
   email,
   nomeEmpresa,
   mostrarUsuarios,
+  mostrarResultado,
   mostrarAdmin,
 }: {
   nome: string;
   email: string;
   nomeEmpresa: string;
   mostrarUsuarios: boolean;
+  mostrarResultado: boolean;
   mostrarAdmin: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const itens = [
     ...itensBase,
+    ...(mostrarResultado ? [{ href: "/resultado", rotulo: "Resultado" }] : []),
     ...(mostrarUsuarios ? [{ href: "/usuarios", rotulo: "Usuários" }] : []),
     ...(mostrarUsuarios ? [{ href: "/empresa", rotulo: "Empresa" }] : []),
     ...(mostrarAdmin ? [{ href: "/admin", rotulo: "Plataforma" }] : []),

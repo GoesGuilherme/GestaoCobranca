@@ -116,25 +116,97 @@ export function formatarAliquotaCampo(texto: string): string {
   return `${inteiro},${frac}`;
 }
 
-// Margem = preço − custo − (preço × alíquota). Custo ou alíquota ausentes contam como zero.
-// Se os dois faltam, não há margem para mostrar. O imposto arredonda meio centavo para cima.
-export function calcularMargem(preco: string, custo: string | null, aliquota: string | null): string | null {
-  if (custo === null && aliquota === null) return null;
+function centavosComSinal(texto: string): bigint | null {
+  const limpo = texto.trim();
+  const negativo = limpo.startsWith("-");
+  const centavos = centavosDeTexto(negativo ? limpo.slice(1) : limpo);
+  if (centavos === null) return null;
+  return negativo ? -centavos : centavos;
+}
+
+function textoComSinal(centavos: bigint): string {
+  const negativo = centavos < BigInt(0);
+  const texto = textoDeCentavos(negativo ? -centavos : centavos);
+  return negativo ? `-${texto}` : texto;
+}
+
+// Imposto = preço × alíquota, arredondado meio centavo para cima. Sem alíquota, é zero.
+function impostoEmCentavos(precoCentavos: bigint, aliquota: string | null): bigint | null {
+  if (aliquota === null) return BigInt(0);
+  const pontos = centavosDeTexto(aliquota);
+  if (pontos === null || pontos > ALIQUOTA_MAX) return null;
+  return (precoCentavos * pontos + BigInt(5000)) / BigInt(10000);
+}
+
+export function calcularImposto(preco: string, aliquota: string | null): string | null {
+  const precoCentavos = centavosDeTexto(preco);
+  if (precoCentavos === null) return null;
+  const imposto = impostoEmCentavos(precoCentavos, aliquota);
+  if (imposto === null) return null;
+  return textoDeCentavos(imposto);
+}
+
+// Margem financeira = preço − custo (zero se vazio) − imposto (zero se vazio). Sempre numérica.
+export function margemFinanceira(preco: string, custo: string | null, aliquota: string | null): string | null {
   const precoCentavos = centavosDeTexto(preco);
   if (precoCentavos === null) return null;
   const custoCentavos = custo === null ? BigInt(0) : centavosDeTexto(custo);
   if (custoCentavos === null) return null;
+  const imposto = impostoEmCentavos(precoCentavos, aliquota);
+  if (imposto === null) return null;
+  return textoComSinal(precoCentavos - custoCentavos - imposto);
+}
 
-  let imposto = BigInt(0);
-  if (aliquota !== null) {
-    const pontos = centavosDeTexto(aliquota);
-    if (pontos === null || pontos > ALIQUOTA_MAX) return null;
-    imposto = (precoCentavos * pontos + BigInt(5000)) / BigInt(10000);
+// Margem do catálogo e da ficha. Custo ou alíquota ausentes contam como zero.
+// Se os dois faltam, não há margem para mostrar: repetir o preço não ajuda.
+export function calcularMargem(preco: string, custo: string | null, aliquota: string | null): string | null {
+  if (custo === null && aliquota === null) return null;
+  return margemFinanceira(preco, custo, aliquota);
+}
+
+export function somarDinheiroAssinado(valores: string[]): string {
+  let centavos = BigInt(0);
+  for (const valor of valores) {
+    const parte = centavosComSinal(valor);
+    if (parte === null) {
+      throw new Error("Valor monetário inválido na soma.");
+    }
+    centavos += parte;
   }
+  return textoComSinal(centavos);
+}
 
-  const margem = precoCentavos - custoCentavos - imposto;
-  const negativo = margem < BigInt(0);
-  const absoluto = negativo ? -margem : margem;
-  const texto = textoDeCentavos(absoluto);
-  return negativo ? `-${texto}` : texto;
+export function compararDinheiro(a: string, b: string): number {
+  const centavosA = centavosComSinal(a);
+  const centavosB = centavosComSinal(b);
+  if (centavosA === null || centavosB === null || centavosA === centavosB) return 0;
+  return centavosA > centavosB ? 1 : -1;
+}
+
+// Percentual com duas casas. Parte pode ser negativa. Total zero não tem percentual.
+export function percentualSobre(parte: string, total: string): string | null {
+  const numerador = centavosComSinal(parte);
+  const divisor = centavosComSinal(total);
+  if (numerador === null || divisor === null || divisor === BigInt(0)) return null;
+  const produto = numerador * BigInt(10000);
+  const negativo = produto < BigInt(0);
+  const absoluto = negativo ? -produto : produto;
+  let quociente = absoluto / divisor;
+  const resto = absoluto % divisor;
+  if (resto * BigInt(2) >= divisor) quociente += BigInt(1);
+  const pontos = negativo ? -quociente : quociente;
+  const sinal = pontos < BigInt(0);
+  const valor = sinal ? -pontos : pontos;
+  const inteiro = valor / CEM;
+  const frac = (valor % CEM).toString().padStart(2, "0");
+  return sinal ? `-${inteiro}.${frac}` : `${inteiro}.${frac}`;
+}
+
+export function formatarPercentual(texto: string): string {
+  const negativo = texto.trim().startsWith("-");
+  const normal = normalizarDinheiro(negativo ? texto.trim().slice(1) : texto);
+  if (!normal) return "";
+  const [inteiro, frac] = normal.split(".");
+  const corpo = frac === "00" ? `${inteiro}%` : `${inteiro},${frac}%`;
+  return negativo ? `-${corpo}` : corpo;
 }

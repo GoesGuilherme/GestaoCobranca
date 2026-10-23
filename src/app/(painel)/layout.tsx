@@ -13,6 +13,7 @@ export default async function LayoutPainel({ children }: { children: React.React
         email={acesso.email}
         nomeEmpresa={acesso.nomeEmpresa}
         mostrarUsuarios={acesso.papel === "DONO"}
+        mostrarResultado={acesso.papel === "DONO"}
         mostrarAdmin={acesso.superadministrador}
       />
       <div className="md:pl-64">

@@ -24,6 +24,7 @@ Cada empresa assinante vê só os próprios clientes e filiais. O CPF/CNPJ do cl
 - Manter um catálogo de serviços da empresa (nome, descrição, preço padrão e, se quiser, custo padrão e alíquota de impostos) em Serviços. A margem do catálogo é o preço padrão menos o custo padrão menos o imposto percentual.
 - Na ficha e na edição do cliente, vincular um ou mais serviços com o valor combinado, o custo daquela venda, se a cobrança é mensal ou avulsa, a data de início e se está ativo. Preço e custo do catálogo só sugerem o vínculo novo; não reescrevem o que já foi vendido. A alíquota continua no catálogo e incide sobre o valor combinado.
 - Dono e financeiro alteram serviços, valores, custo e impostos, e veem a margem. Suporte consulta o preço e não vê custo, impostos nem margem. Os outros papéis continuam como antes: todo mundo autenticado altera clientes e filiais; só o dono altera usuários e os dados da empresa.
+- Ver o resultado de custo e faturamento em Resultado, só o dono. O mensal reúne serviços recorrentes ativos de clientes ativos ou em implantação. O avulso fica separado. Custo vazio entra como zero e a página avisa que a margem pode estar alta demais.
 
 ## Como rodar neste computador
 
