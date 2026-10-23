@@ -55,6 +55,7 @@ export async function listarServicosDoCliente(
   empresaId: string,
   clienteId: string,
   incluirCusto = false,
+  incluirCobranca = false,
 ): Promise<ClienteServicoDTO[]> {
   await garantirCliente(empresaId, clienteId);
   const vinculos = await prisma.clienteServico.findMany({
@@ -62,7 +63,7 @@ export async function listarServicosDoCliente(
     include: incluirServico,
     orderBy: [{ status: "asc" }, { servico: { nome: "asc" } }],
   });
-  return vinculos.map((vinculo) => paraClienteServico(vinculo, incluirCusto));
+  return vinculos.map((vinculo) => paraClienteServico(vinculo, incluirCusto, incluirCobranca));
 }
 
 export async function criarServicoDoCliente(

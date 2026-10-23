@@ -92,6 +92,7 @@ export function paraClienteServico(
     };
   },
   incluirCusto = false,
+  incluirCobranca = false,
 ): ClienteServicoDTO {
   const valor = vinculo.valor.toFixed(2);
   const custo = incluirCusto ? textoDecimal(vinculo.custo) : null;
@@ -109,6 +110,16 @@ export function paraClienteServico(
     inicioEm: isoDeData(vinculo.inicioEm),
     status: vinculo.status,
     observacoes: vinculo.observacoes,
+    recorrenciaAsaas:
+      incluirCobranca && vinculo.asaasSubscriptionId
+        ? {
+            status: vinculo.asaasAssinaturaStatus ?? "ACTIVE",
+            formaCobranca: vinculo.formaCobrancaRecorrente,
+            diaVencimento: vinculo.diaVencimento,
+            proximoVencimento: vinculo.proximoVencimento ? isoDeData(vinculo.proximoVencimento) : null,
+            descricao: vinculo.descricaoRecorrente,
+          }
+        : null,
     criadoEm: vinculo.criadoEm.toISOString(),
     atualizadoEm: vinculo.atualizadoEm.toISOString(),
   };

@@ -45,5 +45,14 @@ export {
   salvarConfiguracaoAsaas,
   testarConexaoAsaas,
 } from "./asaas-config-service";
-export { cancelarFatura, emitirFatura, listarFaturas } from "./fatura-service";
+export { cancelarFatura, emitirFatura, importarFaturas, listarFaturas } from "./fatura-service";
 export { processarWebhookAsaas } from "./asaas-webhook-service";
+export {
+  ativarRecorrencia,
+  ativarRecorrenciaEmLote,
+  cancelarRecorrencia,
+  editarRecorrencia,
+  listarPreviaRecorrencia,
+  pausarRecorrencia,
+  retomarRecorrencia,
+} from "./recorrencia-service";

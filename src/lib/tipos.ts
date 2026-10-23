@@ -55,6 +55,14 @@ export type ServicoDTO = {
   atualizadoEm: string;
 };
 
+export type RecorrenciaAsaasDTO = {
+  status: string;
+  formaCobranca: string | null;
+  diaVencimento: number | null;
+  proximoVencimento: string | null;
+  descricao: string | null;
+};
+
 export type ClienteServicoDTO = {
   id: string;
   clienteId: string;
@@ -68,8 +76,33 @@ export type ClienteServicoDTO = {
   inicioEm: string;
   status: StatusServicoCliente;
   observacoes: string | null;
+  recorrenciaAsaas: RecorrenciaAsaasDTO | null;
   criadoEm: string;
   atualizadoEm: string;
+};
+
+export type PreviaRecorrencia = {
+  diaVencimento: number;
+  vencimento: string;
+  itens: {
+    id: string;
+    clienteId: string;
+    nomeCliente: string;
+    nomeServico: string;
+    valor: string;
+  }[];
+};
+
+export type ResultadoLoteRecorrencia = {
+  vencimento: string;
+  criadas: number;
+  falhas: { id: string; erro: string }[];
+};
+
+export type ResultadoImportacaoFaturas = {
+  criadas: number;
+  atualizadas: number;
+  ignoradas: number;
 };
 
 export type ClienteDetalhe = ClienteResumo & {

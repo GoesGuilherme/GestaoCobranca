@@ -4,8 +4,8 @@ import { BotaoExcluir } from "@/components/botao-excluir";
 import { classeBotaoSecundario } from "@/components/estilos";
 import { PainelFiliais } from "@/components/painel-filiais";
 import { PainelServicosCliente } from "@/components/painel-servicos-cliente";
-import { TabelaFaturas } from "@/components/tabela-faturas";
-import { FormularioFatura } from "@/components/formulario-fatura";
+import { PainelFaturasCliente } from "@/components/painel-faturas-cliente";
+import { PainelRecorrenciaLote } from "@/components/painel-recorrencia-lote";
 import { Selo } from "@/components/selo";
 import { formatarReais } from "@/lib/dinheiro";
 import { formatarData } from "@/lib/formatacao";
@@ -44,6 +44,7 @@ export default async function PaginaCliente({ params }: { params: Promise<{ id: 
   const acesso = await acessoDaPagina();
   const verCusto = podeVerCustoServico(acesso.papel);
   const verFaturas = podeVerFaturas(acesso.papel);
+  const podeCobrar = podeEmitirCobranca(acesso.papel);
   let cliente: ClienteDetalhe;
   let vinculos: ClienteServicoDTO[];
   let catalogo: ServicoDTO[];
@@ -51,7 +52,7 @@ export default async function PaginaCliente({ params }: { params: Promise<{ id: 
   try {
     [cliente, vinculos, catalogo, faturas] = await Promise.all([
       obterCliente(acesso.empresaId, id),
-      listarServicosDoCliente(acesso.empresaId, id, verCusto),
+      listarServicosDoCliente(acesso.empresaId, id, verCusto, podeCobrar),
       listarServicos(acesso.empresaId, verCusto),
       verFaturas
         ? listarFaturas(acesso, { clienteId: id, situacao: "todas", ordem: "desc" })
@@ -126,7 +127,10 @@ export default async function PaginaCliente({ params }: { params: Promise<{ id: 
         vinculos={vinculos}
         catalogo={catalogo}
         podeEditar={podeAlterarServicos(acesso.papel)}
+        podeCobrar={podeCobrar}
       />
+
+      {podeCobrar ? <PainelRecorrenciaLote clienteId={cliente.id} /> : null}
 
       {verFaturas ? (
         <section className="mt-10">
@@ -134,10 +138,12 @@ export default async function PaginaCliente({ params }: { params: Promise<{ id: 
           <p className="mt-2 max-w-2xl text-sm text-muted">
             Em aberto, vencidas e pagas deste cliente. A segunda via abre o boleto ou a página da cobrança no Asaas.
           </p>
-          <FormularioFatura clienteId={cliente.id} vinculos={vinculos} />
-          <div className="mt-4">
-            <TabelaFaturas faturas={faturas} podeCancelar={podeEmitirCobranca(acesso.papel)} mostrarCliente={false} />
-          </div>
+          <PainelFaturasCliente
+            clienteId={cliente.id}
+            vinculos={vinculos}
+            faturas={faturas}
+            podeCancelar={podeCobrar}
+          />
         </section>
       ) : null}
 

@@ -1,13 +1,17 @@
 import { somenteDocumento } from "@/lib/documento";
 import { normalizarDinheiro } from "@/lib/dinheiro";
 import {
+  type AssinaturaAsaas,
+  type AtualizacaoAssinaturaAsaas,
   type ClienteAsaas,
   type ClienteHttpAsaas,
   type CobrancaAsaas,
   ErroAsaas,
   idAsaasSeguro,
+  type NovaAssinaturaAsaas,
   type NovaCobrancaAsaas,
   type NovoClienteAsaas,
+  type PaginaCobrancasAsaas,
 } from "./contrato";
 
 const AGENTE = "GestaoCobranca";
@@ -61,9 +65,11 @@ function lerCobranca(json: unknown): CobrancaAsaas {
   if (!id || !customer || !vencimento || !valor) {
     throw new ErroAsaas("O Asaas não devolveu a cobrança completa.", 502);
   }
+  const assinatura = textoDe(corpo.subscription);
   return {
     id: idAsaasSeguro(id),
     customer: idAsaasSeguro(customer),
+    subscription: assinatura ? idAsaasSeguro(assinatura) : null,
     valor,
     vencimento,
     status: textoDe(corpo.status) ?? "PENDING",
@@ -73,6 +79,43 @@ function lerCobranca(json: unknown): CobrancaAsaas {
     descricao: textoDe(corpo.description),
     excluida: corpo.deleted === true,
   };
+}
+
+function lerAssinatura(json: unknown): AssinaturaAsaas {
+  if (!json || typeof json !== "object") throw new ErroAsaas("Resposta de assinatura inválida.", 502);
+  const corpo = json as Record<string, unknown>;
+  const id = textoDe(corpo.id);
+  const customer = textoDe(corpo.customer);
+  const proximoVencimento = textoDe(corpo.nextDueDate);
+  const valor = normalizarDinheiro(corpo.value);
+  if (!id || !customer || !proximoVencimento || !valor) {
+    throw new ErroAsaas("O Asaas não devolveu a assinatura completa.", 502);
+  }
+  return {
+    id: idAsaasSeguro(id),
+    customer: idAsaasSeguro(customer),
+    valor,
+    proximoVencimento,
+    ciclo: textoDe(corpo.cycle) ?? "MONTHLY",
+    formaCobranca: textoDe(corpo.billingType) ?? "BOLETO",
+    status: (textoDe(corpo.status) ?? "ACTIVE").toUpperCase(),
+    descricao: textoDe(corpo.description),
+  };
+}
+
+function lerPagina(json: unknown): PaginaCobrancasAsaas {
+  if (!json || typeof json !== "object") throw new ErroAsaas("Resposta de cobranças inválida.", 502);
+  const corpo = json as { data?: unknown; hasMore?: unknown };
+  const lista = Array.isArray(corpo.data) ? corpo.data : [];
+  const cobrancas: CobrancaAsaas[] = [];
+  for (const item of lista) {
+    try {
+      cobrancas.push(lerCobranca(item));
+    } catch {
+      continue;
+    }
+  }
+  return { cobrancas, temMais: corpo.hasMore === true };
 }
 
 function corpoComValor(dados: Record<string, unknown>, valor: string): string {
@@ -202,6 +245,57 @@ export function criarClienteHttpAsaas(opcoes: {
         if (erro instanceof ErroAsaas && erro.status === 404) return null;
         throw erro;
       }
+    },
+
+    async criarAssinatura(dados: NovaAssinaturaAsaas) {
+      const corpo: Record<string, unknown> = {
+        customer: idAsaasSeguro(dados.customer),
+        billingType: dados.formaCobranca,
+        nextDueDate: dados.proximoVencimento,
+        cycle: "MONTHLY",
+      };
+      if (dados.descricao) corpo.description = dados.descricao;
+      if (dados.referencia) corpo.externalReference = dados.referencia;
+      const { json } = await pedir("POST", "/subscriptions", corpoComValor(corpo, dados.valor));
+      return lerAssinatura(json);
+    },
+
+    async atualizarAssinatura(id, dados: AtualizacaoAssinaturaAsaas) {
+      const corpo: Record<string, unknown> = { cycle: "MONTHLY" };
+      if (dados.formaCobranca) corpo.billingType = dados.formaCobranca;
+      if (dados.proximoVencimento) corpo.nextDueDate = dados.proximoVencimento;
+      if (dados.descricao) corpo.description = dados.descricao;
+      if (dados.status) corpo.status = dados.status;
+      if (dados.atualizarPendentes) corpo.updatePendingPayments = true;
+      const jsonCorpo = dados.valor ? corpoComValor(corpo, dados.valor) : JSON.stringify(corpo);
+      const { json } = await pedir("PUT", `/subscriptions/${idAsaasSeguro(id)}`, jsonCorpo);
+      return lerAssinatura(json);
+    },
+
+    async cancelarAssinatura(id) {
+      await pedir("DELETE", `/subscriptions/${idAsaasSeguro(id)}`);
+    },
+
+    async listarCobrancasDoCliente(customer, offset, limit) {
+      const consulta = new URLSearchParams({
+        customer: idAsaasSeguro(customer),
+        offset: String(offset),
+        limit: String(limit),
+      });
+      const { json } = await pedir("GET", `/payments?${consulta.toString()}`);
+      return lerPagina(json);
+    },
+
+    async listarCobrancasDaAssinatura(assinatura, offset, limit) {
+      const consulta = new URLSearchParams({
+        offset: String(offset),
+        limit: String(limit),
+      });
+      const { json } = await pedir(
+        "GET",
+        `/subscriptions/${idAsaasSeguro(assinatura)}/payments?${consulta.toString()}`,
+      );
+      return lerPagina(json);
     },
   };
 }

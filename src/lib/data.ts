@@ -24,6 +24,26 @@ export function dataHojeIso(agora = new Date()): string {
   return `${ano}-${mes}-${dia}`;
 }
 
+export function proximoVencimentoIso(dia: number, hoje: string): string | null {
+  if (!Number.isInteger(dia) || dia < 1 || dia > 31 || !dataIsoValida(hoje)) return null;
+  const ano = Number(hoje.slice(0, 4));
+  const mes = Number(hoje.slice(5, 7));
+  const diaHoje = Number(hoje.slice(8, 10));
+  let anoAlvo = ano;
+  let mesAlvo = mes;
+  if (dia <= diaHoje) {
+    mesAlvo += 1;
+    if (mesAlvo > 12) {
+      mesAlvo = 1;
+      anoAlvo += 1;
+    }
+  }
+  const ultimo = new Date(Date.UTC(anoAlvo, mesAlvo, 0)).getUTCDate();
+  const diaReal = Math.min(dia, ultimo);
+  const iso = `${anoAlvo}-${String(mesAlvo).padStart(2, "0")}-${String(diaReal).padStart(2, "0")}`;
+  return dataIsoValida(iso) ? iso : null;
+}
+
 export function isoDeData(data: Date): string {
   const ano = data.getUTCFullYear();
   const mes = String(data.getUTCMonth() + 1).padStart(2, "0");

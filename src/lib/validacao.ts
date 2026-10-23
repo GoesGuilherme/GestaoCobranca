@@ -328,4 +328,72 @@ export type EntradaNovoUsuario = z.infer<typeof esquemaNovoUsuario>;
 export type EntradaServico = z.infer<typeof esquemaServico>;
 export type EntradaClienteServico = z.infer<typeof esquemaClienteServico>;
 export type EntradaConfiguracaoAsaas = z.infer<typeof esquemaConfiguracaoAsaas>;
+export const esquemaDiaVencimento = z
+  .number("Informe o dia de vencimento.")
+  .int("Informe o dia de vencimento.")
+  .min(1, "O dia de vencimento fica entre 1 e 31.")
+  .max(31, "O dia de vencimento fica entre 1 e 31.");
+
+export const esquemaAtivarRecorrencia = z.object({
+  formaCobranca: z
+    .enum(["BOLETO", "PIX", "UNDEFINED"], "Escolha boleto, Pix ou deixar o cliente escolher.")
+    .optional(),
+  diaVencimento: esquemaDiaVencimento,
+  proximoVencimento: z
+    .string()
+    .trim()
+    .refine((valor) => dataIsoValida(valor), "Informe o primeiro vencimento.")
+    .optional(),
+  valor: esquemaValorPositivo.optional(),
+  descricao: z
+    .string()
+    .trim()
+    .max(500, "A descrição pode ter no máximo 500 caracteres.")
+    .optional(),
+});
+
+export const esquemaEditarRecorrencia = z.object({
+  formaCobranca: z
+    .enum(["BOLETO", "PIX", "UNDEFINED"], "Escolha boleto, Pix ou deixar o cliente escolher.")
+    .optional(),
+  diaVencimento: esquemaDiaVencimento,
+  proximoVencimento: z
+    .string()
+    .trim()
+    .refine((valor) => dataIsoValida(valor), "Informe o próximo vencimento.")
+    .optional(),
+  valor: esquemaValorPositivo,
+  descricao: z
+    .string()
+    .trim()
+    .max(500, "A descrição pode ter no máximo 500 caracteres.")
+    .optional(),
+  atualizarPendentes: z.boolean().optional(),
+});
+
+export const esquemaRetomarRecorrencia = z.object({
+  diaVencimento: esquemaDiaVencimento.optional(),
+  proximoVencimento: z
+    .string()
+    .trim()
+    .refine((valor) => dataIsoValida(valor), "Informe o próximo vencimento.")
+    .optional(),
+});
+
+export const esquemaLoteRecorrencia = z
+  .object({
+    diaVencimento: esquemaDiaVencimento,
+    formaCobranca: z
+      .enum(["BOLETO", "PIX", "UNDEFINED"], "Escolha boleto, Pix ou deixar o cliente escolher.")
+      .optional(),
+    clienteId: z.string().trim().max(64).optional(),
+    todos: z.boolean().optional(),
+    ids: z.array(z.string().trim().min(1).max(64)).max(100).optional(),
+  })
+  .refine((dados) => dados.todos === true || (dados.ids?.length ?? 0) > 0, "Escolha ao menos uma venda mensal.");
+
 export type EntradaFatura = z.infer<typeof esquemaFatura>;
+export type EntradaAtivarRecorrencia = z.infer<typeof esquemaAtivarRecorrencia>;
+export type EntradaEditarRecorrencia = z.infer<typeof esquemaEditarRecorrencia>;
+export type EntradaRetomarRecorrencia = z.infer<typeof esquemaRetomarRecorrencia>;
+export type EntradaLoteRecorrencia = z.infer<typeof esquemaLoteRecorrencia>;

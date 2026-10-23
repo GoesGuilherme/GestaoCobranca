@@ -2,6 +2,8 @@ import Link from "next/link";
 import { CabecalhoPagina } from "@/components/cabecalho";
 import { classeCampo } from "@/components/campo";
 import { classeBotaoPrimario } from "@/components/estilos";
+import { BotaoImportarFaturas } from "@/components/botao-importar-faturas";
+import { PainelRecorrenciaLote } from "@/components/painel-recorrencia-lote";
 import { TabelaFaturas } from "@/components/tabela-faturas";
 import { podeEmitirCobranca, podeVerFaturas } from "@/lib/permissoes";
 import { SITUACOES_FATURA, situacaoFatura } from "@/lib/rotulos";
@@ -36,8 +38,10 @@ export default async function PaginaFaturas({ searchParams }: { searchParams: Pr
       <CabecalhoPagina
         olho={acesso.nomeEmpresa}
         titulo={situacao === "em_aberto" ? "Faturas em aberto" : "Faturas"}
-        descricao="Cobranças espelhadas do Asaas. A emissão avulsa fica na ficha do cliente. Assinatura mensal e importação do que já existe no Asaas entram na próxima etapa."
+        descricao="Cobranças espelhadas do Asaas. A emissão avulsa fica na ficha do cliente. A recorrência mensal também sai de lá, ou em lote abaixo."
       />
+      <BotaoImportarFaturas />
+      <PainelRecorrenciaLote />
       <form className="mb-6 flex flex-wrap items-end gap-3" method="get">
         <label className="grid gap-1 text-sm">
           <span className="font-medium">Situação</span>

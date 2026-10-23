@@ -6,6 +6,7 @@ import { formatarDataIso } from "@/lib/formatacao";
 import { formatarAliquota, formatarReais, formatarReaisAssinado, somarDinheiro } from "@/lib/dinheiro";
 import { rotuloRecorrencia } from "@/lib/rotulos";
 import type { ClienteServicoDTO, ServicoDTO } from "@/lib/tipos";
+import { AcoesRecorrencia } from "./acoes-recorrencia";
 import { BotaoExcluir } from "./botao-excluir";
 import { classeBotaoPrimario, classeBotaoSecundario } from "./estilos";
 import { FormularioClienteServico } from "./formulario-cliente-servico";
@@ -24,11 +25,13 @@ export function PainelServicosCliente({
   vinculos,
   catalogo,
   podeEditar,
+  podeCobrar = false,
 }: {
   clienteId: string;
   vinculos: ClienteServicoDTO[];
   catalogo: ServicoDTO[];
   podeEditar: boolean;
+  podeCobrar?: boolean;
 }) {
   const [modo, setModo] = useState<"lista" | "novo" | string>("lista");
   const emEdicao = vinculos.find((item) => item.id === modo);
@@ -128,6 +131,9 @@ export function PainelServicosCliente({
                     </p>
                   ) : null}
                   {item.observacoes ? <p className="mt-1 text-sm text-ink/80">{item.observacoes}</p> : null}
+                  {podeCobrar && (item.recorrencia === "MENSAL" || item.recorrenciaAsaas) ? (
+                    <AcoesRecorrencia vinculo={item} />
+                  ) : null}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Selo valor={item.status} tipo="servico" />

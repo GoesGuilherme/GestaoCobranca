@@ -4,7 +4,7 @@ Cadastro interno dos clientes de uma revenda de PDVLegal (automação comercial 
 
 No back office do PDVLegal, cada cliente é um **grupo** e cada ponto de venda é uma **filial**. Um grupo pode ter várias filiais. Esta primeira versão cuida só desse cadastro: quem é o cliente e quais são as unidades.
 
-Licenças do PDVLegal, certificados digitais A1 e chamados de suporte ficam para as próximas versões. A cobrança nova, a partir desta etapa, usa o Asaas em sandbox: cada empresa guarda a própria chave, emite fatura avulsa e recebe o webhook. Assinatura mensal e a importação de cobranças que já existem no Asaas vêm depois. A Cora não entra neste código.
+Licenças do PDVLegal, certificados digitais A1 e chamados de suporte ficam para as próximas versões. A cobrança nova usa o Asaas em sandbox: cada empresa guarda a própria chave, emite fatura avulsa, ativa a mensalidade das vendas e recebe o webhook. A Cora não entra neste código.
 
 A interface, as mensagens de validação e este texto estão em português do Brasil.
 
@@ -26,7 +26,7 @@ Cada empresa assinante vê só os próprios clientes e filiais. O CPF/CNPJ do cl
 - Dono e financeiro alteram serviços, valores, custo e impostos, e veem a margem. Suporte consulta o preço e não vê custo, impostos nem margem. Os outros papéis continuam como antes: todo mundo autenticado altera clientes e filiais; só o dono altera usuários e os dados da empresa.
 - Ver o resultado de custo e faturamento em Resultado, só o dono. O mensal reúne serviços recorrentes ativos de clientes ativos ou em implantação. O avulso fica separado. Custo vazio entra como zero e a página avisa que a margem pode estar alta demais.
 - O dono configura o Asaas da empresa em Asaas: ambiente sandbox ou produção, chave da API cifrada e token do webhook. A tela mostra a chave mascarada e tem o botão Testar conexão.
-- Dono e financeiro veem, emitem e cancelam cobrança avulsa (boleto, Pix ou o cliente escolhe) e a lista Faturas em aberto. Suporte não vê o menu, a seção na ficha do cliente, a segunda via nem as rotas de fatura. O cliente é criado no Asaas na primeira cobrança, ou reaproveitado pelo CPF/CNPJ.
+- Dono e financeiro veem, emitem e cancelam cobrança avulsa (boleto, Pix ou o cliente escolhe), a lista Faturas em aberto, a recorrência das vendas mensais e a importação. Suporte não vê o menu, a seção na ficha do cliente, a segunda via, a recorrência nem as rotas de fatura. O cliente é criado no Asaas na primeira cobrança, ou reaproveitado pelo CPF/CNPJ.
 - O webhook `POST /api/webhooks/asaas` autentica o cabeçalho `asaas-access-token` de cada empresa e atualiza a situação da cobrança sem processar o mesmo evento duas vezes.
 
 ## Como rodar neste computador
@@ -180,10 +180,10 @@ O script grava o hash da senha do mesmo jeito que o login confere, na empresa Co
 
 Um servidor MCP futuro (`buscar cliente`, `listar filiais`, e as ações de escrita) deve importar os serviços, não o Prisma. Os próximos módulos entram como tabela, serviço e rota próprios:
 
-- assinatura mensal no Asaas para os vínculos `MENSAL`, com o dia de vencimento escolhido na hora;
-- importação das cobranças que já existem no Asaas para os clientes já vinculados;
 - histórico de chamados de suporte;
 - planos da plataforma para a empresa assinante, separados do catálogo que ela vende aos clientes dela.
+
+Dono e financeiro ativam a cobrança recorrente nas vendas `MENSAL` ativas: boleto (padrão), Pix ou o cliente escolhe, dia de vencimento e valor do vínculo. A assinatura fica no Asaas com ciclo mensal e o id volta para o vínculo. Dá para editar valor e vencimento, atualizar cobranças em aberto, pausar ou cancelar. O lote usa o mesmo dia para as vendas ainda sem assinatura, com prévia antes de criar. As cobranças geradas pela assinatura entram em Faturas pelo webhook (o pagamento traz o campo `subscription`) e pelo botão Importar faturas, sem duplicar. Suporte não vê faturas nem recorrência. A configuração da chave continua só com o dono.
 
 A Cora não é alterada por estes módulos.
 

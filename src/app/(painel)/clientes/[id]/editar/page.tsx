@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { CabecalhoPagina } from "@/components/cabecalho";
 import { FormularioCliente } from "@/components/formulario-cliente";
 import { PainelServicosCliente } from "@/components/painel-servicos-cliente";
-import { podeAlterarServicos, podeVerCustoServico } from "@/lib/permissoes";
+import { podeAlterarServicos, podeEmitirCobranca, podeVerCustoServico } from "@/lib/permissoes";
 import type { ClienteDetalhe, ClienteServicoDTO, ServicoDTO } from "@/lib/tipos";
 import { acessoDaPagina } from "@/server/auth/pagina";
 import { ErroAplicacao } from "@/server/erros";
@@ -20,13 +20,14 @@ export default async function PaginaEditarCliente({
   const { id } = await params;
   const acesso = await acessoDaPagina();
   const verCusto = podeVerCustoServico(acesso.papel);
+  const podeCobrar = podeEmitirCobranca(acesso.papel);
   let cliente: ClienteDetalhe;
   let vinculos: ClienteServicoDTO[];
   let catalogo: ServicoDTO[];
   try {
     [cliente, vinculos, catalogo] = await Promise.all([
       obterCliente(acesso.empresaId, id),
-      listarServicosDoCliente(acesso.empresaId, id, verCusto),
+      listarServicosDoCliente(acesso.empresaId, id, verCusto, podeCobrar),
       listarServicos(acesso.empresaId, verCusto),
     ]);
   } catch (erro) {
@@ -47,6 +48,7 @@ export default async function PaginaEditarCliente({
         vinculos={vinculos}
         catalogo={catalogo}
         podeEditar={podeAlterarServicos(acesso.papel)}
+        podeCobrar={podeCobrar}
       />
     </>
   );
