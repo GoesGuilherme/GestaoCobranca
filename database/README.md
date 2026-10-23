@@ -6,9 +6,10 @@ Estes arquivos existem para quem quiser ler o banco sem abrir o Prisma. Eles esp
 2. `002_habilitar_rls.sql` — liga o row level security nas três tabelas, sem políticas. Espelha `prisma/migrations/20261021180000_enable_rls`.
 3. `003_multiempresa.sql` — cria a empresa, liga usuários e clientes nela, troca a unicidade do CPF/CNPJ para valer por empresa e liga o RLS nas tabelas novas. Espelha `prisma/migrations/20261021235900_multiempresa`.
 4. `004_servicos.sql` — catálogo de serviços da empresa e o valor combinado com cada cliente. Liga o RLS nas tabelas novas, exige valor não negativo e recusa vínculo com cliente ou serviço de outra empresa. Espelha `prisma/migrations/20261022175334_servicos`.
+5. `005_custo_imposto_servico.sql` — custo e alíquota de impostos opcionais no catálogo. Os dois aceitam nulo; preenchidos, não podem ser negativos, e a alíquota fica entre 0 e 100. Espelha `prisma/migrations/20261023143138_custo_imposto_servico`.
 
 A fonte da verdade é a pasta `prisma/migrations`. Se uma migration nova entrar, estes scripts precisam ser atualizados para continuar iguais a ela. Não rode os dois jeitos no mesmo banco: ou o Prisma Migrate, ou estes arquivos, nunca os dois em sequência no mesmo esquema vazio.
 
-No projeto de produção do Supabase (região sa-east-1, ref `ziqjcworupopkcnfddjr`) os scripts 001 e 002 já foram aplicados. O `003_multiempresa.sql` e o `004_servicos.sql` ainda não: eles entram com `npx prisma migrate deploy` depois do merge de cada um, como está na seção "Publicar no Supabase e na Vercel" do README da raiz. Este repositório não aplica migration no banco de produção.
+No projeto de produção do Supabase (região sa-east-1, ref `ziqjcworupopkcnfddjr`) os scripts 001 a 004 já foram aplicados. O `005_custo_imposto_servico.sql` ainda não: ele entra com `npx prisma migrate deploy` depois do merge, como está na seção "Publicar no Supabase e na Vercel" do README da raiz. Este repositório não aplica migration no banco de produção.
 
 Esse terceiro script cria a empresa Collab Software com o CNPJ placeholder `00000000000000`. Esse número não é um CNPJ válido e precisa ser trocado na tela Empresa. O usuário `guilherme.goes@collabsoftware.com.br` fica dono dessa empresa e superadministrador da plataforma. Clientes que já existirem passam a pertencer a ela.

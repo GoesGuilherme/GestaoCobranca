@@ -21,9 +21,9 @@ Cada empresa assinante vê só os próprios clientes e filiais. O CPF/CNPJ do cl
 - Filtrar por segmento (restaurante, mercado autônomo, outro) e por status (ativo, inativo, em implantação).
 - Cadastrar, editar e excluir clientes.
 - Na página do cliente, cadastrar, editar e excluir filiais. A exclusão pede confirmação. Excluir o cliente também apaga as filiais dele.
-- Manter um catálogo de serviços da empresa (nome, descrição e preço padrão) em Serviços.
+- Manter um catálogo de serviços da empresa (nome, descrição, preço padrão e, se quiser, custo e alíquota de impostos) em Serviços. A margem é o preço menos o custo menos o imposto percentual.
 - Na ficha e na edição do cliente, vincular um ou mais serviços com o valor combinado, se a cobrança é mensal ou avulsa, a data de início e se está ativo. O preço do catálogo não reescreve um valor já combinado.
-- Dono e financeiro alteram serviços e valores. Suporte consulta. Os outros papéis continuam como antes: todo mundo autenticado altera clientes e filiais; só o dono altera usuários e os dados da empresa.
+- Dono e financeiro alteram serviços, valores, custo e impostos, e veem a margem. Suporte consulta o preço e não vê custo, impostos nem margem. Os outros papéis continuam como antes: todo mundo autenticado altera clientes e filiais; só o dono altera usuários e os dados da empresa.
 
 ## Como rodar neste computador
 

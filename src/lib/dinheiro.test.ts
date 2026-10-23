@@ -1,7 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { dataHojeIso, dataIsoValida } from "./data";
-import { formatarReais, formatarValorCampo, normalizarDinheiro, somarDinheiro } from "./dinheiro";
-import { podeAlterarServicos } from "./permissoes";
+import {
+  calcularMargem,
+  formatarAliquota,
+  formatarReais,
+  formatarReaisAssinado,
+  formatarValorCampo,
+  normalizarAliquota,
+  normalizarDinheiro,
+  somarDinheiro,
+} from "./dinheiro";
+import { podeAlterarServicos, podeVerCustoServico } from "./permissoes";
 
 describe("dinheiro em reais", () => {
   it("aceita os formatos usados no Brasil e devolve duas casas", () => {
@@ -22,6 +31,24 @@ describe("dinheiro em reais", () => {
     expect(normalizarDinheiro("")).toBeNull();
     expect(normalizarDinheiro("10000000000")).toBeNull();
     expect(normalizarDinheiro("9999999999,99")).toBe("9999999999.99");
+  });
+
+  it("trata a alíquota como percentual de 0 a 100 e calcula a margem em centavos", () => {
+    expect(normalizarAliquota("5")).toBe("5.00");
+    expect(normalizarAliquota("5,5%")).toBe("5.50");
+    expect(normalizarAliquota("100")).toBe("100.00");
+    expect(normalizarAliquota("100,01")).toBeNull();
+    expect(normalizarAliquota("-1")).toBeNull();
+    expect(formatarAliquota("5.00")).toBe("5%");
+    expect(formatarAliquota("5.50")).toBe("5,50%");
+
+    expect(calcularMargem("200.00", null, null)).toBeNull();
+    expect(calcularMargem("200.00", "50.00", "5.00")).toBe("140.00");
+    expect(calcularMargem("100.00", "50.00", "5.00")).toBe("45.00");
+    expect(calcularMargem("189.90", null, "5.00")).toBe("180.40");
+    expect(calcularMargem("10.00", "30.00", null)).toBe("-20.00");
+    expect(formatarReaisAssinado("-20.00")).toBe("-R$ 20,00");
+    expect(formatarReaisAssinado("140.00")).toBe("R$ 140,00");
   });
 
   it("soma sem usar número de ponto flutuante e formata em reais", () => {
@@ -46,5 +73,8 @@ describe("datas e permissão de serviços", () => {
     expect(podeAlterarServicos("DONO")).toBe(true);
     expect(podeAlterarServicos("FINANCEIRO")).toBe(true);
     expect(podeAlterarServicos("SUPORTE")).toBe(false);
+    expect(podeVerCustoServico("DONO")).toBe(true);
+    expect(podeVerCustoServico("FINANCEIRO")).toBe(true);
+    expect(podeVerCustoServico("SUPORTE")).toBe(false);
   });
 });

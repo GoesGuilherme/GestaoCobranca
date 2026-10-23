@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { formatarDataIso } from "@/lib/formatacao";
-import { formatarReais, somarDinheiro } from "@/lib/dinheiro";
+import { formatarAliquota, formatarReais, formatarReaisAssinado, somarDinheiro } from "@/lib/dinheiro";
 import { rotuloRecorrencia } from "@/lib/rotulos";
 import type { ClienteServicoDTO, ServicoDTO } from "@/lib/tipos";
 import { BotaoExcluir } from "./botao-excluir";
@@ -52,7 +52,7 @@ export function PainelServicosCliente({
 
       {!podeEditar ? (
         <p className="mb-4 rounded-2xl border border-line bg-card px-4 py-3 text-sm text-muted">
-          Você pode consultar serviços e valores. Quem altera é o dono ou o financeiro.
+          Você pode consultar o preço cobrado. Custo, impostos e margem ficam com o dono ou o financeiro.
         </p>
       ) : null}
 
@@ -120,6 +120,13 @@ export function PainelServicosCliente({
                     {formatarReais(item.valor)} · {rotuloRecorrencia(item.recorrencia)} · desde{" "}
                     {formatarDataIso(item.inicioEm)}
                   </p>
+                  {item.margem ? (
+                    <p className="mt-1 text-sm tabular-nums text-muted">
+                      {item.custo ? `Custo ${formatarReais(item.custo)} · ` : null}
+                      {item.aliquotaImposto ? `Impostos ${formatarAliquota(item.aliquotaImposto)} · ` : null}
+                      Margem {formatarReaisAssinado(item.margem)} sobre o valor combinado
+                    </p>
+                  ) : null}
                   {item.observacoes ? <p className="mt-1 text-sm text-ink/80">{item.observacoes}</p> : null}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">

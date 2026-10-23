@@ -380,18 +380,22 @@ async function semearServicos(empresaId: string) {
       nome: "Licença PDVLegal",
       descricao: "Mensalidade da licença do sistema. Dado fictício de exemplo.",
       precoPadrao: "189,90",
+      custo: "40,00",
+      aliquotaImposto: "5",
       ativo: true,
     },
     {
       nome: "Suporte mensal",
       descricao: "Atendimento no mês. Dado fictício de exemplo.",
       precoPadrao: "99,00",
+      custo: "20,00",
       ativo: true,
     },
     {
       nome: "Certificado digital A1",
       descricao: "Emissão avulsa. Dado fictício de exemplo.",
       precoPadrao: "250,00",
+      aliquotaImposto: "2,5",
       ativo: true,
     },
   ];

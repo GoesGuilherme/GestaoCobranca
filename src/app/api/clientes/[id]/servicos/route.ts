@@ -1,3 +1,4 @@
+import { podeVerCustoServico } from "@/lib/permissoes";
 import { exigirAcesso } from "@/server/auth/acesso";
 import { jsonErro, jsonOk, lerJson } from "@/server/http";
 import {
@@ -11,7 +12,13 @@ export async function GET(_request: Request, contexto: Contexto) {
   try {
     const acesso = await exigirAcesso();
     const { id } = await contexto.params;
-    return jsonOk({ servicos: await listarServicosDoCliente(acesso.empresaId, id) });
+    return jsonOk({
+      servicos: await listarServicosDoCliente(
+        acesso.empresaId,
+        id,
+        podeVerCustoServico(acesso.papel),
+      ),
+    });
   } catch (erro) {
     return jsonErro(erro);
   }
