@@ -14,3 +14,15 @@ export function podeVerCustoServico(papel: PapelUsuario): boolean {
 export function podeVerResultado(papel: PapelUsuario): boolean {
   return papel === "DONO";
 }
+
+export function podeConfigurarAsaas(papel: PapelUsuario): boolean {
+  return papel === "DONO";
+}
+
+export function podeVerFaturas(papel: PapelUsuario): boolean {
+  return papel === "DONO" || papel === "FINANCEIRO";
+}
+
+export function podeEmitirCobranca(papel: PapelUsuario): boolean {
+  return podeVerFaturas(papel);
+}

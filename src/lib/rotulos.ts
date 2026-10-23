@@ -1,7 +1,10 @@
 import type {
+  AmbienteAsaas,
+  FormaCobranca,
   PapelUsuario,
   RecorrenciaServico,
   Segmento,
+  SituacaoFatura,
   StatusCliente,
   StatusEmpresa,
   StatusFilial,
@@ -73,4 +76,57 @@ export function rotuloRecorrencia(valor: RecorrenciaServico): string {
 
 export function rotuloStatusServicoCliente(valor: StatusServicoCliente): string {
   return STATUS_SERVICO_CLIENTE.find((item) => item.valor === valor)?.rotulo ?? valor;
+}
+
+export const AMBIENTES_ASAAS: { valor: AmbienteAsaas; rotulo: string }[] = [
+  { valor: "SANDBOX", rotulo: "Sandbox" },
+  { valor: "PRODUCAO", rotulo: "Produção" },
+];
+
+export const FORMAS_COBRANCA: { valor: FormaCobranca; rotulo: string }[] = [
+  { valor: "BOLETO", rotulo: "Boleto" },
+  { valor: "PIX", rotulo: "Pix" },
+  { valor: "UNDEFINED", rotulo: "Cliente escolhe" },
+];
+
+export const SITUACOES_FATURA: { valor: SituacaoFatura; rotulo: string }[] = [
+  { valor: "em_aberto", rotulo: "Em aberto" },
+  { valor: "vencidas", rotulo: "Vencidas" },
+  { valor: "pagas", rotulo: "Pagas" },
+  { valor: "canceladas", rotulo: "Canceladas" },
+  { valor: "todas", rotulo: "Todas" },
+];
+
+const STATUS_FATURA: Record<string, string> = {
+  PENDING: "Em aberto",
+  AWAITING_RISK_ANALYSIS: "Em análise",
+  CONFIRMED: "Confirmada",
+  RECEIVED: "Recebida",
+  RECEIVED_IN_CASH: "Recebida em dinheiro",
+  OVERDUE: "Vencida",
+  DUNNING_REQUESTED: "Em negativação",
+  DUNNING_RECEIVED: "Recebida após negativação",
+  REFUNDED: "Estornada",
+  REFUND_REQUESTED: "Estorno pedido",
+  REFUND_IN_PROGRESS: "Estorno em andamento",
+  CHARGEBACK_REQUESTED: "Chargeback",
+  CHARGEBACK_DISPUTE: "Chargeback em disputa",
+  AWAITING_CHARGEBACK_REVERSAL: "Aguardando reversão",
+};
+
+export function rotuloAmbienteAsaas(valor: AmbienteAsaas): string {
+  return AMBIENTES_ASAAS.find((item) => item.valor === valor)?.rotulo ?? valor;
+}
+
+export function rotuloFormaCobranca(valor: string): string {
+  return FORMAS_COBRANCA.find((item) => item.valor === valor)?.rotulo ?? valor;
+}
+
+export function rotuloStatusFatura(status: string, excluida: boolean): string {
+  if (excluida) return "Cancelada";
+  return STATUS_FATURA[status] ?? status;
+}
+
+export function situacaoFatura(valor: string | undefined): SituacaoFatura {
+  return SITUACOES_FATURA.some((item) => item.valor === valor) ? (valor as SituacaoFatura) : "em_aberto";
 }

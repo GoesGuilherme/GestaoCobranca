@@ -1,12 +1,23 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { podeVerResultado } from "@/lib/permissoes";
+import { podeConfigurarAsaas, podeVerFaturas, podeVerResultado } from "@/lib/permissoes";
 import { COOKIE_SESSAO } from "@/server/auth/constantes";
 import { verificarToken } from "@/server/auth/token";
 
 function destinoSeguro(valor: string | null): string {
   if (!valor || !valor.startsWith("/") || valor.startsWith("//")) return "/";
   return valor;
+}
+
+function paginaProibida(pathname: string, titulo: string, texto: string) {
+  if (pathname.startsWith("/api/")) {
+    return NextResponse.json({ erro: texto, codigo: "sem_permissao" }, { status: 403 });
+  }
+  const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Acesso negado · Gestão Cobrança</title></head><body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#f3eee4;color:#1c1915;font-family:Georgia,serif"><main style="max-width:36rem;padding:2rem"><p style="letter-spacing:.14em;text-transform:uppercase;font-size:.75rem;color:#a97816">Acesso negado</p><h1 style="font-size:2.5rem;font-weight:500">${titulo}</h1><p style="color:#6d655c">${texto}</p><p><a href="/" style="color:#2f6a52">Voltar ao painel</a></p></main></body></html>`;
+  return new NextResponse(html, {
+    status: 403,
+    headers: { "content-type": "text/html; charset=utf-8" },
+  });
 }
 
 function resultadoProibido(pathname: string) {
@@ -32,7 +43,8 @@ export async function middleware(request: NextRequest) {
     pathname === "/login" ||
     pathname === "/cadastro" ||
     pathname === "/api/auth/entrar" ||
-    pathname === "/api/cadastro";
+    pathname === "/api/cadastro" ||
+    pathname === "/api/webhooks/asaas";
 
   if (rotaPublica) {
     const empresaSuspensa = request.nextUrl.searchParams.get("motivo") === "suspensa";
@@ -56,6 +68,29 @@ export async function middleware(request: NextRequest) {
   const rotaResultado = pathname === "/resultado" || pathname.startsWith("/resultado/") || pathname === "/api/resultado";
   if (rotaResultado && !podeVerResultado(sessao.papel)) {
     return resultadoProibido(pathname);
+  }
+
+  const rotaFaturas =
+    pathname === "/faturas" ||
+    pathname.startsWith("/faturas/") ||
+    pathname === "/api/faturas" ||
+    pathname.startsWith("/api/faturas/") ||
+    /^\/api\/clientes\/[^/]+\/faturas\/?$/.test(pathname);
+  if (rotaFaturas && !podeVerFaturas(sessao.papel)) {
+    return paginaProibida(
+      pathname,
+      "Faturas ficam com o dono e o financeiro",
+      "Só o dono ou o financeiro pode ver as faturas.",
+    );
+  }
+
+  const rotaAsaas = pathname === "/asaas" || pathname.startsWith("/asaas/") || pathname.startsWith("/api/asaas");
+  if (rotaAsaas && !podeConfigurarAsaas(sessao.papel)) {
+    return paginaProibida(
+      pathname,
+      "Só o dono configura o Asaas",
+      "A chave da API e o token do webhook ficam com o dono da empresa. Financeiro e suporte não entram aqui.",
+    );
   }
 
   return NextResponse.next();

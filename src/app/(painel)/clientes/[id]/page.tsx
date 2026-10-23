@@ -4,16 +4,19 @@ import { BotaoExcluir } from "@/components/botao-excluir";
 import { classeBotaoSecundario } from "@/components/estilos";
 import { PainelFiliais } from "@/components/painel-filiais";
 import { PainelServicosCliente } from "@/components/painel-servicos-cliente";
+import { TabelaFaturas } from "@/components/tabela-faturas";
+import { FormularioFatura } from "@/components/formulario-fatura";
 import { Selo } from "@/components/selo";
 import { formatarReais } from "@/lib/dinheiro";
 import { formatarData } from "@/lib/formatacao";
 import { somenteDigitos } from "@/lib/documento";
-import { podeAlterarServicos, podeVerCustoServico } from "@/lib/permissoes";
-import type { ClienteDetalhe, ClienteServicoDTO, ServicoDTO } from "@/lib/tipos";
+import { podeAlterarServicos, podeEmitirCobranca, podeVerCustoServico, podeVerFaturas } from "@/lib/permissoes";
+import type { ClienteDetalhe, ClienteServicoDTO, FaturaDTO, ServicoDTO } from "@/lib/tipos";
 import { acessoDaPagina } from "@/server/auth/pagina";
 import { ErroAplicacao } from "@/server/erros";
 import { obterCliente } from "@/server/services/cliente-service";
 import { listarServicosDoCliente } from "@/server/services/cliente-servico-service";
+import { listarFaturas } from "@/server/services/fatura-service";
 import { listarServicos } from "@/server/services/servico-service";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
@@ -40,14 +43,19 @@ export default async function PaginaCliente({ params }: { params: Promise<{ id: 
   const { id } = await params;
   const acesso = await acessoDaPagina();
   const verCusto = podeVerCustoServico(acesso.papel);
+  const verFaturas = podeVerFaturas(acesso.papel);
   let cliente: ClienteDetalhe;
   let vinculos: ClienteServicoDTO[];
   let catalogo: ServicoDTO[];
+  let faturas: FaturaDTO[] = [];
   try {
-    [cliente, vinculos, catalogo] = await Promise.all([
+    [cliente, vinculos, catalogo, faturas] = await Promise.all([
       obterCliente(acesso.empresaId, id),
       listarServicosDoCliente(acesso.empresaId, id, verCusto),
       listarServicos(acesso.empresaId, verCusto),
+      verFaturas
+        ? listarFaturas(acesso, { clienteId: id, situacao: "todas", ordem: "desc" })
+        : Promise.resolve([]),
     ]);
   } catch (erro) {
     if (erro instanceof ErroAplicacao && erro.status === 404) notFound();
@@ -119,6 +127,19 @@ export default async function PaginaCliente({ params }: { params: Promise<{ id: 
         catalogo={catalogo}
         podeEditar={podeAlterarServicos(acesso.papel)}
       />
+
+      {verFaturas ? (
+        <section className="mt-10">
+          <h2 className="font-display text-3xl">Faturas</h2>
+          <p className="mt-2 max-w-2xl text-sm text-muted">
+            Em aberto, vencidas e pagas deste cliente. A segunda via abre o boleto ou a página da cobrança no Asaas.
+          </p>
+          <FormularioFatura clienteId={cliente.id} vinculos={vinculos} />
+          <div className="mt-4">
+            <TabelaFaturas faturas={faturas} podeCancelar={podeEmitirCobranca(acesso.papel)} mostrarCliente={false} />
+          </div>
+        </section>
+      ) : null}
 
       <PainelFiliais
         clienteId={cliente.id}
