@@ -29,6 +29,10 @@ function comoErroAsaas(erro: unknown): ErroAsaas | null {
   return null;
 }
 
+export function asaasRespondeu(erro: unknown, status: number): boolean {
+  return comoErroAsaas(erro)?.status === status;
+}
+
 export function traduzirErroAsaas(erro: unknown): never {
   if (erro instanceof ErroAplicacao) throw erro;
   const asaas = comoErroAsaas(erro);

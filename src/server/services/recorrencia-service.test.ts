@@ -360,4 +360,27 @@ describe("recorrência Asaas", () => {
     );
     expect(nova?.proximoVencimento).toBe(proximoVencimentoIso(8, hoje()));
   });
+
+  it("importa mesmo quando uma assinatura antiga não existe mais no Asaas", async () => {
+    await salvarConfiguracaoAsaas(autor("DONO"), { ambiente: "SANDBOX", chaveApi: CHAVE });
+    const { vinculo } = await vendaMensal("Cliente Sumido", "70,00", completarCnpj("580000000010"));
+    const memoria = new AsaasMemoria("sumiu");
+    await ativarRecorrencia(autor("DONO"), vinculo.id, { diaVencimento: 10 }, memoria);
+    const http = new Proxy(memoria, {
+      get(alvo, propriedade, receptor) {
+        if (propriedade === "listarCobrancasDaAssinatura") {
+          return async () => {
+            const erro = new Error("Assinatura não encontrada.");
+            erro.name = "ErroAsaas";
+            Object.assign(erro, { status: 404 });
+            throw erro;
+          };
+        }
+        const valor = Reflect.get(alvo, propriedade, receptor) as unknown;
+        return typeof valor === "function" ? (valor as (...args: unknown[]) => unknown).bind(alvo) : valor;
+      },
+    });
+    const resultado = await importarFaturas(autor("FINANCEIRO"), http);
+    expect(resultado.criadas + resultado.atualizadas).toBeGreaterThan(0);
+  });
 });

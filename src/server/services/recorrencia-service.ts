@@ -7,9 +7,8 @@ import {
   esquemaLoteRecorrencia,
   esquemaRetomarRecorrencia,
 } from "@/lib/validacao";
-import { abrirClienteAsaas, traduzirErroAsaas } from "@/server/asaas/abrir";
+import { abrirClienteAsaas, asaasRespondeu, traduzirErroAsaas } from "@/server/asaas/abrir";
 import type { ClienteHttpAsaas, EncargosAsaas } from "@/server/asaas/contrato";
-import { ErroAsaas } from "@/server/asaas/contrato";
 import { logAsaas, logAsaasErro, mensagemLogAsaas } from "@/server/asaas/log";
 import type { AutorEmpresa } from "@/server/auth/papeis";
 import { exigirCobranca } from "@/server/auth/papeis";
@@ -358,7 +357,7 @@ export async function cancelarRecorrencia(
     try {
       await http.cancelarAssinatura(vinculo.asaasSubscriptionId);
     } catch (erro) {
-      if (!(erro instanceof ErroAsaas) || erro.status !== 404) throw erro;
+      if (!asaasRespondeu(erro, 404)) throw erro;
     }
   } catch (erro) {
     logAsaasErro("falha ao cancelar assinatura", {

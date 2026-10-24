@@ -3,8 +3,8 @@ import { isoDeData } from "@/lib/data";
 import { somenteDocumento } from "@/lib/documento";
 import type { FaturaDTO, SituacaoFatura } from "@/lib/tipos";
 import { esquemaFatura } from "@/lib/validacao";
-import { abrirClienteAsaas, traduzirErroAsaas } from "@/server/asaas/abrir";
-import { type ClienteHttpAsaas, type CobrancaAsaas, ErroAsaas, type PaginaCobrancasAsaas } from "@/server/asaas/contrato";
+import { abrirClienteAsaas, asaasRespondeu, traduzirErroAsaas } from "@/server/asaas/abrir";
+import { type ClienteHttpAsaas, type CobrancaAsaas, type PaginaCobrancasAsaas } from "@/server/asaas/contrato";
 import { logAsaas, logAsaasErro, mensagemLogAsaas } from "@/server/asaas/log";
 import type { AutorEmpresa } from "@/server/auth/papeis";
 import { exigirCobranca, exigirVerFaturas } from "@/server/auth/papeis";
@@ -258,7 +258,7 @@ export async function cancelarFatura(
     try {
       await http.cancelarCobranca(atual.asaasPaymentId);
     } catch (erro) {
-      if (!(erro instanceof ErroAsaas) || erro.status !== 404) throw erro;
+      if (!asaasRespondeu(erro, 404)) throw erro;
     }
   } catch (erro) {
     traduzirErroAsaas(erro);
@@ -350,7 +350,7 @@ export async function importarFaturas(autor: AutorEmpresa, clienteHttp?: Cliente
           )),
         );
       } catch (erro) {
-        if (!(erro instanceof ErroAsaas) || erro.status !== 404) throw erro;
+        if (!asaasRespondeu(erro, 404)) throw erro;
       }
     }
     const resultado = await gravarCobrancasEspelhadas(autor.empresaId, cobrancas);
