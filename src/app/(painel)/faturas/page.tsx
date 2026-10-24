@@ -63,7 +63,12 @@ export default async function PaginaFaturas({ searchParams }: { searchParams: Pr
           Filtrar
         </button>
       </form>
-      <TabelaFaturas faturas={faturas} podeCancelar={podeEmitirCobranca(acesso.papel)} mostrarCliente />
+      <TabelaFaturas
+        faturas={faturas}
+        podeCancelar={podeEmitirCobranca(acesso.papel)}
+        mostrarCliente
+        preferencias={preferencias}
+      />
       <p className="mt-4 text-sm text-muted">
         Para emitir uma cobrança nova, abra o cliente em <Link href="/clientes" className="text-canopy hover:underline">Clientes</Link>.
       </p>

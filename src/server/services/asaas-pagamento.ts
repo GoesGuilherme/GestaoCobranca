@@ -1,3 +1,4 @@
+import { bandeiraCartaoSegura, finalCartaoSeguro } from "@/lib/cobranca";
 import { dataIsoValida } from "@/lib/data";
 import { normalizarDinheiro } from "@/lib/dinheiro";
 import { Prisma } from "@/generated/prisma/client";
@@ -33,6 +34,65 @@ function statusDoEvento(tipo: string, pagamento: Record<string, unknown>) {
   return STATUS_POR_EVENTO[tipo] ?? "PENDING";
 }
 
+const CONFIRMADOS = new Set(["CONFIRMED", "RECEIVED", "RECEIVED_IN_CASH", "DUNNING_RECEIVED"]);
+
+function cartaoDoPagamento(pagamento: Record<string, unknown>) {
+  const bruto = pagamento.creditCard;
+  if (!bruto || typeof bruto !== "object") return { bandeira: null, final: null };
+  const corpo = bruto as Record<string, unknown>;
+  return {
+    bandeira: bandeiraCartaoSegura(corpo.creditCardBrand),
+    final: finalCartaoSeguro(corpo.creditCardNumber),
+  };
+}
+
+async function refletirCartao(
+  tx: Prisma.TransactionClient,
+  empresaId: string,
+  clienteServicoId: string | null,
+  dados: {
+    forma: string;
+    status: string;
+    tipo: string;
+    url: string | null;
+    bandeira: string | null;
+    final: string | null;
+  },
+) {
+  if (!clienteServicoId) return;
+  const atual = await tx.clienteServico.findFirst({
+    where: { id: clienteServicoId, empresaId },
+    select: { cartaoStatus: true, formaCobrancaRecorrente: true },
+  });
+  if (!atual) return;
+  const deCartao = dados.forma === "CREDIT_CARD" || atual.formaCobrancaRecorrente === "CREDIT_CARD";
+  if (!deCartao && dados.tipo !== "PAYMENT_CREDIT_CARD_CAPTURE_REFUSED") {
+    if (dados.url) {
+      await tx.clienteServico.updateMany({
+        where: { id: clienteServicoId, empresaId },
+        data: { urlCobranca: dados.url },
+      });
+    }
+    return;
+  }
+  const recusado = dados.tipo === "PAYMENT_CREDIT_CARD_CAPTURE_REFUSED";
+  const confirmado =
+    dados.tipo === "PAYMENT_CONFIRMED" || dados.tipo === "PAYMENT_RECEIVED" || CONFIRMADOS.has(dados.status);
+  let cartaoStatus = atual.cartaoStatus;
+  if (recusado) cartaoStatus = "RECUSADO";
+  else if (confirmado) cartaoStatus = "CADASTRADO";
+  else if (!cartaoStatus) cartaoStatus = "AGUARDANDO";
+  await tx.clienteServico.updateMany({
+    where: { id: clienteServicoId, empresaId },
+    data: {
+      cartaoStatus,
+      ...(dados.url ? { urlCobranca: dados.url } : {}),
+      ...(cartaoStatus === "CADASTRADO" && dados.bandeira ? { cartaoBandeira: dados.bandeira } : {}),
+      ...(cartaoStatus === "CADASTRADO" && dados.final ? { cartaoFinal: dados.final } : {}),
+    },
+  });
+}
+
 function exclusao(tipo: string, pagamento: Record<string, unknown>): boolean | undefined {
   if (tipo === "PAYMENT_RESTORED") return false;
   if (tipo === "IMPORT") return pagamento.deleted === true;
@@ -59,6 +119,7 @@ export async function espelharPagamentoAsaas(
   const boletoUrl = texto(pagamento.bankSlipUrl, 2000);
   const faturaUrl = texto(pagamento.invoiceUrl, 2000);
   const descricao = texto(pagamento.description, 500);
+  const cartao = cartaoDoPagamento(pagamento);
   const subscriptionId = idAsaas(texto(pagamento.subscription, 80));
   const vinculo = subscriptionId
     ? await tx.clienteServico.findFirst({
@@ -85,6 +146,14 @@ export async function espelharPagamentoAsaas(
         ...(descricao ? { descricao } : {}),
         ...(!existente.clienteServicoId && vinculo ? { clienteServicoId: vinculo.id } : {}),
       },
+    });
+    await refletirCartao(tx, empresaId, vinculo?.id ?? existente.clienteServicoId, {
+      forma,
+      status,
+      tipo,
+      url: faturaUrl ?? boletoUrl,
+      bandeira: cartao.bandeira,
+      final: cartao.final,
     });
     return "atualizada";
   }
@@ -115,6 +184,14 @@ export async function espelharPagamentoAsaas(
       descricao,
       excluida: excluida ?? false,
     },
+  });
+  await refletirCartao(tx, empresaId, vinculo?.id ?? null, {
+    forma,
+    status,
+    tipo,
+    url: faturaUrl ?? boletoUrl,
+    bandeira: cartao.bandeira,
+    final: cartao.final,
   });
   return "criada";
 }

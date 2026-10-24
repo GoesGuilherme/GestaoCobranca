@@ -5,7 +5,7 @@ export const URL_ASAAS = {
 
 export type AmbienteAsaas = keyof typeof URL_ASAAS;
 
-export type FormaCobranca = "BOLETO" | "PIX" | "UNDEFINED";
+export type FormaCobranca = "BOLETO" | "PIX" | "UNDEFINED" | "CREDIT_CARD";
 
 export type ClienteAsaas = {
   id: string;
@@ -25,6 +25,7 @@ export type CobrancaAsaas = {
   faturaUrl: string | null;
   descricao: string | null;
   excluida: boolean;
+  cartao?: { bandeira: string | null; final: string | null } | null;
 };
 
 export type AssinaturaAsaas = {
