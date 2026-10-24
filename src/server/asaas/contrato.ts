@@ -16,6 +16,7 @@ export type ClienteAsaas = {
 export type CobrancaAsaas = {
   id: string;
   customer: string;
+  subscription: string | null;
   valor: string;
   vencimento: string;
   status: string;
@@ -24,6 +25,49 @@ export type CobrancaAsaas = {
   faturaUrl: string | null;
   descricao: string | null;
   excluida: boolean;
+};
+
+export type AssinaturaAsaas = {
+  id: string;
+  customer: string;
+  valor: string;
+  proximoVencimento: string;
+  ciclo: string;
+  formaCobranca: string;
+  status: string;
+  descricao: string | null;
+};
+
+export type EncargosAsaas = {
+  multaPercentual?: string | null;
+  jurosPercentual?: string | null;
+  descontoPercentual?: string | null;
+  descontoDiasAntes?: number | null;
+};
+
+export type NovaAssinaturaAsaas = {
+  customer: string;
+  formaCobranca: FormaCobranca;
+  valor: string;
+  proximoVencimento: string;
+  descricao?: string;
+  referencia?: string;
+  encargos?: EncargosAsaas;
+};
+
+export type AtualizacaoAssinaturaAsaas = {
+  formaCobranca?: FormaCobranca;
+  valor?: string;
+  proximoVencimento?: string;
+  descricao?: string;
+  status?: "ACTIVE" | "INACTIVE";
+  atualizarPendentes?: boolean;
+  encargos?: EncargosAsaas;
+};
+
+export type PaginaCobrancasAsaas = {
+  cobrancas: CobrancaAsaas[];
+  temMais: boolean;
 };
 
 export type NovoClienteAsaas = {
@@ -41,16 +85,23 @@ export type NovaCobrancaAsaas = {
   vencimento: string;
   descricao?: string;
   referencia?: string;
+  encargos?: EncargosAsaas;
 };
 
 export interface ClienteHttpAsaas {
   testarConexao(): Promise<{ nome: string }>;
   buscarClientePorDocumento(cpfCnpj: string): Promise<ClienteAsaas | null>;
+  obterCliente(id: string): Promise<ClienteAsaas | null>;
   criarCliente(dados: NovoClienteAsaas): Promise<ClienteAsaas>;
   criarCobranca(dados: NovaCobrancaAsaas): Promise<CobrancaAsaas>;
   cancelarCobranca(id: string): Promise<void>;
   obterLinhaDigitavel(id: string): Promise<string | null>;
   obterPix(id: string): Promise<string | null>;
+  criarAssinatura(dados: NovaAssinaturaAsaas): Promise<AssinaturaAsaas>;
+  atualizarAssinatura(id: string, dados: AtualizacaoAssinaturaAsaas): Promise<AssinaturaAsaas>;
+  cancelarAssinatura(id: string): Promise<void>;
+  listarCobrancasDoCliente(customer: string, offset: number, limit: number): Promise<PaginaCobrancasAsaas>;
+  listarCobrancasDaAssinatura(assinatura: string, offset: number, limit: number): Promise<PaginaCobrancasAsaas>;
 }
 
 export class ErroAsaas extends Error {

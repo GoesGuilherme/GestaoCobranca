@@ -1,15 +1,18 @@
+import { formaCobrancaDe } from "@/lib/cobranca";
 import { isoDeData } from "@/lib/data";
 import { somenteDocumento } from "@/lib/documento";
 import type { FaturaDTO, SituacaoFatura } from "@/lib/tipos";
 import { esquemaFatura } from "@/lib/validacao";
-import { abrirClienteAsaas, traduzirErroAsaas } from "@/server/asaas/abrir";
-import type { ClienteHttpAsaas } from "@/server/asaas/contrato";
-import { ErroAsaas } from "@/server/asaas/contrato";
+import { abrirClienteAsaas, asaasRespondeu, traduzirErroAsaas } from "@/server/asaas/abrir";
+import { type ClienteHttpAsaas, type CobrancaAsaas, type PaginaCobrancasAsaas } from "@/server/asaas/contrato";
+import { logAsaas, logAsaasErro, mensagemLogAsaas } from "@/server/asaas/log";
 import type { AutorEmpresa } from "@/server/auth/papeis";
 import { exigirCobranca, exigirVerFaturas } from "@/server/auth/papeis";
 import { prisma } from "@/server/db";
 import { ErroAplicacao } from "@/server/erros";
 import { lerEsquema } from "@/server/validar";
+import { espelharCobrancaImportada } from "./asaas-pagamento";
+import { encargosDaPreferencia, obterPreferenciasCobranca } from "./preferencia-cobranca-service";
 
 const ABERTAS = ["PENDING", "AWAITING_RISK_ANALYSIS"];
 const VENCIDAS = ["OVERDUE", "DUNNING_REQUESTED"];
@@ -95,7 +98,7 @@ export async function listarFaturas(
   return faturas.map(paraFatura);
 }
 
-async function garantirClienteAsaas(
+export async function garantirClienteAsaas(
   empresaId: string,
   cliente: {
     id: string;
@@ -108,7 +111,10 @@ async function garantirClienteAsaas(
   },
   http: ClienteHttpAsaas,
 ) {
-  if (cliente.asaasCustomerId) return cliente.asaasCustomerId;
+  if (cliente.asaasCustomerId) {
+    const conhecido = await http.obterCliente(cliente.asaasCustomerId);
+    if (conhecido) return cliente.asaasCustomerId;
+  }
   const documento = somenteDocumento(cliente.documento);
   const existente = await http.buscarClientePorDocumento(documento);
   const remoto =
@@ -120,8 +126,9 @@ async function garantirClienteAsaas(
       telefone: cliente.whatsapp || undefined,
       referencia: cliente.id,
     }));
+  if (remoto.id === cliente.asaasCustomerId) return remoto.id;
   const gravado = await prisma.cliente.updateMany({
-    where: { id: cliente.id, empresaId, asaasCustomerId: null },
+    where: { id: cliente.id, empresaId },
     data: { asaasCustomerId: remoto.id },
   });
   if (gravado.count === 1) return remoto.id;
@@ -158,7 +165,8 @@ export async function emitirFatura(
     clienteServicoId = vinculo.id;
   }
 
-  const forma = dados.formaCobranca ?? "BOLETO";
+  const prefs = await obterPreferenciasCobranca(autor.empresaId);
+  const forma = formaCobrancaDe(dados.formaCobranca ?? prefs.formaCobranca);
   const descricao = dados.descricao?.trim() ? dados.descricao.trim() : undefined;
 
   try {
@@ -171,6 +179,7 @@ export async function emitirFatura(
       vencimento: dados.vencimento,
       descricao,
       referencia: cliente.id,
+      encargos: encargosDaPreferencia(prefs),
     });
 
     let linhaDigitavel: string | null = null;
@@ -210,12 +219,23 @@ export async function emitirFatura(
         },
         include: includeNomes,
       });
+      logAsaas("fatura emitida", {
+        empresaId: autor.empresaId,
+        clienteId: cliente.id,
+        asaasPaymentId: cobranca.id,
+        forma,
+      });
       return paraFatura(fatura);
     } catch (erro) {
       await http.cancelarCobranca(cobranca.id).catch(() => undefined);
       throw erro;
     }
   } catch (erro) {
+    logAsaasErro("falha ao emitir fatura", {
+      empresaId: autor.empresaId,
+      clienteId: cliente.id,
+      mensagem: mensagemLogAsaas(erro),
+    });
     traduzirErroAsaas(erro);
   }
 }
@@ -238,7 +258,7 @@ export async function cancelarFatura(
     try {
       await http.cancelarCobranca(atual.asaasPaymentId);
     } catch (erro) {
-      if (!(erro instanceof ErroAsaas) || erro.status !== 404) throw erro;
+      if (!asaasRespondeu(erro, 404)) throw erro;
     }
   } catch (erro) {
     traduzirErroAsaas(erro);
@@ -250,4 +270,134 @@ export async function cancelarFatura(
     include: includeNomes,
   });
   return paraFatura(fatura);
+}
+
+const LIMITE_PAGINA = 100;
+const MAX_PAGINAS = 5;
+const ABERTAS_RECORRENTES = ["PENDING", "OVERDUE", "AWAITING_RISK_ANALYSIS", "DUNNING_REQUESTED"];
+
+function registroDeCobranca(cobranca: CobrancaAsaas): Record<string, unknown> {
+  return {
+    id: cobranca.id,
+    customer: cobranca.customer,
+    subscription: cobranca.subscription,
+    value: cobranca.valor,
+    dueDate: cobranca.vencimento,
+    status: cobranca.status,
+    billingType: cobranca.formaCobranca,
+    bankSlipUrl: cobranca.boletoUrl,
+    invoiceUrl: cobranca.faturaUrl,
+    description: cobranca.descricao,
+    deleted: cobranca.excluida,
+  };
+}
+
+async function coletarCobrancas(buscar: (offset: number) => Promise<PaginaCobrancasAsaas>) {
+  const todas: CobrancaAsaas[] = [];
+  let offset = 0;
+  for (let pagina = 0; pagina < MAX_PAGINAS; pagina += 1) {
+    const lote = await buscar(offset);
+    todas.push(...lote.cobrancas);
+    if (!lote.temMais || lote.cobrancas.length === 0) break;
+    offset += lote.cobrancas.length;
+  }
+  return todas;
+}
+
+export async function gravarCobrancasEspelhadas(empresaId: string, cobrancas: CobrancaAsaas[]) {
+  const mapa = new Map<string, CobrancaAsaas>();
+  for (const cobranca of cobrancas) {
+    const anterior = mapa.get(cobranca.id);
+    if (!anterior || (!anterior.subscription && cobranca.subscription)) mapa.set(cobranca.id, cobranca);
+  }
+  let criadas = 0;
+  let atualizadas = 0;
+  let ignoradas = 0;
+  for (const cobranca of mapa.values()) {
+    const resultado = await espelharCobrancaImportada(empresaId, registroDeCobranca(cobranca));
+    if (resultado === "criada") criadas += 1;
+    else if (resultado === "atualizada") atualizadas += 1;
+    else ignoradas += 1;
+  }
+  return { criadas, atualizadas, ignoradas };
+}
+
+export async function importarFaturas(autor: AutorEmpresa, clienteHttp?: ClienteHttpAsaas) {
+  exigirCobranca(autor);
+  try {
+    const { http } = await abrirClienteAsaas(autor.empresaId, clienteHttp);
+    const clientes = await prisma.cliente.findMany({
+      where: { empresaId: autor.empresaId, asaasCustomerId: { not: null } },
+      select: { asaasCustomerId: true },
+    });
+    const assinaturas = await prisma.clienteServico.findMany({
+      where: { empresaId: autor.empresaId, asaasSubscriptionId: { not: null } },
+      select: { asaasSubscriptionId: true },
+    });
+    const cobrancas: CobrancaAsaas[] = [];
+    for (const cliente of clientes) {
+      if (!cliente.asaasCustomerId) continue;
+      cobrancas.push(
+        ...(await coletarCobrancas((offset) => http.listarCobrancasDoCliente(cliente.asaasCustomerId!, offset, LIMITE_PAGINA))),
+      );
+    }
+    for (const assinatura of assinaturas) {
+      if (!assinatura.asaasSubscriptionId) continue;
+      try {
+        cobrancas.push(
+          ...(await coletarCobrancas((offset) =>
+            http.listarCobrancasDaAssinatura(assinatura.asaasSubscriptionId!, offset, LIMITE_PAGINA),
+          )),
+        );
+      } catch (erro) {
+        if (!asaasRespondeu(erro, 404)) throw erro;
+      }
+    }
+    const resultado = await gravarCobrancasEspelhadas(autor.empresaId, cobrancas);
+    logAsaas("faturas importadas", {
+      empresaId: autor.empresaId,
+      criadas: resultado.criadas,
+      atualizadas: resultado.atualizadas,
+      ignoradas: resultado.ignoradas,
+    });
+    return resultado;
+  } catch (erro) {
+    logAsaasErro("falha ao importar faturas", {
+      empresaId: autor.empresaId,
+      mensagem: mensagemLogAsaas(erro),
+    });
+    traduzirErroAsaas(erro);
+  }
+}
+
+export async function marcarFaturasAbertasExcluidas(empresaId: string, clienteServicoId: string) {
+  await prisma.fatura.updateMany({
+    where: {
+      empresaId,
+      clienteServicoId,
+      excluida: false,
+      status: { in: ABERTAS_RECORRENTES },
+    },
+    data: { excluida: true },
+  });
+}
+
+export async function atualizarFaturasAbertasDaAssinatura(
+  empresaId: string,
+  clienteServicoId: string,
+  dados: { valor: string; formaCobranca: string; descricao: string | null },
+) {
+  await prisma.fatura.updateMany({
+    where: {
+      empresaId,
+      clienteServicoId,
+      excluida: false,
+      status: { in: ABERTAS_RECORRENTES },
+    },
+    data: {
+      valor: dados.valor,
+      formaCobranca: dados.formaCobranca,
+      ...(dados.descricao ? { descricao: dados.descricao } : {}),
+    },
+  });
 }

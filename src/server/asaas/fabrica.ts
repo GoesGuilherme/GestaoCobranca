@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { ErroAplicacao } from "@/server/erros";
 import { criarClienteHttpAsaas } from "./cliente-http";
 import { type AmbienteAsaas, type ClienteHttpAsaas, URL_ASAAS } from "./contrato";
@@ -25,7 +26,9 @@ export function afirmarMockAsaasPermitido(env: AmbienteProcesso = process.env) {
 const memoriaGlobal = globalThis as unknown as { asaasMemoriaDev?: AsaasMemoria };
 
 export function memoriaAsaasDev(): AsaasMemoria {
-  if (!memoriaGlobal.asaasMemoriaDev) memoriaGlobal.asaasMemoriaDev = new AsaasMemoria("dev");
+  if (!memoriaGlobal.asaasMemoriaDev) {
+    memoriaGlobal.asaasMemoriaDev = new AsaasMemoria(`dev${randomBytes(3).toString("hex")}`);
+  }
   return memoriaGlobal.asaasMemoriaDev;
 }
 

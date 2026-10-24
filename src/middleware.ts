@@ -75,7 +75,9 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/faturas/") ||
     pathname === "/api/faturas" ||
     pathname.startsWith("/api/faturas/") ||
-    /^\/api\/clientes\/[^/]+\/faturas\/?$/.test(pathname);
+    pathname.startsWith("/api/recorrencias") ||
+    /^\/api\/clientes\/[^/]+\/faturas\/?$/.test(pathname) ||
+    /^\/api\/servicos-cliente\/[^/]+\/recorrencia(\/|$)/.test(pathname);
   if (rotaFaturas && !podeVerFaturas(sessao.papel)) {
     return paginaProibida(
       pathname,

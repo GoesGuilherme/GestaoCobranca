@@ -1,10 +1,9 @@
-// Cadastro de clientes (grupos do PDVLegal), filiais e serviços vendidos.
-// Servico é o catálogo da empresa assinante (o que ela vende aos clientes dela).
+// Cadastro de clientes, filiais e serviços vendidos de cada empresa assinante.
+// Servico é o catálogo da empresa (o que ela vende aos clientes dela).
 // ClienteServico guarda o valor combinado daquele cliente. O plano da Empresa
 // (string `plano`) é a assinatura dela na plataforma e não se mistura com este catálogo.
-// A cobrança nova é do Asaas: configuração por empresa, cliente e fatura avulsa.
-// Assinatura recorrente e importação de cobranças antigas ficam para a etapa seguinte.
-// A Cora não entra neste modelo.
+// A cobrança nova é do Asaas: configuração e preferências por empresa, cliente,
+// fatura e assinatura mensal no vínculo MENSAL. A Cora não entra neste modelo.
 
 generator client {
   provider = "prisma-client"
@@ -103,6 +102,7 @@ model Empresa {
   servicos         Servico[]
   servicosVendidos ClienteServico[]
   asaas            ConfiguracaoAsaas?
+  preferenciaCobranca PreferenciaCobranca?
   faturas          Fatura[]
   eventosAsaas     EventoAsaas[]
 
@@ -183,8 +183,8 @@ model Filial {
   atualizadoEm DateTime     @updatedAt @map("atualizado_em") @db.Timestamptz(3)
   cliente      Cliente      @relation(fields: [clienteId], references: [id], onDelete: Cascade)
 
-  // O CNPJ da filial não é único: no PDVLegal a filial é a unidade
-  // operacional, e mais de uma pode compartilhar o mesmo CNPJ.
+  // O CNPJ da filial não é único: a filial é a unidade operacional,
+  // e mais de uma pode compartilhar o mesmo CNPJ.
   @@index([clienteId])
   @@index([nome])
   @@map("filiais")
@@ -226,19 +226,46 @@ model ClienteServico {
   recorrencia  RecorrenciaServico
   inicioEm     DateTime             @map("inicio_em") @db.Date
   status       StatusServicoCliente @default(ATIVO)
-  observacoes  String?              @db.Text
-  criadoEm     DateTime             @default(now()) @map("criado_em") @db.Timestamptz(3)
-  atualizadoEm DateTime             @updatedAt @map("atualizado_em") @db.Timestamptz(3)
-  empresa      Empresa              @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  cliente      Cliente              @relation(fields: [clienteId], references: [id], onDelete: Cascade)
-  servico      Servico              @relation(fields: [servicoId], references: [id], onDelete: Restrict)
-  faturas      Fatura[]
+  observacoes              String?              @db.Text
+  asaasSubscriptionId      String?              @unique @map("asaas_subscription_id")
+  asaasAssinaturaStatus    String?              @map("asaas_assinatura_status")
+  formaCobrancaRecorrente  String?              @map("forma_cobranca_recorrente")
+  diaVencimento            Int?                 @map("dia_vencimento")
+  proximoVencimento        DateTime?            @map("proximo_vencimento") @db.Date
+  descricaoRecorrente      String?              @map("descricao_recorrente") @db.Text
+  criadoEm                 DateTime             @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm             DateTime             @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  empresa                  Empresa              @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  cliente                  Cliente              @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  servico                  Servico              @relation(fields: [servicoId], references: [id], onDelete: Restrict)
+  faturas                  Fatura[]
 
   @@index([empresaId])
   @@index([clienteId])
   @@index([servicoId])
   @@index([empresaId, status, recorrencia])
   @@map("clientes_servicos")
+}
+
+// Padrões de cobrança de uma empresa. Não exige chave do Asaas: a tela
+// preenche os formulários com estes valores e cada venda ainda pode trocar.
+model PreferenciaCobranca {
+  id                 String   @id @default(cuid())
+  empresaId          String   @unique @map("empresa_id")
+  formaCobranca      String   @default("BOLETO") @map("forma_cobranca")
+  diaVencimento      Int      @default(10) @map("dia_vencimento")
+  modeloDescricao    String   @default("Mensalidade {servico}") @map("modelo_descricao") @db.Text
+  multaPercentual    Decimal? @map("multa_percentual") @db.Decimal(5, 2)
+  jurosPercentual    Decimal? @map("juros_percentual") @db.Decimal(5, 2)
+  descontoPercentual Decimal? @map("desconto_percentual") @db.Decimal(5, 2)
+  descontoDiasAntes  Int?     @map("desconto_dias_antes")
+  diasAntesGerar     Int?     @map("dias_antes_gerar")
+  atualizarPendentes Boolean  @default(false) @map("atualizar_pendentes")
+  criadoEm           DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm       DateTime @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  empresa            Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+
+  @@map("preferencias_cobranca")
 }
 
 // Uma configuração por empresa. A chave da API e o token do webhook ficam
@@ -260,7 +287,8 @@ model ConfiguracaoAsaas {
 }
 
 // Espelho local de uma cobrança do Asaas. O id do pagamento é único dentro
-// da empresa. Assinatura recorrente não entra nesta etapa.
+// da empresa. Cobrança de assinatura entra pelo webhook ou pela importação
+// e aponta para o vínculo que guarda o asaas_subscription_id.
 model Fatura {
   id               String    @id @default(cuid())
   empresaId        String    @map("empresa_id")

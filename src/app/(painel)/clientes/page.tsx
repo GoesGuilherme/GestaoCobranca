@@ -32,7 +32,7 @@ export default async function PaginaClientes({
   return (
     <>
       <CabecalhoPagina
-        olho="Grupos do PDVLegal"
+        olho="Clientes da empresa"
         titulo="Clientes"
         descricao="Busque pelo nome fantasia, razão social, CPF/CNPJ ou cidade."
         acao={
@@ -90,7 +90,7 @@ export default async function PaginaClientes({
           <p className="mt-2 text-muted">
             {filtrando
               ? "Tente outro nome, CNPJ ou cidade, ou limpe os filtros."
-              : "Comece pelo primeiro grupo do PDVLegal."}
+              : "Comece pelo primeiro cliente."}
           </p>
         </div>
       ) : (

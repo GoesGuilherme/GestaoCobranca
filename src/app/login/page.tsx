@@ -11,13 +11,13 @@ export default function PaginaLogin() {
           <span className="inline-flex size-12 items-center justify-center rounded-2xl bg-gold font-semibold text-forest-deep">
             GC
           </span>
-          <p className="mt-10 text-sm uppercase tracking-[0.18em] text-gold">PDVLegal</p>
+          <p className="mt-10 text-sm uppercase tracking-[0.18em] text-gold">Gestão Cobrança</p>
           <h2 className="mt-3 max-w-md font-display text-5xl leading-[1.05]">
-            Os grupos e as filiais, num lugar só.
+            Clientes e unidades, num lugar só.
           </h2>
           <p className="mt-5 max-w-md text-base leading-7 text-white/75">
-            Cada cliente do back office é um grupo. Dentro dele ficam as filiais: o food truck da
-            praia, o mercado da esquina, a unidade do shopping.
+            Cada empresa assinante cuida dos próprios clientes. Dentro de um cliente ficam as
+            unidades: o food truck da praia, o mercado da esquina, a loja do shopping.
           </p>
         </div>
         <div className="rounded-3xl border border-white/10 bg-white/5 p-5">

@@ -3,9 +3,10 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { enviarJson } from "@/lib/api-cliente";
+import { PREFERENCIAS_COBRANCA_PADRAO } from "@/lib/cobranca";
 import { dataHojeIso } from "@/lib/data";
 import { FORMAS_COBRANCA } from "@/lib/rotulos";
-import type { ClienteServicoDTO } from "@/lib/tipos";
+import type { ClienteServicoDTO, FaturaDTO, PreferenciasCobrancaDTO } from "@/lib/tipos";
 import { esquemaFatura, mensagensDoZod } from "@/lib/validacao";
 import { Campo, classeCampo } from "./campo";
 import { classeBotaoPrimario } from "./estilos";
@@ -13,14 +14,18 @@ import { classeBotaoPrimario } from "./estilos";
 export function FormularioFatura({
   clienteId,
   vinculos,
+  onEmitida,
+  preferencias = PREFERENCIAS_COBRANCA_PADRAO,
 }: {
   clienteId: string;
   vinculos: ClienteServicoDTO[];
+  onEmitida?: (fatura: FaturaDTO) => void;
+  preferencias?: PreferenciasCobrancaDTO;
 }) {
   const router = useRouter();
   const [valor, setValor] = useState("");
   const [vencimento, setVencimento] = useState(dataHojeIso());
-  const [formaCobranca, setFormaCobranca] = useState("BOLETO");
+  const [formaCobranca, setFormaCobranca] = useState<string>(preferencias.formaCobranca);
   const [descricao, setDescricao] = useState("");
   const [clienteServicoId, setClienteServicoId] = useState("");
   const [campos, setCampos] = useState<Record<string, string>>({});
@@ -44,7 +49,7 @@ export function FormularioFatura({
     }
     setCampos({});
     setEnviando(true);
-    const resposta = await enviarJson(`/api/clientes/${clienteId}/faturas`, "POST", validado.data);
+    const resposta = await enviarJson<{ fatura: FaturaDTO }>(`/api/clientes/${clienteId}/faturas`, "POST", validado.data);
     setEnviando(false);
     if (!resposta.ok) {
       if (resposta.status === 401) {
@@ -57,6 +62,7 @@ export function FormularioFatura({
     }
     setValor("");
     setDescricao("");
+    if (resposta.dados.fatura) onEmitida?.(resposta.dados.fatura);
     router.refresh();
   }
 
@@ -64,7 +70,7 @@ export function FormularioFatura({
     <form onSubmit={enviar} className="mt-4 grid gap-4 rounded-3xl border border-line bg-card p-6">
       <h3 className="font-display text-2xl">Emitir boleto avulso</h3>
       <p className="text-sm text-muted">
-        O cliente é criado no Asaas na primeira cobrança, ou reaproveitado se o CPF/CNPJ já existir lá.
+        O cliente é criado no Asaas na primeira cobrança, ou reaproveitado se o CPF/CNPJ já existir lá. Multa, juros e desconto seguem as preferências desta empresa.
       </p>
       <div className="grid gap-4 sm:grid-cols-2">
         <Campo label="Valor" htmlFor="valor-fatura" erro={campos.valor}>
@@ -96,7 +102,12 @@ export function FormularioFatura({
       <Campo label="Descrição" htmlFor="descricao-fatura" erro={campos.descricao}>
         <input id="descricao-fatura" className={classeCampo} value={descricao} onChange={(evento) => setDescricao(evento.target.value)} maxLength={500} />
       </Campo>
-      {erro ? <p className="text-sm text-clay">{erro}</p> : null}
+      {erro ? (
+        <div role="alert" className="rounded-2xl border border-clay/40 bg-clay-soft px-4 py-3 text-sm text-clay">
+          <p className="font-medium">O Asaas não emitiu a cobrança.</p>
+          <p className="mt-1">{erro}</p>
+        </div>
+      ) : null}
       <div>
         <button type="submit" className={classeBotaoPrimario} disabled={enviando}>
           {enviando ? "Emitindo..." : "Emitir cobrança"}

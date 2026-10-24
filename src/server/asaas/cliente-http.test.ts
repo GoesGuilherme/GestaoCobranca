@@ -87,6 +87,96 @@ describe("cliente HTTP do Asaas", () => {
     }
   });
 
+  it("cria a assinatura mensal com o valor em número e atualiza as pendências", async () => {
+    const pedidos: { url: string; init: RequestInit }[] = [];
+    const fetchImpl: typeof fetch = async (entrada, init) => {
+      pedidos.push({ url: String(entrada), init: init ?? {} });
+      const url = String(entrada);
+      if (url.endsWith("/subscriptions") && init?.method === "POST") {
+        return resposta(200, {
+          id: "sub_1",
+          customer: "cus_1",
+          value: 150,
+          nextDueDate: "2026-11-10",
+          cycle: "MONTHLY",
+          billingType: "BOLETO",
+          status: "ACTIVE",
+          description: "Mensalidade Licença",
+        });
+      }
+      if (url.endsWith("/subscriptions/sub_1") && init?.method === "PUT") {
+        return resposta(200, {
+          id: "sub_1",
+          customer: "cus_1",
+          value: 180,
+          nextDueDate: "2026-12-10",
+          cycle: "MONTHLY",
+          billingType: "PIX",
+          status: "ACTIVE",
+        });
+      }
+      if (url.includes("/subscriptions/sub_1/payments")) {
+        return resposta(200, {
+          hasMore: false,
+          data: [
+            {
+              id: "pay_sub",
+              customer: "cus_1",
+              subscription: "sub_1",
+              value: 150,
+              dueDate: "2026-11-10",
+              status: "PENDING",
+              billingType: "BOLETO",
+            },
+          ],
+        });
+      }
+      if (init?.method === "DELETE") return resposta(200, { deleted: true, id: "sub_1" });
+      return resposta(404, {});
+    };
+    const cliente = criarClienteHttpAsaas({ baseUrl: URL_ASAAS.SANDBOX, apiKey: CHAVE, fetchImpl });
+    const criada = await cliente.criarAssinatura({
+      customer: "cus_1",
+      formaCobranca: "BOLETO",
+      valor: "150.00",
+      proximoVencimento: "2026-11-10",
+      descricao: "Mensalidade Licença",
+      referencia: "vinculo-1",
+      encargos: {
+        multaPercentual: "2.00",
+        jurosPercentual: "1.15",
+        descontoPercentual: "5.00",
+        descontoDiasAntes: 3,
+      },
+    });
+    expect(criada.id).toBe("sub_1");
+    expect(criada.ciclo).toBe("MONTHLY");
+    const corpo = String(pedidos[0]?.init.body);
+    expect(corpo).toContain('"cycle":"MONTHLY"');
+    expect(corpo).toContain('"value":150.00');
+    expect(corpo).toContain('"fine":{"value":2.00,"type":"PERCENTAGE"}');
+    expect(corpo).toContain('"interest":{"value":1.15}');
+    expect(corpo).toContain('"discount":{"value":5.00,"dueDateLimitDays":3,"type":"PERCENTAGE"}');
+    expect(corpo).not.toContain(CHAVE);
+    const atualizada = await cliente.atualizarAssinatura("sub_1", {
+      valor: "180.00",
+      formaCobranca: "PIX",
+      proximoVencimento: "2026-12-10",
+      atualizarPendentes: true,
+      encargos: { multaPercentual: "0.00" },
+    });
+    expect(atualizada.valor).toBe("180.00");
+    const corpoAtualizacao = String(pedidos[1]?.init.body);
+    expect(corpoAtualizacao).toContain('"updatePendingPayments":true');
+    expect(corpoAtualizacao).toContain('"value":180.00');
+    expect(corpoAtualizacao).toContain('"fine":{"value":0.00,"type":"PERCENTAGE"}');
+    expect(corpoAtualizacao).not.toContain('"interest"');
+    const pagina = await cliente.listarCobrancasDaAssinatura("sub_1", 0, 100);
+    expect(pagina.cobrancas[0]?.subscription).toBe("sub_1");
+    await cliente.cancelarAssinatura("sub_1");
+    expect(pedidos.at(-1)?.init.method).toBe("DELETE");
+  });
+
   it("recusa o modo simulado em produção", () => {
     expect(mockAsaasLigado({ ASAAS_MOCK: "true", NODE_ENV: "production" })).toBe(false);
     expect(mockAsaasLigado({ ASAAS_MOCK: "true", NODE_ENV: "development" })).toBe(true);

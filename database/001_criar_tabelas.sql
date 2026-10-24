@@ -22,7 +22,7 @@ CREATE TABLE "usuarios" (
     CONSTRAINT "usuarios_pkey" PRIMARY KEY ("id")
 );
 
--- Cliente: o grupo do PDVLegal.
+-- Cliente da empresa assinante.
 CREATE TABLE "clientes" (
     "id" TEXT NOT NULL,
     "nome_fantasia" TEXT NOT NULL,

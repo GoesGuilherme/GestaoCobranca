@@ -13,10 +13,12 @@ export function TabelaFaturas({
   faturas,
   podeCancelar,
   mostrarCliente,
+  destaqueId,
 }: {
   faturas: FaturaDTO[];
   podeCancelar: boolean;
   mostrarCliente: boolean;
+  destaqueId?: string | null;
 }) {
   if (faturas.length === 0) {
     return (
@@ -43,7 +45,11 @@ export function TabelaFaturas({
           {faturas.map((fatura) => {
             const via = segundaVia(fatura);
             return (
-              <tr key={fatura.id} className="border-b border-line/70 last:border-0">
+              <tr
+                key={fatura.id}
+                id={`fatura-${fatura.id}`}
+                className={`scroll-mt-24 border-b border-line/70 last:border-0 ${destaqueId === fatura.id ? "bg-gold-soft" : ""}`}
+              >
                 {mostrarCliente ? (
                   <td className="px-4 py-3">
                     <Link href={`/clientes/${fatura.clienteId}`} className="font-medium text-canopy hover:underline">

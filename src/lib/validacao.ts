@@ -328,4 +328,126 @@ export type EntradaNovoUsuario = z.infer<typeof esquemaNovoUsuario>;
 export type EntradaServico = z.infer<typeof esquemaServico>;
 export type EntradaClienteServico = z.infer<typeof esquemaClienteServico>;
 export type EntradaConfiguracaoAsaas = z.infer<typeof esquemaConfiguracaoAsaas>;
+export const esquemaDiaVencimento = z
+  .number("Informe o dia de vencimento.")
+  .int("Informe o dia de vencimento.")
+  .min(1, "O dia de vencimento fica entre 1 e 31.")
+  .max(31, "O dia de vencimento fica entre 1 e 31.");
+
+const esquemaFormaCobranca = z.enum(
+  ["BOLETO", "PIX", "UNDEFINED"],
+  "Escolha boleto, Pix ou deixar o cliente escolher.",
+);
+
+const esquemaDiasDesconto = z.preprocess(
+  (valor) => {
+    if (valor === null || valor === undefined) return null;
+    if (typeof valor === "string" && valor.trim() === "") return null;
+    if (typeof valor === "string" && /^\d+$/.test(valor.trim())) return Number(valor.trim());
+    return valor;
+  },
+  z.union([
+    z.null(),
+    z
+      .number("Os dias do desconto ficam entre 0 e 30.")
+      .int("Os dias do desconto ficam entre 0 e 30.")
+      .min(0, "Os dias do desconto ficam entre 0 e 30.")
+      .max(30, "Os dias do desconto ficam entre 0 e 30."),
+  ]),
+);
+
+const esquemaDiasAntesGerar = z.preprocess(
+  (valor) => {
+    if (valor === null || valor === undefined) return null;
+    if (typeof valor === "string" && valor.trim() === "") return null;
+    if (typeof valor === "string" && /^\d+$/.test(valor.trim())) return Number(valor.trim());
+    return valor;
+  },
+  z.union([
+    z.null(),
+    z
+      .number("A antecipação fica em branco ou em 7, 14 ou 40 dias.")
+      .int("A antecipação fica em branco ou em 7, 14 ou 40 dias.")
+      .refine((dias) => dias === 7 || dias === 14 || dias === 40, "A antecipação fica em branco ou em 7, 14 ou 40 dias."),
+  ]),
+);
+
+const esquemaTextoCobranca = z
+  .string()
+  .trim()
+  .max(500, "A descrição pode ter no máximo 500 caracteres.");
+
+const camposEncargos = {
+  multaPercentual: esquemaAliquotaOpcional.optional(),
+  jurosPercentual: esquemaAliquotaOpcional.optional(),
+  descontoPercentual: esquemaAliquotaOpcional.optional(),
+  descontoDiasAntes: esquemaDiasDesconto.optional(),
+};
+
+export const esquemaAtivarRecorrencia = z.object({
+  formaCobranca: esquemaFormaCobranca.optional(),
+  diaVencimento: esquemaDiaVencimento.optional(),
+  proximoVencimento: z
+    .string()
+    .trim()
+    .refine((valor) => dataIsoValida(valor), "Informe o primeiro vencimento.")
+    .optional(),
+  valor: esquemaValorPositivo.optional(),
+  descricao: esquemaTextoCobranca.optional(),
+  modeloDescricao: esquemaTextoCobranca.optional(),
+  ...camposEncargos,
+});
+
+export const esquemaEditarRecorrencia = z.object({
+  formaCobranca: esquemaFormaCobranca.optional(),
+  diaVencimento: esquemaDiaVencimento,
+  proximoVencimento: z
+    .string()
+    .trim()
+    .refine((valor) => dataIsoValida(valor), "Informe o próximo vencimento.")
+    .optional(),
+  valor: esquemaValorPositivo,
+  descricao: esquemaTextoCobranca.optional(),
+  atualizarPendentes: z.boolean().optional(),
+  ...camposEncargos,
+});
+
+export const esquemaRetomarRecorrencia = z.object({
+  diaVencimento: esquemaDiaVencimento.optional(),
+  proximoVencimento: z
+    .string()
+    .trim()
+    .refine((valor) => dataIsoValida(valor), "Informe o próximo vencimento.")
+    .optional(),
+});
+
+export const esquemaLoteRecorrencia = z
+  .object({
+    diaVencimento: esquemaDiaVencimento,
+    formaCobranca: esquemaFormaCobranca.optional(),
+    modeloDescricao: esquemaTextoCobranca.optional(),
+    clienteId: z.string().trim().max(64).optional(),
+    todos: z.boolean().optional(),
+    ids: z.array(z.string().trim().min(1).max(64)).max(100).optional(),
+    ...camposEncargos,
+  })
+  .refine((dados) => dados.todos === true || (dados.ids?.length ?? 0) > 0, "Escolha ao menos uma venda mensal.");
+
+export const esquemaPreferenciasCobranca = z.object({
+  formaCobranca: esquemaFormaCobranca,
+  diaVencimento: esquemaDiaVencimento,
+  modeloDescricao: esquemaTextoCobranca.min(1, "Informe o modelo da descrição."),
+  multaPercentual: esquemaAliquotaOpcional,
+  jurosPercentual: esquemaAliquotaOpcional,
+  descontoPercentual: esquemaAliquotaOpcional,
+  descontoDiasAntes: esquemaDiasDesconto,
+  diasAntesGerar: esquemaDiasAntesGerar,
+  atualizarPendentes: z.boolean("Informe se as cobranças em aberto devem ser atualizadas."),
+});
+
 export type EntradaFatura = z.infer<typeof esquemaFatura>;
+export type EntradaAtivarRecorrencia = z.infer<typeof esquemaAtivarRecorrencia>;
+export type EntradaEditarRecorrencia = z.infer<typeof esquemaEditarRecorrencia>;
+export type EntradaRetomarRecorrencia = z.infer<typeof esquemaRetomarRecorrencia>;
+export type EntradaLoteRecorrencia = z.infer<typeof esquemaLoteRecorrencia>;
+export type EntradaPreferenciasCobranca = z.infer<typeof esquemaPreferenciasCobranca>;

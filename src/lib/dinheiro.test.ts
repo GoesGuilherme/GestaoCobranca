@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dataHojeIso, dataIsoValida } from "./data";
+import { dataHojeIso, dataIsoValida, proximoVencimentoIso } from "./data";
 import {
   calcularImposto,
   calcularMargem,
@@ -84,6 +84,11 @@ describe("datas e permissão de serviços", () => {
     expect(dataIsoValida("22/10/2026")).toBe(false);
     expect(dataHojeIso(new Date("2026-10-22T02:30:00.000Z"))).toBe("2026-10-21");
     expect(dataHojeIso(new Date("2026-10-22T15:00:00.000Z"))).toBe("2026-10-22");
+    expect(proximoVencimentoIso(28, "2026-10-23")).toBe("2026-10-28");
+    expect(proximoVencimentoIso(10, "2026-10-23")).toBe("2026-11-10");
+    expect(proximoVencimentoIso(31, "2026-02-01")).toBe("2026-02-28");
+    expect(proximoVencimentoIso(31, "2026-01-31")).toBe("2026-02-28");
+    expect(proximoVencimentoIso(0, "2026-10-23")).toBeNull();
   });
 
   it("deixa dono e financeiro alterarem; suporte só consulta", () => {

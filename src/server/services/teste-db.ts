@@ -11,6 +11,7 @@ export function usarBancoDeTeste() {
     await prisma.eventoAsaas.deleteMany();
     await prisma.fatura.deleteMany();
     await prisma.configuracaoAsaas.deleteMany();
+    await prisma.preferenciaCobranca.deleteMany();
     await prisma.clienteServico.deleteMany();
     await prisma.servico.deleteMany();
     await prisma.filial.deleteMany();

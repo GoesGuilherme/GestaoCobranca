@@ -56,7 +56,7 @@ const exemplos: ClienteExemplo[] = [
         cidade: "Praia Grande",
         uf: "SP",
         status: "ATIVA",
-        observacoes: "Nome idêntico ao cadastro no PDVLegal. Dado fictício de exemplo.",
+        observacoes: "Dado fictício de exemplo.",
       },
       {
         nome: "SANTOS CENTRO EXEMPLO",
@@ -377,7 +377,7 @@ async function semearServicos(empresaId: string) {
   const autor = { empresaId, papel: "DONO" as const };
   const catalogo = [
     {
-      nome: "Licença PDVLegal",
+      nome: "Licença mensal",
       descricao: "Mensalidade da licença do sistema. Dado fictício de exemplo.",
       precoPadrao: "189,90",
       custo: "40,00",
@@ -410,7 +410,7 @@ async function semearServicos(empresaId: string) {
   }
 
   const licenca = await prisma.servico.findFirst({
-    where: { empresaId, nome: "Licença PDVLegal" },
+    where: { empresaId, nome: "Licença mensal" },
   });
   const suporte = await prisma.servico.findFirst({
     where: { empresaId, nome: "Suporte mensal" },

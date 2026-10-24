@@ -122,6 +122,14 @@ export function rotuloFormaCobranca(valor: string): string {
   return FORMAS_COBRANCA.find((item) => item.valor === valor)?.rotulo ?? valor;
 }
 
+export function rotuloAssinatura(status: string): string {
+  if (status === "ACTIVE") return "Recorrente";
+  if (status === "INACTIVE") return "Pausada";
+  if (status === "CANCELADA") return "Cancelada";
+  if (status === "EXPIRED") return "Encerrada";
+  return status;
+}
+
 export function rotuloStatusFatura(status: string, excluida: boolean): string {
   if (excluida) return "Cancelada";
   return STATUS_FATURA[status] ?? status;
