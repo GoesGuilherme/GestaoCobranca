@@ -8,6 +8,7 @@ import { acessoDaPagina } from "@/server/auth/pagina";
 import { ErroAplicacao } from "@/server/erros";
 import { obterCliente } from "@/server/services/cliente-service";
 import { listarServicosDoCliente } from "@/server/services/cliente-servico-service";
+import { obterPreferenciasCobranca } from "@/server/services/preferencia-cobranca-service";
 import { listarServicos } from "@/server/services/servico-service";
 
 export const metadata = { title: "Editar cliente" };
@@ -35,12 +36,14 @@ export default async function PaginaEditarCliente({
     throw erro;
   }
 
+  const preferencias = podeCobrar ? await obterPreferenciasCobranca(acesso.empresaId) : undefined;
+
   return (
     <>
       <CabecalhoPagina
         olho="Edição"
         titulo={cliente.nomeFantasia}
-        descricao="Altere os dados do grupo. Os serviços vendidos ficam nesta página e na ficha do cliente. As filiais continuam na ficha."
+        descricao="Altere os dados do cliente. Os serviços vendidos ficam nesta página e na ficha. As unidades continuam na ficha."
       />
       <FormularioCliente cliente={cliente} />
       <PainelServicosCliente
@@ -49,6 +52,8 @@ export default async function PaginaEditarCliente({
         catalogo={catalogo}
         podeEditar={podeAlterarServicos(acesso.papel)}
         podeCobrar={podeCobrar}
+        nomeCliente={cliente.nomeFantasia}
+        preferencias={preferencias}
       />
     </>
   );

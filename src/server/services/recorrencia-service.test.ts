@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { descreverCobranca } from "@/lib/cobranca";
 import { dataHojeIso, proximoVencimentoIso } from "@/lib/data";
 import { completarCnpj } from "@/lib/documento";
 import type { PapelUsuario } from "@/lib/tipos";
@@ -19,6 +20,7 @@ import {
   pausarRecorrencia,
   retomarRecorrencia,
 } from "./recorrencia-service";
+import { obterPreferenciasCobranca, salvarPreferenciasCobranca } from "./preferencia-cobranca-service";
 import { criarServico } from "./servico-service";
 import { criarEmpresaDeTeste, usarBancoDeTeste } from "./teste-db";
 
@@ -257,5 +259,105 @@ describe("recorrência Asaas", () => {
     expect(repetida.criadas).toBe(0);
     expect(repetida.atualizadas).toBe(2);
     expect(await prisma.fatura.count({ where: { empresaId } })).toBe(antes + 1);
+  });
+
+  it("aplica as preferências da empresa e não as de outra conta", async () => {
+    await salvarConfiguracaoAsaas(autor("DONO"), { ambiente: "SANDBOX", chaveApi: CHAVE });
+    const preferencias = {
+      formaCobranca: "PIX" as const,
+      diaVencimento: 15,
+      modeloDescricao: "{servico} de {cliente} em {mes}",
+      multaPercentual: "2,00",
+      jurosPercentual: "1,00",
+      descontoPercentual: "5,00",
+      descontoDiasAntes: 3,
+      diasAntesGerar: 14 as const,
+      atualizarPendentes: true,
+    };
+    await expect(salvarPreferenciasCobranca(autor("FINANCEIRO"), preferencias)).rejects.toMatchObject({
+      status: 403,
+      codigo: "sem_permissao",
+    });
+    await expect(salvarPreferenciasCobranca(autor("SUPORTE"), preferencias)).rejects.toMatchObject({ status: 403 });
+    const salvas = await salvarPreferenciasCobranca(autor("DONO"), preferencias);
+    expect(salvas.diasAntesGerar).toBe(14);
+    expect(salvas.multaPercentual).toBe("2.00");
+    expect(await obterPreferenciasCobranca(outraEmpresaId)).toMatchObject({
+      formaCobranca: "BOLETO",
+      diaVencimento: 10,
+      modeloDescricao: "Mensalidade {servico}",
+      multaPercentual: null,
+      jurosPercentual: null,
+      descontoPercentual: null,
+      diasAntesGerar: null,
+      atualizarPendentes: false,
+    });
+
+    const { cliente, servico, vinculo } = await vendaMensal("Cantina Preferência", "150,00", completarCnpj("580000000008"));
+    const memoria = new AsaasMemoria("pref");
+    const ativada = await ativarRecorrencia(autor("FINANCEIRO"), vinculo.id, {}, memoria);
+    const vencimento = proximoVencimentoIso(15, hoje());
+    expect(ativada.recorrenciaAsaas).toMatchObject({
+      formaCobranca: "PIX",
+      diaVencimento: 15,
+      proximoVencimento: vencimento,
+      descricao: descreverCobranca(preferencias.modeloDescricao, {
+        servico: servico.nome,
+        cliente: cliente.nomeFantasia,
+        vencimento: vencimento ?? "",
+      }),
+    });
+    const guardada = [...memoria.assinaturas.values()][0];
+    expect(guardada?.encargos).toEqual({
+      multaPercentual: "2.00",
+      jurosPercentual: "1.00",
+      descontoPercentual: "5.00",
+      descontoDiasAntes: 3,
+    });
+    expect(JSON.stringify(guardada)).not.toContain("daysBefore");
+
+    await editarRecorrencia(autor("DONO"), vinculo.id, { diaVencimento: 15, valor: "160,00" }, memoria);
+    const aberta = await prisma.fatura.findFirstOrThrow({ where: { clienteServicoId: vinculo.id, excluida: false } });
+    expect(aberta.valor.toFixed(2)).toBe("160.00");
+
+    await editarRecorrencia(
+      autor("DONO"),
+      vinculo.id,
+      {
+        diaVencimento: 15,
+        valor: "170,00",
+        atualizarPendentes: false,
+        multaPercentual: null,
+        jurosPercentual: null,
+        descontoPercentual: null,
+      },
+      memoria,
+    );
+    expect((await prisma.fatura.findFirstOrThrow({ where: { id: aberta.id } })).valor.toFixed(2)).toBe("160.00");
+    expect(guardada?.encargos.multaPercentual).toBe("2.00");
+
+    const lote = await ativarRecorrenciaEmLote(
+      autor("DONO"),
+      { diaVencimento: 8, ids: [vinculo.id] },
+      memoria,
+    );
+    expect(lote.criadas).toBe(0);
+    const segunda = await vendaMensal("Outra Preferência", "80,00", completarCnpj("580000000009"));
+    const criada = await ativarRecorrenciaEmLote(
+      autor("DONO"),
+      { diaVencimento: 8, ids: [segunda.vinculo.id] },
+      memoria,
+    );
+    expect(criada.criadas).toBe(1);
+    const nova = [...memoria.assinaturas.values()].at(-1);
+    expect(nova?.formaCobranca).toBe("PIX");
+    expect(nova?.descricao).toBe(
+      descreverCobranca(preferencias.modeloDescricao, {
+        servico: "Outra Preferência",
+        cliente: "Outra Preferência",
+        vencimento: proximoVencimentoIso(8, hoje()) ?? "",
+      }),
+    );
+    expect(nova?.proximoVencimento).toBe(proximoVencimentoIso(8, hoje()));
   });
 });

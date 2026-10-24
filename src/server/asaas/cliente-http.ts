@@ -8,6 +8,7 @@ import {
   type CobrancaAsaas,
   ErroAsaas,
   idAsaasSeguro,
+  type EncargosAsaas,
   type NovaAssinaturaAsaas,
   type NovaCobrancaAsaas,
   type NovoClienteAsaas,
@@ -118,13 +119,40 @@ function lerPagina(json: unknown): PaginaCobrancasAsaas {
   return { cobrancas, temMais: corpo.hasMore === true };
 }
 
-function corpoComValor(dados: Record<string, unknown>, valor: string): string {
+function percentualJson(valor: string | null | undefined): string | null {
+  if (valor == null || valor === "") return null;
+  if (!/^\d+\.\d{2}$/.test(valor)) {
+    throw new ErroAsaas("Percentual inválido para o Asaas.", 400);
+  }
+  return valor;
+}
+
+function anexarEncargos(json: string, encargos?: EncargosAsaas): string {
+  if (!encargos) return json;
+  const partes: string[] = [];
+  const multa = percentualJson(encargos.multaPercentual);
+  if (multa) partes.push(`"fine":{"value":${multa},"type":"PERCENTAGE"}`);
+  const juros = percentualJson(encargos.jurosPercentual);
+  if (juros) partes.push(`"interest":{"value":${juros}}`);
+  const desconto = percentualJson(encargos.descontoPercentual);
+  if (desconto) {
+    const dias = encargos.descontoDiasAntes ?? 0;
+    if (!Number.isInteger(dias) || dias < 0 || dias > 30) {
+      throw new ErroAsaas("Os dias do desconto ficam entre 0 e 30.", 400);
+    }
+    partes.push(`"discount":{"value":${desconto},"dueDateLimitDays":${dias},"type":"PERCENTAGE"}`);
+  }
+  if (partes.length === 0) return json;
+  return `${json.slice(0, -1)},${partes.join(",")}}`;
+}
+
+function corpoComValor(dados: Record<string, unknown>, valor: string, encargos?: EncargosAsaas): string {
   if (!/^\d+\.\d{2}$/.test(valor)) {
     throw new ErroAsaas("Valor inválido para o Asaas.", 400);
   }
   const json = JSON.stringify(dados);
-  if (json === "{}") return `{"value":${valor}}`;
-  return `${json.slice(0, -1)},"value":${valor}}`;
+  const comValor = json === "{}" ? `{"value":${valor}}` : `${json.slice(0, -1)},"value":${valor}}`;
+  return anexarEncargos(comValor, encargos);
 }
 
 export function criarClienteHttpAsaas(opcoes: {
@@ -227,7 +255,7 @@ export function criarClienteHttpAsaas(opcoes: {
       };
       if (dados.descricao) corpo.description = dados.descricao;
       if (dados.referencia) corpo.externalReference = dados.referencia;
-      const { json } = await pedir("POST", "/payments", corpoComValor(corpo, dados.valor));
+      const { json } = await pedir("POST", "/payments", corpoComValor(corpo, dados.valor, dados.encargos));
       return lerCobranca(json);
     },
 
@@ -266,7 +294,7 @@ export function criarClienteHttpAsaas(opcoes: {
       };
       if (dados.descricao) corpo.description = dados.descricao;
       if (dados.referencia) corpo.externalReference = dados.referencia;
-      const { json } = await pedir("POST", "/subscriptions", corpoComValor(corpo, dados.valor));
+      const { json } = await pedir("POST", "/subscriptions", corpoComValor(corpo, dados.valor, dados.encargos));
       return lerAssinatura(json);
     },
 
@@ -277,7 +305,10 @@ export function criarClienteHttpAsaas(opcoes: {
       if (dados.descricao) corpo.description = dados.descricao;
       if (dados.status) corpo.status = dados.status;
       if (dados.atualizarPendentes) corpo.updatePendingPayments = true;
-      const jsonCorpo = dados.valor ? corpoComValor(corpo, dados.valor) : JSON.stringify(corpo);
+      const jsonCorpo = anexarEncargos(
+        dados.valor ? corpoComValor(corpo, dados.valor) : JSON.stringify(corpo),
+        dados.encargos,
+      );
       const { json } = await pedir("PUT", `/subscriptions/${idAsaasSeguro(id)}`, jsonCorpo);
       return lerAssinatura(json);
     },

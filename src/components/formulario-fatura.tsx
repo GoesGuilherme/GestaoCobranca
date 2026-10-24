@@ -3,9 +3,10 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { enviarJson } from "@/lib/api-cliente";
+import { PREFERENCIAS_COBRANCA_PADRAO } from "@/lib/cobranca";
 import { dataHojeIso } from "@/lib/data";
 import { FORMAS_COBRANCA } from "@/lib/rotulos";
-import type { ClienteServicoDTO, FaturaDTO } from "@/lib/tipos";
+import type { ClienteServicoDTO, FaturaDTO, PreferenciasCobrancaDTO } from "@/lib/tipos";
 import { esquemaFatura, mensagensDoZod } from "@/lib/validacao";
 import { Campo, classeCampo } from "./campo";
 import { classeBotaoPrimario } from "./estilos";
@@ -14,15 +15,17 @@ export function FormularioFatura({
   clienteId,
   vinculos,
   onEmitida,
+  preferencias = PREFERENCIAS_COBRANCA_PADRAO,
 }: {
   clienteId: string;
   vinculos: ClienteServicoDTO[];
   onEmitida?: (fatura: FaturaDTO) => void;
+  preferencias?: PreferenciasCobrancaDTO;
 }) {
   const router = useRouter();
   const [valor, setValor] = useState("");
   const [vencimento, setVencimento] = useState(dataHojeIso());
-  const [formaCobranca, setFormaCobranca] = useState("BOLETO");
+  const [formaCobranca, setFormaCobranca] = useState<string>(preferencias.formaCobranca);
   const [descricao, setDescricao] = useState("");
   const [clienteServicoId, setClienteServicoId] = useState("");
   const [campos, setCampos] = useState<Record<string, string>>({});
@@ -67,7 +70,7 @@ export function FormularioFatura({
     <form onSubmit={enviar} className="mt-4 grid gap-4 rounded-3xl border border-line bg-card p-6">
       <h3 className="font-display text-2xl">Emitir boleto avulso</h3>
       <p className="text-sm text-muted">
-        O cliente é criado no Asaas na primeira cobrança, ou reaproveitado se o CPF/CNPJ já existir lá.
+        O cliente é criado no Asaas na primeira cobrança, ou reaproveitado se o CPF/CNPJ já existir lá. Multa, juros e desconto seguem as preferências desta empresa.
       </p>
       <div className="grid gap-4 sm:grid-cols-2">
         <Campo label="Valor" htmlFor="valor-fatura" erro={campos.valor}>

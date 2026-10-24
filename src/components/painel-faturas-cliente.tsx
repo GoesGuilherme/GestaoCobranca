@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { ClienteServicoDTO, FaturaDTO } from "@/lib/tipos";
+import { PREFERENCIAS_COBRANCA_PADRAO } from "@/lib/cobranca";
+import type { ClienteServicoDTO, FaturaDTO, PreferenciasCobrancaDTO } from "@/lib/tipos";
 import { FormularioFatura } from "./formulario-fatura";
 import { TabelaFaturas } from "./tabela-faturas";
 
@@ -16,11 +17,13 @@ export function PainelFaturasCliente({
   vinculos,
   faturas,
   podeCancelar,
+  preferencias = PREFERENCIAS_COBRANCA_PADRAO,
 }: {
   clienteId: string;
   vinculos: ClienteServicoDTO[];
   faturas: FaturaDTO[];
   podeCancelar: boolean;
+  preferencias?: PreferenciasCobrancaDTO;
 }) {
   const [emitida, setEmitida] = useState<FaturaDTO | null>(null);
 
@@ -33,7 +36,7 @@ export function PainelFaturasCliente({
 
   return (
     <>
-      <FormularioFatura clienteId={clienteId} vinculos={vinculos} onEmitida={setEmitida} />
+      <FormularioFatura clienteId={clienteId} vinculos={vinculos} onEmitida={setEmitida} preferencias={preferencias} />
       {emitida ? (
         <div role="status" className="mt-4 rounded-2xl border border-forest/20 bg-leaf px-4 py-3 text-sm text-forest">
           <p className="font-medium">{tituloEmissao(emitida.formaCobranca)}</p>

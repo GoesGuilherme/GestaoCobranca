@@ -17,6 +17,7 @@ import { ErroAplicacao } from "@/server/erros";
 import { obterCliente } from "@/server/services/cliente-service";
 import { listarServicosDoCliente } from "@/server/services/cliente-servico-service";
 import { listarFaturas } from "@/server/services/fatura-service";
+import { obterPreferenciasCobranca } from "@/server/services/preferencia-cobranca-service";
 import { listarServicos } from "@/server/services/servico-service";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
@@ -63,6 +64,7 @@ export default async function PaginaCliente({ params }: { params: Promise<{ id: 
     throw erro;
   }
 
+  const preferencias = podeCobrar ? await obterPreferenciasCobranca(acesso.empresaId) : undefined;
   const whatsapp = somenteDigitos(cliente.whatsapp);
 
   return (
@@ -128,9 +130,11 @@ export default async function PaginaCliente({ params }: { params: Promise<{ id: 
         catalogo={catalogo}
         podeEditar={podeAlterarServicos(acesso.papel)}
         podeCobrar={podeCobrar}
+        nomeCliente={cliente.nomeFantasia}
+        preferencias={preferencias}
       />
 
-      {podeCobrar ? <PainelRecorrenciaLote clienteId={cliente.id} /> : null}
+      {podeCobrar ? <PainelRecorrenciaLote clienteId={cliente.id} preferencias={preferencias} /> : null}
 
       {verFaturas ? (
         <section className="mt-10">
@@ -143,6 +147,7 @@ export default async function PaginaCliente({ params }: { params: Promise<{ id: 
             vinculos={vinculos}
             faturas={faturas}
             podeCancelar={podeCobrar}
+            preferencias={preferencias}
           />
         </section>
       ) : null}

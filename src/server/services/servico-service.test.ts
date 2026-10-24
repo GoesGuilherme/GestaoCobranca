@@ -50,7 +50,7 @@ function cliente(documento: string) {
   };
 }
 
-function catalogo(nome = "Licença PDVLegal", preco = "189,90") {
+function catalogo(nome = "Licença mensal", preco = "189,90") {
   return {
     nome,
     descricao: "Mensalidade de teste.",
@@ -90,7 +90,7 @@ describe("serviços vendidos", () => {
     expect(linha.empresaId).toBe(empresaId);
     expect(linha.precoPadrao.toFixed(2)).toBe("1500.50");
 
-    await expect(criarServico(autor("DONO"), catalogo("licença pdvlegal"))).rejects.toMatchObject({
+    await expect(criarServico(autor("DONO"), catalogo("licença mensal"))).rejects.toMatchObject({
       status: 409,
       codigo: "nome_duplicado",
     });
@@ -110,7 +110,7 @@ describe("serviços vendidos", () => {
     });
     expect(mensal.valor).toBe("150.00");
     expect(mensal.inicioEm).toBe("2026-04-01");
-    expect(mensal.nomeServico).toBe("Licença PDVLegal");
+    expect(mensal.nomeServico).toBe("Licença mensal");
     const gravado = await prisma.clienteServico.findUniqueOrThrow({ where: { id: mensal.id } });
     expect(gravado.empresaId).toBe(empresaId);
     expect(gravado.valor.toFixed(2)).toBe("150.00");

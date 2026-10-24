@@ -3,11 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { enviarJson } from "@/lib/api-cliente";
+import { descreverCobranca, PREFERENCIAS_COBRANCA_PADRAO } from "@/lib/cobranca";
 import { dataHojeIso, proximoVencimentoIso } from "@/lib/data";
-import { formatarValorCampo } from "@/lib/dinheiro";
+import { formatarAliquotaCampo, formatarValorCampo } from "@/lib/dinheiro";
 import { formatarDataIso } from "@/lib/formatacao";
 import { FORMAS_COBRANCA, rotuloAssinatura } from "@/lib/rotulos";
-import type { ClienteServicoDTO } from "@/lib/tipos";
+import type { ClienteServicoDTO, PreferenciasCobrancaDTO } from "@/lib/tipos";
 import { Campo, classeCampo } from "./campo";
 import { classeBotaoPerigo, classeBotaoPrimario, classeBotaoSecundario } from "./estilos";
 
@@ -21,23 +22,52 @@ function caixaErro(erro: string) {
   );
 }
 
-export function AcoesRecorrencia({ vinculo }: { vinculo: ClienteServicoDTO }) {
+function percentualCampo(valor: string | null) {
+  return valor ? formatarAliquotaCampo(valor) : "";
+}
+
+export function AcoesRecorrencia({
+  vinculo,
+  nomeCliente,
+  preferencias = PREFERENCIAS_COBRANCA_PADRAO,
+}: {
+  vinculo: ClienteServicoDTO;
+  nomeCliente: string;
+  preferencias?: PreferenciasCobrancaDTO;
+}) {
   const router = useRouter();
   const assinatura = vinculo.recorrenciaAsaas;
   const ativa = assinatura?.status === "ACTIVE";
   const pausada = assinatura?.status === "INACTIVE";
-  const encerrada = !assinatura || assinatura.status === "CANCELADA" || assinatura.status === "EXPIRED";
+  const emCurso = ativa || pausada;
+  const encerrada = !emCurso;
   const [modo, setModo] = useState<"ver" | "ativar" | "editar" | "pausar" | "cancelar">("ver");
-  const [dia, setDia] = useState(String(assinatura?.diaVencimento ?? (Number(vinculo.inicioEm.slice(8, 10)) || 10)));
+  const [dia, setDia] = useState(String(emCurso ? (assinatura?.diaVencimento ?? preferencias.diaVencimento) : preferencias.diaVencimento));
   const [valor, setValor] = useState(formatarValorCampo(vinculo.valor));
-  const [forma, setForma] = useState(assinatura?.formaCobranca ?? "BOLETO");
-  const [descricao, setDescricao] = useState(assinatura?.descricao ?? `Mensalidade ${vinculo.nomeServico}`);
-  const [atualizarPendentes, setAtualizarPendentes] = useState(false);
+  const [forma, setForma] = useState(emCurso ? (assinatura?.formaCobranca ?? preferencias.formaCobranca) : preferencias.formaCobranca);
+  const [descricaoManual, setDescricaoManual] = useState<string | null>(emCurso ? (assinatura?.descricao ?? "") : null);
+  const [multa, setMulta] = useState(percentualCampo(preferencias.multaPercentual));
+  const [juros, setJuros] = useState(percentualCampo(preferencias.jurosPercentual));
+  const [desconto, setDesconto] = useState(percentualCampo(preferencias.descontoPercentual));
+  const [diasDesconto, setDiasDesconto] = useState(preferencias.descontoDiasAntes === null ? "" : String(preferencias.descontoDiasAntes));
+  const [atualizarPendentes, setAtualizarPendentes] = useState(preferencias.atualizarPendentes);
   const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
 
   const diaNumero = Number(dia);
   const vencimento = proximoVencimentoIso(diaNumero, dataHojeIso());
+  const descricaoCalculada = descreverCobranca(preferencias.modeloDescricao, {
+    servico: vinculo.nomeServico,
+    cliente: nomeCliente,
+    vencimento: vencimento ?? "",
+  });
+  const descricao = descricaoManual ?? descricaoCalculada;
+  const encargos = {
+    multaPercentual: multa,
+    jurosPercentual: juros,
+    descontoPercentual: desconto,
+    descontoDiasAntes: diasDesconto.trim() === "" ? null : Number(diasDesconto),
+  };
 
   async function concluir(resposta: { ok: boolean; status?: number; erro?: string }) {
     setEnviando(false);
@@ -64,6 +94,7 @@ export function AcoesRecorrencia({ vinculo }: { vinculo: ClienteServicoDTO }) {
       ...(vencimento ? { proximoVencimento: vencimento } : {}),
       valor,
       descricao,
+      ...encargos,
     });
     await concluir(resposta);
   }
@@ -79,6 +110,7 @@ export function AcoesRecorrencia({ vinculo }: { vinculo: ClienteServicoDTO }) {
       valor,
       descricao,
       atualizarPendentes,
+      ...encargos,
     });
     await concluir(resposta);
   }
@@ -123,8 +155,26 @@ export function AcoesRecorrencia({ vinculo }: { vinculo: ClienteServicoDTO }) {
             ))}
           </select>
         </Campo>
-        <Campo label="Descrição" htmlFor={`descricao-recorrencia-${vinculo.id}`}>
-          <input id={`descricao-recorrencia-${vinculo.id}`} className={classeCampo} value={descricao} maxLength={500} onChange={(evento) => setDescricao(evento.target.value)} />
+        <Campo label="Descrição" htmlFor={`descricao-recorrencia-${vinculo.id}`} dica="O modelo da empresa usa {servico}, {cliente} e {mes}.">
+          <input
+            id={`descricao-recorrencia-${vinculo.id}`}
+            className={classeCampo}
+            value={descricao}
+            maxLength={500}
+            onChange={(evento) => setDescricaoManual(evento.target.value)}
+          />
+        </Campo>
+        <Campo label="Multa %" htmlFor={`multa-recorrencia-${vinculo.id}`} dica="Em branco, esta cobrança não envia multa.">
+          <input id={`multa-recorrencia-${vinculo.id}`} className={classeCampo} inputMode="decimal" value={multa} onChange={(evento) => setMulta(evento.target.value)} placeholder="2,00" />
+        </Campo>
+        <Campo label="Juros % ao mês" htmlFor={`juros-recorrencia-${vinculo.id}`}>
+          <input id={`juros-recorrencia-${vinculo.id}`} className={classeCampo} inputMode="decimal" value={juros} onChange={(evento) => setJuros(evento.target.value)} placeholder="1,00" />
+        </Campo>
+        <Campo label="Desconto %" htmlFor={`desconto-recorrencia-${vinculo.id}`} dica="Para pagamento antecipado.">
+          <input id={`desconto-recorrencia-${vinculo.id}`} className={classeCampo} inputMode="decimal" value={desconto} onChange={(evento) => setDesconto(evento.target.value)} placeholder="5,00" />
+        </Campo>
+        <Campo label="Dias antes para o desconto" htmlFor={`dias-desconto-recorrencia-${vinculo.id}`}>
+          <input id={`dias-desconto-recorrencia-${vinculo.id}`} className={classeCampo} inputMode="numeric" value={diasDesconto} onChange={(evento) => setDiasDesconto(evento.target.value)} placeholder="0" />
         </Campo>
       </div>
     </>

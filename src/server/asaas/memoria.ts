@@ -5,6 +5,7 @@ import {
   type ClienteAsaas,
   type ClienteHttpAsaas,
   type CobrancaAsaas,
+  type EncargosAsaas,
   ErroAsaas,
   type NovaAssinaturaAsaas,
   type NovaCobrancaAsaas,
@@ -13,8 +14,36 @@ import {
 } from "./contrato";
 
 type ClienteGuardado = ClienteAsaas & { email: string; telefone: string; referencia: string };
-type CobrancaGuardada = CobrancaAsaas;
-type AssinaturaGuardada = AssinaturaAsaas & { referencia: string; excluida: boolean };
+export type EncargosGuardados = {
+  multaPercentual: string | null;
+  jurosPercentual: string | null;
+  descontoPercentual: string | null;
+  descontoDiasAntes: number | null;
+};
+type CobrancaGuardada = CobrancaAsaas & { encargos: EncargosGuardados };
+type AssinaturaGuardada = AssinaturaAsaas & { referencia: string; excluida: boolean; encargos: EncargosGuardados };
+
+function lerEncargos(dados?: EncargosAsaas): EncargosGuardados {
+  const desconto = dados?.descontoPercentual ?? null;
+  return {
+    multaPercentual: dados?.multaPercentual ?? null,
+    jurosPercentual: dados?.jurosPercentual ?? null,
+    descontoPercentual: desconto,
+    descontoDiasAntes: desconto ? (dados?.descontoDiasAntes ?? 0) : null,
+  };
+}
+
+function mesclarEncargos(atual: EncargosGuardados, dados?: EncargosAsaas): EncargosGuardados {
+  if (!dados) return atual;
+  const proximo = { ...atual };
+  if (dados.multaPercentual) proximo.multaPercentual = dados.multaPercentual;
+  if (dados.jurosPercentual) proximo.jurosPercentual = dados.jurosPercentual;
+  if (dados.descontoPercentual) {
+    proximo.descontoPercentual = dados.descontoPercentual;
+    proximo.descontoDiasAntes = dados.descontoDiasAntes ?? 0;
+  }
+  return proximo;
+}
 
 const ABERTAS = new Set(["PENDING", "OVERDUE", "AWAITING_RISK_ANALYSIS", "DUNNING_REQUESTED"]);
 
@@ -71,6 +100,7 @@ export class AsaasMemoria implements ClienteHttpAsaas {
       vencimento: dados.vencimento,
       formaCobranca: dados.formaCobranca,
       descricao: dados.descricao ?? null,
+      encargos: lerEncargos(dados.encargos),
     });
   }
 
@@ -109,6 +139,7 @@ export class AsaasMemoria implements ClienteHttpAsaas {
       descricao: dados.descricao ?? null,
       referencia: dados.referencia ?? "",
       excluida: false,
+      encargos: lerEncargos(dados.encargos),
     };
     this.assinaturas.set(id, assinatura);
     this.guardarCobranca({
@@ -118,6 +149,7 @@ export class AsaasMemoria implements ClienteHttpAsaas {
       vencimento: dados.proximoVencimento,
       formaCobranca: dados.formaCobranca,
       descricao: dados.descricao ?? null,
+      encargos: assinatura.encargos,
     });
     return assinatura;
   }
@@ -130,6 +162,7 @@ export class AsaasMemoria implements ClienteHttpAsaas {
     if (dados.proximoVencimento) assinatura.proximoVencimento = dados.proximoVencimento;
     if (dados.descricao) assinatura.descricao = dados.descricao;
     if (dados.status) assinatura.status = dados.status;
+    assinatura.encargos = mesclarEncargos(assinatura.encargos, dados.encargos);
     if (dados.atualizarPendentes) {
       for (const cobranca of this.cobrancas.values()) {
         if (cobranca.subscription !== id || cobranca.excluida || !ABERTAS.has(cobranca.status)) continue;
@@ -175,6 +208,7 @@ export class AsaasMemoria implements ClienteHttpAsaas {
     vencimento: string;
     formaCobranca: string;
     descricao: string | null;
+    encargos: EncargosGuardados;
   }) {
     this.sequencia += 1;
     const id = `pay_${this.prefixo}_${this.sequencia}`;
@@ -190,6 +224,7 @@ export class AsaasMemoria implements ClienteHttpAsaas {
       faturaUrl: `https://sandbox.asaas.com/i/${id}`,
       descricao: dados.descricao,
       excluida: false,
+      encargos: dados.encargos,
     };
     this.cobrancas.set(id, cobranca);
     return cobranca;

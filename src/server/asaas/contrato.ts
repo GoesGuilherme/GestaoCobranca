@@ -38,6 +38,13 @@ export type AssinaturaAsaas = {
   descricao: string | null;
 };
 
+export type EncargosAsaas = {
+  multaPercentual?: string | null;
+  jurosPercentual?: string | null;
+  descontoPercentual?: string | null;
+  descontoDiasAntes?: number | null;
+};
+
 export type NovaAssinaturaAsaas = {
   customer: string;
   formaCobranca: FormaCobranca;
@@ -45,6 +52,7 @@ export type NovaAssinaturaAsaas = {
   proximoVencimento: string;
   descricao?: string;
   referencia?: string;
+  encargos?: EncargosAsaas;
 };
 
 export type AtualizacaoAssinaturaAsaas = {
@@ -54,6 +62,7 @@ export type AtualizacaoAssinaturaAsaas = {
   descricao?: string;
   status?: "ACTIVE" | "INACTIVE";
   atualizarPendentes?: boolean;
+  encargos?: EncargosAsaas;
 };
 
 export type PaginaCobrancasAsaas = {
@@ -76,6 +85,7 @@ export type NovaCobrancaAsaas = {
   vencimento: string;
   descricao?: string;
   referencia?: string;
+  encargos?: EncargosAsaas;
 };
 
 export interface ClienteHttpAsaas {

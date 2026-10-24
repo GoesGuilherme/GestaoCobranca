@@ -7,9 +7,9 @@ export default function PaginaNovoCliente() {
   return (
     <>
       <CabecalhoPagina
-        olho="Novo grupo"
+        olho="Novo cliente"
         titulo="Cadastrar cliente"
-        descricao="O cliente corresponde ao grupo do PDVLegal. As filiais entram na página seguinte."
+        descricao="O cliente é quem esta empresa atende. As unidades entram na página seguinte."
       />
       <FormularioCliente />
     </>

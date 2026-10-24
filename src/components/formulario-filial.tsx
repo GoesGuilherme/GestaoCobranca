@@ -90,14 +90,14 @@ export function FormularioFilial({
   return (
     <form onSubmit={enviar} noValidate className="rounded-2xl border border-line bg-paper p-4 md:p-5">
       <h3 className="font-display text-2xl">{filial ? "Editar filial" : "Nova filial"}</h3>
-      <p className="mt-1 text-sm text-muted">O nome deve ser o mesmo que aparece no PDVLegal.</p>
+      <p className="mt-1 text-sm text-muted">Use o nome da unidade como a empresa a reconhece.</p>
       {erro ? (
         <p className="mt-4 rounded-2xl bg-clay-soft px-4 py-3 text-sm text-clay" role="alert">
           {erro}
         </p>
       ) : null}
       <div className="mt-4 grid gap-4 md:grid-cols-2">
-        <Campo label="Nome no PDVLegal" htmlFor="filial-nome" erro={campos.nome}>
+        <Campo label="Nome da unidade" htmlFor="filial-nome" erro={campos.nome}>
           <input
             id="filial-nome"
             className={classeCampo}

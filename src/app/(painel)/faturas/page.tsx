@@ -9,6 +9,7 @@ import { podeEmitirCobranca, podeVerFaturas } from "@/lib/permissoes";
 import { SITUACOES_FATURA, situacaoFatura } from "@/lib/rotulos";
 import { acessoDaPagina } from "@/server/auth/pagina";
 import { listarFaturas } from "@/server/services/fatura-service";
+import { obterPreferenciasCobranca } from "@/server/services/preferencia-cobranca-service";
 
 export const metadata = { title: "Faturas" };
 
@@ -32,6 +33,7 @@ export default async function PaginaFaturas({ searchParams }: { searchParams: Pr
   const situacao = situacaoFatura(params.situacao);
   const busca = params.busca?.trim() ?? "";
   const faturas = await listarFaturas(acesso, { situacao, busca });
+  const preferencias = podeEmitirCobranca(acesso.papel) ? await obterPreferenciasCobranca(acesso.empresaId) : undefined;
 
   return (
     <>
@@ -41,7 +43,7 @@ export default async function PaginaFaturas({ searchParams }: { searchParams: Pr
         descricao="Cobranças espelhadas do Asaas. A emissão avulsa fica na ficha do cliente. A recorrência mensal também sai de lá, ou em lote abaixo."
       />
       <BotaoImportarFaturas />
-      <PainelRecorrenciaLote />
+      <PainelRecorrenciaLote preferencias={preferencias} />
       <form className="mb-6 flex flex-wrap items-end gap-3" method="get">
         <label className="grid gap-1 text-sm">
           <span className="font-medium">Situação</span>

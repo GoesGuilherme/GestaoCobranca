@@ -105,6 +105,18 @@ export type ResultadoImportacaoFaturas = {
   ignoradas: number;
 };
 
+export type PreferenciasCobrancaDTO = {
+  formaCobranca: "BOLETO" | "PIX" | "UNDEFINED";
+  diaVencimento: number;
+  modeloDescricao: string;
+  multaPercentual: string | null;
+  jurosPercentual: string | null;
+  descontoPercentual: string | null;
+  descontoDiasAntes: number | null;
+  diasAntesGerar: 7 | 14 | 40 | null;
+  atualizarPendentes: boolean;
+};
+
 export type ClienteDetalhe = ClienteResumo & {
   filiais: FilialDTO[];
 };

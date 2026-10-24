@@ -5,7 +5,8 @@ import { useState } from "react";
 import { formatarDataIso } from "@/lib/formatacao";
 import { formatarAliquota, formatarReais, formatarReaisAssinado, somarDinheiro } from "@/lib/dinheiro";
 import { rotuloRecorrencia } from "@/lib/rotulos";
-import type { ClienteServicoDTO, ServicoDTO } from "@/lib/tipos";
+import { PREFERENCIAS_COBRANCA_PADRAO } from "@/lib/cobranca";
+import type { ClienteServicoDTO, PreferenciasCobrancaDTO, ServicoDTO } from "@/lib/tipos";
 import { AcoesRecorrencia } from "./acoes-recorrencia";
 import { BotaoExcluir } from "./botao-excluir";
 import { classeBotaoPrimario, classeBotaoSecundario } from "./estilos";
@@ -26,12 +27,16 @@ export function PainelServicosCliente({
   catalogo,
   podeEditar,
   podeCobrar = false,
+  nomeCliente,
+  preferencias = PREFERENCIAS_COBRANCA_PADRAO,
 }: {
   clienteId: string;
   vinculos: ClienteServicoDTO[];
   catalogo: ServicoDTO[];
   podeEditar: boolean;
   podeCobrar?: boolean;
+  nomeCliente: string;
+  preferencias?: PreferenciasCobrancaDTO;
 }) {
   const [modo, setModo] = useState<"lista" | "novo" | string>("lista");
   const emEdicao = vinculos.find((item) => item.id === modo);
@@ -132,7 +137,7 @@ export function PainelServicosCliente({
                   ) : null}
                   {item.observacoes ? <p className="mt-1 text-sm text-ink/80">{item.observacoes}</p> : null}
                   {podeCobrar && (item.recorrencia === "MENSAL" || item.recorrenciaAsaas) ? (
-                    <AcoesRecorrencia vinculo={item} />
+                    <AcoesRecorrencia vinculo={item} nomeCliente={nomeCliente} preferencias={preferencias} />
                   ) : null}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">

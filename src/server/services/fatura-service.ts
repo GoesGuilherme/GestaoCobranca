@@ -1,3 +1,4 @@
+import { formaCobrancaDe } from "@/lib/cobranca";
 import { isoDeData } from "@/lib/data";
 import { somenteDocumento } from "@/lib/documento";
 import type { FaturaDTO, SituacaoFatura } from "@/lib/tipos";
@@ -11,6 +12,7 @@ import { prisma } from "@/server/db";
 import { ErroAplicacao } from "@/server/erros";
 import { lerEsquema } from "@/server/validar";
 import { espelharCobrancaImportada } from "./asaas-pagamento";
+import { encargosDaPreferencia, obterPreferenciasCobranca } from "./preferencia-cobranca-service";
 
 const ABERTAS = ["PENDING", "AWAITING_RISK_ANALYSIS"];
 const VENCIDAS = ["OVERDUE", "DUNNING_REQUESTED"];
@@ -163,7 +165,8 @@ export async function emitirFatura(
     clienteServicoId = vinculo.id;
   }
 
-  const forma = dados.formaCobranca ?? "BOLETO";
+  const prefs = await obterPreferenciasCobranca(autor.empresaId);
+  const forma = formaCobrancaDe(dados.formaCobranca ?? prefs.formaCobranca);
   const descricao = dados.descricao?.trim() ? dados.descricao.trim() : undefined;
 
   try {
@@ -176,6 +179,7 @@ export async function emitirFatura(
       vencimento: dados.vencimento,
       descricao,
       referencia: cliente.id,
+      encargos: encargosDaPreferencia(prefs),
     });
 
     let linhaDigitavel: string | null = null;

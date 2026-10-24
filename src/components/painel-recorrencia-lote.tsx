@@ -3,18 +3,36 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { enviarJson } from "@/lib/api-cliente";
-import { formatarReais } from "@/lib/dinheiro";
+import { descreverCobranca, PREFERENCIAS_COBRANCA_PADRAO } from "@/lib/cobranca";
+import { formatarAliquotaCampo, formatarReais } from "@/lib/dinheiro";
 import { formatarDataIso } from "@/lib/formatacao";
 import { FORMAS_COBRANCA } from "@/lib/rotulos";
-import type { PreviaRecorrencia, ResultadoLoteRecorrencia } from "@/lib/tipos";
+import type { PreferenciasCobrancaDTO, PreviaRecorrencia, ResultadoLoteRecorrencia } from "@/lib/tipos";
 import { Campo, classeCampo } from "./campo";
 import { classeBotaoPrimario, classeBotaoSecundario } from "./estilos";
 
-export function PainelRecorrenciaLote({ clienteId }: { clienteId?: string }) {
+function percentualCampo(valor: string | null) {
+  return valor ? formatarAliquotaCampo(valor) : "";
+}
+
+export function PainelRecorrenciaLote({
+  clienteId,
+  preferencias = PREFERENCIAS_COBRANCA_PADRAO,
+}: {
+  clienteId?: string;
+  preferencias?: PreferenciasCobrancaDTO;
+}) {
   const router = useRouter();
   const [aberto, setAberto] = useState(false);
-  const [dia, setDia] = useState("10");
-  const [forma, setForma] = useState("BOLETO");
+  const [dia, setDia] = useState(String(preferencias.diaVencimento));
+  const [forma, setForma] = useState<string>(preferencias.formaCobranca);
+  const [modelo, setModelo] = useState(preferencias.modeloDescricao);
+  const [multa, setMulta] = useState(percentualCampo(preferencias.multaPercentual));
+  const [juros, setJuros] = useState(percentualCampo(preferencias.jurosPercentual));
+  const [desconto, setDesconto] = useState(percentualCampo(preferencias.descontoPercentual));
+  const [diasDesconto, setDiasDesconto] = useState(
+    preferencias.descontoDiasAntes === null ? "" : String(preferencias.descontoDiasAntes),
+  );
   const [previa, setPrevia] = useState<PreviaRecorrencia | null>(null);
   const [escolhidos, setEscolhidos] = useState<string[]>([]);
   const [erro, setErro] = useState("");
@@ -57,6 +75,11 @@ export function PainelRecorrenciaLote({ clienteId }: { clienteId?: string }) {
     const resposta = await enviarJson<ResultadoLoteRecorrencia>("/api/recorrencias/lote", "POST", {
       diaVencimento: previa.diaVencimento,
       formaCobranca: forma,
+      modeloDescricao: modelo,
+      multaPercentual: multa,
+      jurosPercentual: juros,
+      descontoPercentual: desconto,
+      descontoDiasAntes: diasDesconto.trim() === "" ? null : Number(diasDesconto),
       ...(clienteId ? { clienteId } : {}),
       ids: escolhidos,
     });
@@ -111,6 +134,21 @@ export function PainelRecorrenciaLote({ clienteId }: { clienteId?: string }) {
                 ))}
               </select>
             </Campo>
+            <Campo label="Modelo da descrição" htmlFor="modelo-lote" dica="Marcadores: {servico}, {cliente} e {mes}.">
+              <input id="modelo-lote" className={classeCampo} value={modelo} maxLength={500} onChange={(evento) => setModelo(evento.target.value)} />
+            </Campo>
+            <Campo label="Multa %" htmlFor="multa-lote" dica="Em branco, o lote não envia multa.">
+              <input id="multa-lote" className={classeCampo} inputMode="decimal" value={multa} onChange={(evento) => setMulta(evento.target.value)} />
+            </Campo>
+            <Campo label="Juros % ao mês" htmlFor="juros-lote">
+              <input id="juros-lote" className={classeCampo} inputMode="decimal" value={juros} onChange={(evento) => setJuros(evento.target.value)} />
+            </Campo>
+            <Campo label="Desconto %" htmlFor="desconto-lote">
+              <input id="desconto-lote" className={classeCampo} inputMode="decimal" value={desconto} onChange={(evento) => setDesconto(evento.target.value)} />
+            </Campo>
+            <Campo label="Dias antes para o desconto" htmlFor="dias-desconto-lote">
+              <input id="dias-desconto-lote" className={classeCampo} inputMode="numeric" value={diasDesconto} onChange={(evento) => setDiasDesconto(evento.target.value)} />
+            </Campo>
           </div>
           {previa ? (
             <p className="mt-3 text-sm">Primeiro vencimento em {formatarDataIso(previa.vencimento)}.</p>
@@ -133,6 +171,13 @@ export function PainelRecorrenciaLote({ clienteId }: { clienteId?: string }) {
                       <span>
                         <span className="font-medium">{item.nomeCliente}</span>
                         <span className="text-muted"> · {item.nomeServico}</span>
+                        <span className="block text-muted">
+                          {descreverCobranca(modelo, {
+                            servico: item.nomeServico,
+                            cliente: item.nomeCliente,
+                            vencimento: previa.vencimento,
+                          })}
+                        </span>
                       </span>
                     </label>
                     <span className="tabular-nums">{formatarReais(item.valor)}</span>

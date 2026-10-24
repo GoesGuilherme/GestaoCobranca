@@ -109,7 +109,7 @@ export function FormularioServico({
           <input
             id="servico-nome"
             className={classeCampo}
-            placeholder="Licença PDVLegal"
+            placeholder="Nome do serviço"
             value={valores.nome}
             onChange={(evento) => alterar("nome", evento.target.value)}
           />

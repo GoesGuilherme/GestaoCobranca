@@ -1,9 +1,9 @@
-// Cadastro de clientes (grupos do PDVLegal), filiais e serviços vendidos.
-// Servico é o catálogo da empresa assinante (o que ela vende aos clientes dela).
+// Cadastro de clientes, filiais e serviços vendidos de cada empresa assinante.
+// Servico é o catálogo da empresa (o que ela vende aos clientes dela).
 // ClienteServico guarda o valor combinado daquele cliente. O plano da Empresa
 // (string `plano`) é a assinatura dela na plataforma e não se mistura com este catálogo.
-// A cobrança nova é do Asaas: configuração por empresa, cliente, fatura e
-// assinatura mensal no vínculo MENSAL. A Cora não entra neste modelo.
+// A cobrança nova é do Asaas: configuração e preferências por empresa, cliente,
+// fatura e assinatura mensal no vínculo MENSAL. A Cora não entra neste modelo.
 
 generator client {
   provider = "prisma-client"
@@ -102,6 +102,7 @@ model Empresa {
   servicos         Servico[]
   servicosVendidos ClienteServico[]
   asaas            ConfiguracaoAsaas?
+  preferenciaCobranca PreferenciaCobranca?
   faturas          Fatura[]
   eventosAsaas     EventoAsaas[]
 
@@ -182,8 +183,8 @@ model Filial {
   atualizadoEm DateTime     @updatedAt @map("atualizado_em") @db.Timestamptz(3)
   cliente      Cliente      @relation(fields: [clienteId], references: [id], onDelete: Cascade)
 
-  // O CNPJ da filial não é único: no PDVLegal a filial é a unidade
-  // operacional, e mais de uma pode compartilhar o mesmo CNPJ.
+  // O CNPJ da filial não é único: a filial é a unidade operacional,
+  // e mais de uma pode compartilhar o mesmo CNPJ.
   @@index([clienteId])
   @@index([nome])
   @@map("filiais")
@@ -244,6 +245,27 @@ model ClienteServico {
   @@index([servicoId])
   @@index([empresaId, status, recorrencia])
   @@map("clientes_servicos")
+}
+
+// Padrões de cobrança de uma empresa. Não exige chave do Asaas: a tela
+// preenche os formulários com estes valores e cada venda ainda pode trocar.
+model PreferenciaCobranca {
+  id                 String   @id @default(cuid())
+  empresaId          String   @unique @map("empresa_id")
+  formaCobranca      String   @default("BOLETO") @map("forma_cobranca")
+  diaVencimento      Int      @default(10) @map("dia_vencimento")
+  modeloDescricao    String   @default("Mensalidade {servico}") @map("modelo_descricao") @db.Text
+  multaPercentual    Decimal? @map("multa_percentual") @db.Decimal(5, 2)
+  jurosPercentual    Decimal? @map("juros_percentual") @db.Decimal(5, 2)
+  descontoPercentual Decimal? @map("desconto_percentual") @db.Decimal(5, 2)
+  descontoDiasAntes  Int?     @map("desconto_dias_antes")
+  diasAntesGerar     Int?     @map("dias_antes_gerar")
+  atualizarPendentes Boolean  @default(false) @map("atualizar_pendentes")
+  criadoEm           DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm       DateTime @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  empresa            Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+
+  @@map("preferencias_cobranca")
 }
 
 // Uma configuração por empresa. A chave da API e o token do webhook ficam

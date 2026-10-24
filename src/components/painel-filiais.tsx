@@ -63,7 +63,7 @@ export function PainelFiliais({
 
       {modo === "lista" && filiais.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-line bg-card px-6 py-10 text-center text-muted">
-          Cadastre a primeira unidade como ela aparece no PDVLegal.
+          Cadastre a primeira unidade deste cliente.
         </div>
       ) : null}
 

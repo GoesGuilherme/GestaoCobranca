@@ -9,7 +9,7 @@ Estes arquivos existem para quem quiser ler o banco sem abrir o Prisma. Eles esp
 5. `005_custo_imposto_servico.sql` — custo e alíquota de impostos opcionais no catálogo. Os dois aceitam nulo; preenchidos, não podem ser negativos, e a alíquota fica entre 0 e 100. Espelha `prisma/migrations/20261023143138_custo_imposto_servico`.
 6. `006_custo_vinculo_cliente.sql` — custo opcional em cada serviço vendido. Copia o custo atual do catálogo para os vínculos existentes e exige nulo ou valor não negativo. Espelha `prisma/migrations/20261023152120_custo_vinculo_cliente`.
 7. `007_asaas.sql` — configuração do Asaas por empresa, o id do cliente no Asaas e a tabela de faturas, com o evento do webhook único por empresa. A chave da API não fica em texto puro. Espelha `prisma/migrations/20261023190000_asaas`.
-8. `008_assinatura_recorrente.sql` — assinatura mensal do Asaas no serviço vendido: id da assinatura, situação, forma, dia e próximo vencimento. Espelha `prisma/migrations/20261023220000_assinatura_recorrente`.
+8. `008_assinatura_recorrente.sql` — assinatura mensal do Asaas no serviço vendido e a tabela `preferencias_cobranca` (forma, dia, modelo de descrição, multa, juros, desconto e antecedência) de cada empresa. Espelha `prisma/migrations/20261023220000_assinatura_recorrente`.
 
 A fonte da verdade é a pasta `prisma/migrations`. Se uma migration nova entrar, estes scripts precisam ser atualizados para continuar iguais a ela. Não rode os dois jeitos no mesmo banco: ou o Prisma Migrate, ou estes arquivos, nunca os dois em sequência no mesmo esquema vazio.
 

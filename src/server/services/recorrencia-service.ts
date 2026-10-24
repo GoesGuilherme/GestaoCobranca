@@ -1,5 +1,6 @@
+import { descreverCobranca, formaCobrancaDe } from "@/lib/cobranca";
 import { dataHojeIso, dataIsoValida, proximoVencimentoIso } from "@/lib/data";
-import type { ClienteServicoDTO, PreviaRecorrencia, ResultadoLoteRecorrencia } from "@/lib/tipos";
+import type { ClienteServicoDTO, PreferenciasCobrancaDTO, PreviaRecorrencia, ResultadoLoteRecorrencia } from "@/lib/tipos";
 import {
   esquemaAtivarRecorrencia,
   esquemaEditarRecorrencia,
@@ -7,7 +8,7 @@ import {
   esquemaRetomarRecorrencia,
 } from "@/lib/validacao";
 import { abrirClienteAsaas, traduzirErroAsaas } from "@/server/asaas/abrir";
-import type { ClienteHttpAsaas, FormaCobranca } from "@/server/asaas/contrato";
+import type { ClienteHttpAsaas, EncargosAsaas } from "@/server/asaas/contrato";
 import { ErroAsaas } from "@/server/asaas/contrato";
 import { logAsaas, logAsaasErro, mensagemLogAsaas } from "@/server/asaas/log";
 import type { AutorEmpresa } from "@/server/auth/papeis";
@@ -16,6 +17,7 @@ import { prisma } from "@/server/db";
 import { ErroAplicacao } from "@/server/erros";
 import { lerEsquema } from "@/server/validar";
 import { paraClienteServico } from "./mapeadores";
+import { escolherPercentual, obterPreferenciasCobranca } from "./preferencia-cobranca-service";
 import {
   atualizarFaturasAbertasDaAssinatura,
   garantirClienteAsaas,
@@ -26,9 +28,39 @@ import {
 const PODE_SUBSTITUIR = new Set(["CANCELADA", "EXPIRED"]);
 const LIMITE_PAGINA = 100;
 
-function formaDe(valor: string | null | undefined): FormaCobranca {
-  if (valor === "PIX" || valor === "UNDEFINED" || valor === "BOLETO") return valor;
-  return "BOLETO";
+function encargosInformados(
+  dados: {
+    multaPercentual?: string | null;
+    jurosPercentual?: string | null;
+    descontoPercentual?: string | null;
+    descontoDiasAntes?: number | null;
+  },
+  prefs: PreferenciasCobrancaDTO,
+): EncargosAsaas {
+  const desconto = escolherPercentual(dados.descontoPercentual, prefs.descontoPercentual);
+  const dias = desconto
+    ? dados.descontoDiasAntes === undefined
+      ? (prefs.descontoDiasAntes ?? 0)
+      : (dados.descontoDiasAntes ?? 0)
+    : null;
+  return {
+    multaPercentual: escolherPercentual(dados.multaPercentual, prefs.multaPercentual),
+    jurosPercentual: escolherPercentual(dados.jurosPercentual, prefs.jurosPercentual),
+    descontoPercentual: desconto,
+    descontoDiasAntes: dias,
+  };
+}
+
+function textoDaCobranca(
+  modelo: string,
+  vinculo: { servico: { nome: string }; cliente: { nomeFantasia: string } },
+  vencimento: string,
+) {
+  return descreverCobranca(modelo, {
+    servico: vinculo.servico.nome,
+    cliente: vinculo.cliente.nomeFantasia,
+    vencimento,
+  }).slice(0, 500);
 }
 
 function resolverVencimento(dia: number, informado: string | undefined, hoje: string) {
@@ -97,11 +129,15 @@ export async function ativarRecorrencia(
   }
 
   const hoje = dataHojeIso();
-  const vencimento = resolverVencimento(dados.diaVencimento, dados.proximoVencimento, hoje);
+  const prefs = await obterPreferenciasCobranca(autor.empresaId);
+  const dia = dados.diaVencimento ?? prefs.diaVencimento;
+  const vencimento = resolverVencimento(dia, dados.proximoVencimento, hoje);
   const valor = dados.valor ?? vinculo.valor.toFixed(2);
   if (valor === "0.00") throw new ErroAplicacao("Informe um valor maior que zero.", 400, "valor_invalido");
-  const descricao = (dados.descricao?.trim() || `Mensalidade ${vinculo.servico.nome}`).slice(0, 500);
-  const forma = formaDe(dados.formaCobranca);
+  const descricao = (
+    dados.descricao?.trim() || textoDaCobranca(dados.modeloDescricao?.trim() || prefs.modeloDescricao, vinculo, vencimento)
+  ).slice(0, 500);
+  const forma = formaCobrancaDe(dados.formaCobranca ?? prefs.formaCobranca);
 
   try {
     const { http } = await abrirClienteAsaas(autor.empresaId, clienteHttp);
@@ -113,6 +149,7 @@ export async function ativarRecorrencia(
       proximoVencimento: vencimento,
       descricao,
       referencia: vinculo.id,
+      encargos: encargosInformados(dados, prefs),
     });
     const gravado = await prisma.clienteServico.updateMany({
       where: {
@@ -124,8 +161,8 @@ export async function ativarRecorrencia(
         valor: assinatura.valor,
         asaasSubscriptionId: assinatura.id,
         asaasAssinaturaStatus: assinatura.status,
-        formaCobrancaRecorrente: formaDe(assinatura.formaCobranca),
-        diaVencimento: dados.diaVencimento,
+        formaCobrancaRecorrente: formaCobrancaDe(assinatura.formaCobranca),
+        diaVencimento: dia,
         proximoVencimento: new Date(`${assinatura.proximoVencimento}T00:00:00.000Z`),
         descricaoRecorrente: assinatura.descricao ?? descricao,
       },
@@ -174,9 +211,15 @@ export async function editarRecorrencia(
     throw new ErroAplicacao("Esta venda não tem cobrança recorrente para editar.", 409, "assinatura_ausente");
   }
   const hoje = dataHojeIso();
+  const prefs = await obterPreferenciasCobranca(autor.empresaId);
   const vencimento = resolverVencimento(dados.diaVencimento, dados.proximoVencimento, hoje);
-  const descricao = (dados.descricao?.trim() || vinculo.descricaoRecorrente || `Mensalidade ${vinculo.servico.nome}`).slice(0, 500);
-  const forma = formaDe(dados.formaCobranca ?? vinculo.formaCobrancaRecorrente);
+  const descricao = (
+    dados.descricao?.trim() ||
+    vinculo.descricaoRecorrente ||
+    textoDaCobranca(prefs.modeloDescricao, vinculo, vencimento)
+  ).slice(0, 500);
+  const forma = formaCobrancaDe(dados.formaCobranca ?? vinculo.formaCobrancaRecorrente ?? prefs.formaCobranca);
+  const atualizarPendentes = dados.atualizarPendentes ?? prefs.atualizarPendentes;
 
   try {
     const { http } = await abrirClienteAsaas(autor.empresaId, clienteHttp);
@@ -185,23 +228,24 @@ export async function editarRecorrencia(
       valor: dados.valor,
       proximoVencimento: vencimento,
       descricao,
-      atualizarPendentes: dados.atualizarPendentes === true,
+      atualizarPendentes,
+      encargos: encargosInformados(dados, prefs),
     });
     await prisma.clienteServico.updateMany({
       where: { id: vinculo.id, empresaId: autor.empresaId },
       data: {
         valor: assinatura.valor,
         asaasAssinaturaStatus: assinatura.status,
-        formaCobrancaRecorrente: formaDe(assinatura.formaCobranca),
+        formaCobrancaRecorrente: formaCobrancaDe(assinatura.formaCobranca),
         diaVencimento: dados.diaVencimento,
         proximoVencimento: new Date(`${assinatura.proximoVencimento}T00:00:00.000Z`),
         descricaoRecorrente: assinatura.descricao ?? descricao,
       },
     });
-    if (dados.atualizarPendentes) {
+    if (atualizarPendentes) {
       await atualizarFaturasAbertasDaAssinatura(autor.empresaId, vinculo.id, {
         valor: assinatura.valor,
-        formaCobranca: formaDe(assinatura.formaCobranca),
+        formaCobranca: formaCobrancaDe(assinatura.formaCobranca),
         descricao: assinatura.descricao ?? descricao,
       });
     }
@@ -401,10 +445,14 @@ export async function ativarRecorrenciaEmLote(
         autor,
         id,
         {
-          formaCobranca: dados.formaCobranca ?? "BOLETO",
+          formaCobranca: dados.formaCobranca,
           diaVencimento: dados.diaVencimento,
           proximoVencimento: previa.vencimento,
-          descricao: `Mensalidade ${item.nomeServico}`,
+          modeloDescricao: dados.modeloDescricao,
+          multaPercentual: dados.multaPercentual,
+          jurosPercentual: dados.jurosPercentual,
+          descontoPercentual: dados.descontoPercentual,
+          descontoDiasAntes: dados.descontoDiasAntes,
         },
         clienteHttp,
       );

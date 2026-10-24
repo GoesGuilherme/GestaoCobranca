@@ -1,10 +1,8 @@
 # Gestão Cobrança
 
-Cadastro interno dos clientes de uma revenda de PDVLegal (automação comercial da WebAutomação). Os clientes são restaurantes e mercados autônomos espalhados pelo Brasil.
+Sistema de cadastro e cobrança para várias empresas assinantes. Cada empresa vê só os próprios clientes, serviços e faturas.
 
-No back office do PDVLegal, cada cliente é um **grupo** e cada ponto de venda é uma **filial**. Um grupo pode ter várias filiais. Esta primeira versão cuida só desse cadastro: quem é o cliente e quais são as unidades.
-
-Licenças do PDVLegal, certificados digitais A1 e chamados de suporte ficam para as próximas versões. A cobrança nova usa o Asaas em sandbox: cada empresa guarda a própria chave, emite fatura avulsa, ativa a mensalidade das vendas e recebe o webhook. A Cora não entra neste código.
+O cliente é quem a empresa atende e pode ter várias unidades (filiais). A empresa monta o próprio catálogo, vende por cliente e cobra pelo Asaas: fatura avulsa, mensalidade recorrente e webhook. Nada de texto, vencimento ou encargos fica preso a uma empresa específica. A Cora não entra neste código.
 
 A interface, as mensagens de validação e este texto estão em português do Brasil.
 
@@ -25,7 +23,7 @@ Cada empresa assinante vê só os próprios clientes e filiais. O CPF/CNPJ do cl
 - Na ficha e na edição do cliente, vincular um ou mais serviços com o valor combinado, o custo daquela venda, se a cobrança é mensal ou avulsa, a data de início e se está ativo. Preço e custo do catálogo só sugerem o vínculo novo; não reescrevem o que já foi vendido. A alíquota continua no catálogo e incide sobre o valor combinado.
 - Dono e financeiro alteram serviços, valores, custo e impostos, e veem a margem. Suporte consulta o preço e não vê custo, impostos nem margem. Os outros papéis continuam como antes: todo mundo autenticado altera clientes e filiais; só o dono altera usuários e os dados da empresa.
 - Ver o resultado de custo e faturamento em Resultado, só o dono. O mensal reúne serviços recorrentes ativos de clientes ativos ou em implantação. O avulso fica separado. Custo vazio entra como zero e a página avisa que a margem pode estar alta demais.
-- O dono configura o Asaas da empresa em Asaas: ambiente sandbox ou produção, chave da API cifrada e token do webhook. A tela mostra a chave mascarada e tem o botão Testar conexão.
+- O dono configura o Asaas da empresa em Asaas: ambiente sandbox ou produção, chave da API cifrada, token do webhook e as preferências de cobrança (forma, dia, modelo de descrição, multa, juros, desconto e atualização das cobranças em aberto). A tela mostra a chave mascarada e tem o botão Testar conexão.
 - Dono e financeiro veem, emitem e cancelam cobrança avulsa (boleto, Pix ou o cliente escolhe), a lista Faturas em aberto, a recorrência das vendas mensais e a importação. Suporte não vê o menu, a seção na ficha do cliente, a segunda via, a recorrência nem as rotas de fatura. O cliente é criado no Asaas na primeira cobrança, ou reaproveitado pelo CPF/CNPJ.
 - O webhook `POST /api/webhooks/asaas` autentica o cabeçalho `asaas-access-token` de cada empresa e atualiza a situação da cobrança sem processar o mesmo evento duas vezes.
 
@@ -175,7 +173,7 @@ O script grava o hash da senha do mesmo jeito que o login confere, na empresa Co
 - `src/lib` — CPF/CNPJ, máscaras, rótulos e os esquemas de validação usados tanto na tela quanto no servidor.
 - `src/server/services` — regras de empresa, usuário, cliente, filial, serviço, resultado, Asaas e fatura. Cliente, fatura e configuração sempre recebem a empresa da sessão, nunca um id vindo do navegador. O arquivo `src/server/services/index.ts` é o ponto de entrada estável.
 - `src/app/api` — rotas HTTP finas em cima desses serviços. As telas chamam essas rotas para criar, editar e excluir. `POST /api/webhooks/asaas` não usa o cookie: autentica o token da empresa.
-- `prisma/schema.prisma` — `Empresa` 1-N `Usuario`, `Cliente` e `Servico`. `Cliente` 1-N `Filial`, `ClienteServico` e `Fatura`. `ClienteServico` guarda o valor combinado daquele cliente. `ConfiguracaoAsaas` é uma por empresa. O campo `Empresa.plano` continua sendo a assinatura da empresa na plataforma, separado desse catálogo e separado da cobrança no Asaas. As migrations em `prisma/migrations` são a fonte da verdade do banco.
+- `prisma/schema.prisma` — `Empresa` 1-N `Usuario`, `Cliente` e `Servico`. `Cliente` 1-N `Filial`, `ClienteServico` e `Fatura`. `ClienteServico` guarda o valor combinado daquele cliente. `ConfiguracaoAsaas` e `PreferenciaCobranca` são uma por empresa. O campo `Empresa.plano` continua sendo a assinatura da empresa na plataforma, separado desse catálogo e separado da cobrança no Asaas. As migrations em `prisma/migrations` são a fonte da verdade do banco.
 - `database/` — os mesmos SQLs, com comentário curto, para quem não usa o Prisma.
 
 Um servidor MCP futuro (`buscar cliente`, `listar filiais`, e as ações de escrita) deve importar os serviços, não o Prisma. Os próximos módulos entram como tabela, serviço e rota próprios:
@@ -183,7 +181,7 @@ Um servidor MCP futuro (`buscar cliente`, `listar filiais`, e as ações de escr
 - histórico de chamados de suporte;
 - planos da plataforma para a empresa assinante, separados do catálogo que ela vende aos clientes dela.
 
-Dono e financeiro ativam a cobrança recorrente nas vendas `MENSAL` ativas: boleto (padrão), Pix ou o cliente escolhe, dia de vencimento e valor do vínculo. A assinatura fica no Asaas com ciclo mensal e o id volta para o vínculo. Dá para editar valor e vencimento, atualizar cobranças em aberto, pausar ou cancelar. O lote usa o mesmo dia para as vendas ainda sem assinatura, com prévia antes de criar. As cobranças geradas pela assinatura entram em Faturas pelo webhook (o pagamento traz o campo `subscription`) e pelo botão Importar faturas, sem duplicar. Suporte não vê faturas nem recorrência. A configuração da chave continua só com o dono.
+Dono e financeiro ativam a cobrança recorrente nas vendas `MENSAL` ativas. Forma, dia de vencimento, texto da descrição, multa, juros, desconto e a opção de atualizar cobranças em aberto começam pelas preferências da empresa, gravadas pelo dono em Asaas. Cada venda e o lote podem trocar esses valores. Sem percentual informado, a cobrança não envia multa, juros nem desconto, e o Asaas conserva o padrão da conta. O prazo de gerar a cobrança antes do vencimento não vai na assinatura: o Asaas usa 7, 14 ou 40 dias na configuração da conta, e o número escolhido fica só na preferência. A assinatura usa ciclo mensal. Dá para editar, pausar ou cancelar. O lote mostra a prévia antes de criar. As cobranças da assinatura entram em Faturas pelo webhook (o pagamento traz o campo `subscription`) e pelo botão Importar faturas, sem duplicar. Suporte não vê faturas nem recorrência. A chave da API continua só com o dono.
 
 A Cora não é alterada por estes módulos.
 

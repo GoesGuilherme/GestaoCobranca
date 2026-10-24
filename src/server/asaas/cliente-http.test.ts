@@ -142,23 +142,35 @@ describe("cliente HTTP do Asaas", () => {
       proximoVencimento: "2026-11-10",
       descricao: "Mensalidade Licença",
       referencia: "vinculo-1",
+      encargos: {
+        multaPercentual: "2.00",
+        jurosPercentual: "1.15",
+        descontoPercentual: "5.00",
+        descontoDiasAntes: 3,
+      },
     });
     expect(criada.id).toBe("sub_1");
     expect(criada.ciclo).toBe("MONTHLY");
     const corpo = String(pedidos[0]?.init.body);
     expect(corpo).toContain('"cycle":"MONTHLY"');
     expect(corpo).toContain('"value":150.00');
+    expect(corpo).toContain('"fine":{"value":2.00,"type":"PERCENTAGE"}');
+    expect(corpo).toContain('"interest":{"value":1.15}');
+    expect(corpo).toContain('"discount":{"value":5.00,"dueDateLimitDays":3,"type":"PERCENTAGE"}');
     expect(corpo).not.toContain(CHAVE);
     const atualizada = await cliente.atualizarAssinatura("sub_1", {
       valor: "180.00",
       formaCobranca: "PIX",
       proximoVencimento: "2026-12-10",
       atualizarPendentes: true,
+      encargos: { multaPercentual: "0.00" },
     });
     expect(atualizada.valor).toBe("180.00");
     const corpoAtualizacao = String(pedidos[1]?.init.body);
     expect(corpoAtualizacao).toContain('"updatePendingPayments":true');
     expect(corpoAtualizacao).toContain('"value":180.00');
+    expect(corpoAtualizacao).toContain('"fine":{"value":0.00,"type":"PERCENTAGE"}');
+    expect(corpoAtualizacao).not.toContain('"interest"');
     const pagina = await cliente.listarCobrancasDaAssinatura("sub_1", 0, 100);
     expect(pagina.cobrancas[0]?.subscription).toBe("sub_1");
     await cliente.cancelarAssinatura("sub_1");
