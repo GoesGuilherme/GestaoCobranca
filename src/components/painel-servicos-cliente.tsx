@@ -28,6 +28,8 @@ export function PainelServicosCliente({
   podeEditar,
   podeCobrar = false,
   nomeCliente,
+  whatsapp = "",
+  email = "",
   preferencias = PREFERENCIAS_COBRANCA_PADRAO,
 }: {
   clienteId: string;
@@ -36,6 +38,8 @@ export function PainelServicosCliente({
   podeEditar: boolean;
   podeCobrar?: boolean;
   nomeCliente: string;
+  whatsapp?: string;
+  email?: string;
   preferencias?: PreferenciasCobrancaDTO;
 }) {
   const [modo, setModo] = useState<"lista" | "novo" | string>("lista");
@@ -137,7 +141,13 @@ export function PainelServicosCliente({
                   ) : null}
                   {item.observacoes ? <p className="mt-1 text-sm text-ink/80">{item.observacoes}</p> : null}
                   {podeCobrar && (item.recorrencia === "MENSAL" || item.recorrenciaAsaas) ? (
-                    <AcoesRecorrencia vinculo={item} nomeCliente={nomeCliente} preferencias={preferencias} />
+                    <AcoesRecorrencia
+                      vinculo={item}
+                      nomeCliente={nomeCliente}
+                      whatsapp={whatsapp}
+                      email={email}
+                      preferencias={preferencias}
+                    />
                   ) : null}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">

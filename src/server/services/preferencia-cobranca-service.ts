@@ -17,6 +17,8 @@ type LinhaPreferencia = {
   descontoDiasAntes: number | null;
   diasAntesGerar: number | null;
   atualizarPendentes: boolean;
+  modeloMensagem: string;
+  modeloAssunto: string;
 };
 
 function percentual(valor: { toFixed(casas: number): string } | null): string | null {
@@ -40,6 +42,8 @@ function paraPreferencias(linha: LinhaPreferencia | null): PreferenciasCobrancaD
     descontoDiasAntes: linha.descontoDiasAntes,
     diasAntesGerar: diasAntes(linha.diasAntesGerar),
     atualizarPendentes: linha.atualizarPendentes,
+    modeloMensagem: linha.modeloMensagem,
+    modeloAssunto: linha.modeloAssunto,
   };
 }
 
@@ -79,6 +83,8 @@ export async function salvarPreferenciasCobranca(
     descontoDiasAntes: desconto === null ? null : (dados.descontoDiasAntes ?? 0),
     diasAntesGerar: dados.diasAntesGerar,
     atualizarPendentes: dados.atualizarPendentes,
+    modeloMensagem: dados.modeloMensagem,
+    modeloAssunto: dados.modeloAssunto,
   };
   const linha = await prisma.preferenciaCobranca.upsert({
     where: { empresaId: autor.empresaId },

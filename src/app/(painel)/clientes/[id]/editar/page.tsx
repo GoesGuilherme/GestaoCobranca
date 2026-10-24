@@ -53,6 +53,8 @@ export default async function PaginaEditarCliente({
         podeEditar={podeAlterarServicos(acesso.papel)}
         podeCobrar={podeCobrar}
         nomeCliente={cliente.nomeFantasia}
+        whatsapp={cliente.whatsapp}
+        email={cliente.email}
         preferencias={preferencias}
       />
     </>

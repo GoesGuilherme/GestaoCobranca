@@ -1,8 +1,9 @@
 const CHAVE = /\$aact_[A-Za-z0-9_]+/g;
+const PAN = /\d{13,19}/g;
 
 export function mensagemLogAsaas(erro: unknown): string {
   const texto = erro instanceof Error ? erro.message : "erro interno";
-  return texto.replace(CHAVE, "[redigido]").slice(0, 300);
+  return texto.replace(CHAVE, "[redigido]").replace(PAN, "[redigido]").slice(0, 300);
 }
 
 export function logAsaas(evento: string, dados: Record<string, string | number | boolean | null>) {

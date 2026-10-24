@@ -3,13 +3,21 @@
 import { useEffect, useState } from "react";
 import { PREFERENCIAS_COBRANCA_PADRAO } from "@/lib/cobranca";
 import type { ClienteServicoDTO, FaturaDTO, PreferenciasCobrancaDTO } from "@/lib/tipos";
+import { AcoesCompartilhar } from "./acoes-compartilhar";
 import { FormularioFatura } from "./formulario-fatura";
 import { TabelaFaturas } from "./tabela-faturas";
 
 function tituloEmissao(forma: string) {
   if (forma === "PIX") return "Pix emitido";
+  if (forma === "CREDIT_CARD") return "Cobrança no cartão emitida";
   if (forma === "UNDEFINED") return "Cobrança emitida";
   return "Boleto emitido";
+}
+
+function textoDoLink(forma: string, boleto: boolean) {
+  if (forma === "CREDIT_CARD") return "Abrir página para cadastrar o cartão";
+  if (boleto) return "Abrir boleto";
+  return "Abrir cobrança";
 }
 
 export function PainelFaturasCliente({
@@ -43,16 +51,35 @@ export function PainelFaturasCliente({
           <p className="mt-1">
             {link ? (
               <a href={link} target="_blank" rel="noreferrer" className="font-medium underline">
-                {emitida.boletoUrl ? "Abrir boleto" : "Abrir cobrança"}
+                {textoDoLink(emitida.formaCobranca, Boolean(emitida.boletoUrl))}
               </a>
             ) : (
               "O link ainda não voltou do Asaas."
             )}
           </p>
+          <div className="mt-3">
+            <AcoesCompartilhar
+              link={link}
+              whatsapp={emitida.whatsapp}
+              email={emitida.email}
+              cliente={emitida.nomeCliente}
+              servico={emitida.nomeServico ?? ""}
+              valor={emitida.valor}
+              vencimento={emitida.vencimento}
+              modeloMensagem={preferencias.modeloMensagem}
+              modeloAssunto={preferencias.modeloAssunto}
+            />
+          </div>
         </div>
       ) : null}
       <div className="mt-4">
-        <TabelaFaturas faturas={faturas} podeCancelar={podeCancelar} mostrarCliente={false} destaqueId={emitida?.id} />
+        <TabelaFaturas
+          faturas={faturas}
+          podeCancelar={podeCancelar}
+          mostrarCliente={false}
+          destaqueId={emitida?.id}
+          preferencias={preferencias}
+        />
       </div>
     </>
   );

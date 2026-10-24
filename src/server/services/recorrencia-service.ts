@@ -25,6 +25,14 @@ import {
 } from "./fatura-service";
 
 const PODE_SUBSTITUIR = new Set(["CANCELADA", "EXPIRED"]);
+
+function camposDoCartao(forma: string, statusAtual: string | null) {
+  if (forma !== "CREDIT_CARD") {
+    return { cartaoStatus: null, cartaoBandeira: null, cartaoFinal: null };
+  }
+  if (statusAtual) return {};
+  return { cartaoStatus: "AGUARDANDO" };
+}
 const LIMITE_PAGINA = 100;
 
 function encargosInformados(
@@ -164,6 +172,7 @@ export async function ativarRecorrencia(
         diaVencimento: dia,
         proximoVencimento: new Date(`${assinatura.proximoVencimento}T00:00:00.000Z`),
         descricaoRecorrente: assinatura.descricao ?? descricao,
+        ...camposDoCartao(formaCobrancaDe(assinatura.formaCobranca), vinculo.cartaoStatus),
       },
     });
     if (gravado.count !== 1) {
@@ -239,6 +248,7 @@ export async function editarRecorrencia(
         diaVencimento: dados.diaVencimento,
         proximoVencimento: new Date(`${assinatura.proximoVencimento}T00:00:00.000Z`),
         descricaoRecorrente: assinatura.descricao ?? descricao,
+        ...camposDoCartao(formaCobrancaDe(assinatura.formaCobranca), vinculo.cartaoStatus),
       },
     });
     if (atualizarPendentes) {

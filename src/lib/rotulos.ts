@@ -86,6 +86,7 @@ export const AMBIENTES_ASAAS: { valor: AmbienteAsaas; rotulo: string }[] = [
 export const FORMAS_COBRANCA: { valor: FormaCobranca; rotulo: string }[] = [
   { valor: "BOLETO", rotulo: "Boleto" },
   { valor: "PIX", rotulo: "Pix" },
+  { valor: "CREDIT_CARD", rotulo: "Cartão de crédito" },
   { valor: "UNDEFINED", rotulo: "Cliente escolhe" },
 ];
 
@@ -127,6 +128,13 @@ export function rotuloAssinatura(status: string): string {
   if (status === "INACTIVE") return "Pausada";
   if (status === "CANCELADA") return "Cancelada";
   if (status === "EXPIRED") return "Encerrada";
+  return status;
+}
+
+export function rotuloCartao(status: string): string {
+  if (status === "AGUARDANDO") return "Aguardando cadastro do cartão";
+  if (status === "CADASTRADO") return "Cartão cadastrado";
+  if (status === "RECUSADO") return "Cartão recusado";
   return status;
 }
 

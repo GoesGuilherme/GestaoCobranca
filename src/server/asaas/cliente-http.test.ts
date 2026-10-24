@@ -177,6 +177,65 @@ describe("cliente HTTP do Asaas", () => {
     expect(pedidos.at(-1)?.init.method).toBe("DELETE");
   });
 
+  it("cria assinatura de cartão sem número, CVV ou token", async () => {
+    const pedidos: { init: RequestInit }[] = [];
+    let etapa = 0;
+    const fetchImpl: typeof fetch = async (_entrada, init) => {
+      pedidos.push({ init: init ?? {} });
+      etapa += 1;
+      if (etapa === 1) {
+        return resposta(200, {
+          id: "sub_card",
+          customer: "cus_1",
+          value: 99.9,
+          nextDueDate: "2026-11-10",
+          cycle: "MONTHLY",
+          billingType: "CREDIT_CARD",
+          status: "ACTIVE",
+          creditCard: { creditCardToken: "tok_super_secreto", creditCardNumber: "4111111111118829" },
+        });
+      }
+      return resposta(200, {
+        id: "pay_card",
+        customer: "cus_1",
+        value: 99.9,
+        dueDate: "2026-11-10",
+        status: "CONFIRMED",
+        billingType: "CREDIT_CARD",
+        invoiceUrl: "https://sandbox.asaas.com/i/pay_card",
+        creditCard: {
+          creditCardBrand: "VISA",
+          creditCardNumber: "8829",
+          creditCardToken: "tok_super_secreto",
+        },
+      });
+    };
+    const cliente = criarClienteHttpAsaas({ baseUrl: URL_ASAAS.SANDBOX, apiKey: CHAVE, fetchImpl });
+    const assinatura = await cliente.criarAssinatura({
+      customer: "cus_1",
+      formaCobranca: "CREDIT_CARD",
+      valor: "99.90",
+      proximoVencimento: "2026-11-10",
+      descricao: "Mensalidade",
+      referencia: "vinculo-card",
+    });
+    const corpo = String(pedidos[0]?.init.body);
+    expect(corpo).toContain('"billingType":"CREDIT_CARD"');
+    expect(corpo).not.toMatch(/creditCard|cvv|ccv|cardNumber/i);
+    expect(JSON.stringify(assinatura)).not.toContain("tok_super_secreto");
+    expect(JSON.stringify(assinatura)).not.toContain("4111");
+    const cobranca = await cliente.criarCobranca({
+      customer: "cus_1",
+      formaCobranca: "CREDIT_CARD",
+      valor: "99.90",
+      vencimento: "2026-11-10",
+    });
+    expect(cobranca.cartao).toEqual({ bandeira: "VISA", final: "8829" });
+    expect(JSON.stringify(cobranca)).not.toContain("tok_super_secreto");
+    const corpoCobranca = String(pedidos[1]?.init.body);
+    expect(corpoCobranca).not.toMatch(/creditCard|cvv|ccv|cardNumber/i);
+  });
+
   it("recusa o modo simulado em produção", () => {
     expect(mockAsaasLigado({ ASAAS_MOCK: "true", NODE_ENV: "production" })).toBe(false);
     expect(mockAsaasLigado({ ASAAS_MOCK: "true", NODE_ENV: "development" })).toBe(true);

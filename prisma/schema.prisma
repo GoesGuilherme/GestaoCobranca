@@ -233,6 +233,10 @@ model ClienteServico {
   diaVencimento            Int?                 @map("dia_vencimento")
   proximoVencimento        DateTime?            @map("proximo_vencimento") @db.Date
   descricaoRecorrente      String?              @map("descricao_recorrente") @db.Text
+  urlCobranca              String?              @map("url_cobranca") @db.Text
+  cartaoStatus             String?              @map("cartao_status")
+  cartaoBandeira           String?              @map("cartao_bandeira")
+  cartaoFinal              String?              @map("cartao_final")
   criadoEm                 DateTime             @default(now()) @map("criado_em") @db.Timestamptz(3)
   atualizadoEm             DateTime             @updatedAt @map("atualizado_em") @db.Timestamptz(3)
   empresa                  Empresa              @relation(fields: [empresaId], references: [id], onDelete: Restrict)
@@ -261,6 +265,8 @@ model PreferenciaCobranca {
   descontoDiasAntes  Int?     @map("desconto_dias_antes")
   diasAntesGerar     Int?     @map("dias_antes_gerar")
   atualizarPendentes Boolean  @default(false) @map("atualizar_pendentes")
+  modeloMensagem     String   @default("Olá, {cliente}. Segue a cobrança de {servico}, no valor de {valor}, com vencimento em {vencimento}: {link}") @map("modelo_mensagem") @db.Text
+  modeloAssunto      String   @default("Cobrança de {cliente}") @map("modelo_assunto")
   criadoEm           DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
   atualizadoEm       DateTime @updatedAt @map("atualizado_em") @db.Timestamptz(3)
   empresa            Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
