@@ -114,12 +114,13 @@ export async function obterCliente(empresaId: string, id: string): Promise<Clien
     include: {
       ...incluirResumo(),
       filiais: { orderBy: { nome: "asc" } },
+      regua: { select: { nome: true } },
     },
   });
   if (!cliente) {
     throw new ErroAplicacao("Cliente não encontrado.", 404, "nao_encontrado");
   }
-  return paraClienteDetalhe(cliente);
+  return comReguaVisivel(empresaId, paraClienteDetalhe(cliente));
 }
 
 export async function criarCliente(empresaId: string, entrada: unknown): Promise<ClienteDetalhe> {
@@ -132,9 +133,10 @@ export async function criarCliente(empresaId: string, entrada: unknown): Promise
       include: {
         ...incluirResumo(),
         filiais: true,
+        regua: { select: { nome: true } },
       },
     });
-    return paraClienteDetalhe(cliente);
+    return comReguaVisivel(empresaId, paraClienteDetalhe(cliente));
   } catch (erro) {
     if (codigoPrisma(erro) === "P2002") {
       throw new ErroAplicacao(
@@ -170,9 +172,19 @@ export async function atualizarCliente(
     include: {
       ...incluirResumo(),
       filiais: { orderBy: { nome: "asc" } },
+      regua: { select: { nome: true } },
     },
   });
-  return paraClienteDetalhe(cliente);
+  return comReguaVisivel(empresaId, paraClienteDetalhe(cliente));
+}
+
+async function comReguaVisivel(empresaId: string, detalhe: ClienteDetalhe): Promise<ClienteDetalhe> {
+  if (detalhe.reguaModo !== "PADRAO") return detalhe;
+  const padrao = await prisma.reguaCobranca.findFirst({
+    where: { empresaId, padrao: true },
+    select: { nome: true },
+  });
+  return { ...detalhe, reguaNome: padrao?.nome ?? null };
 }
 
 export async function excluirCliente(empresaId: string, id: string): Promise<void> {

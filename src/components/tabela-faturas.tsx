@@ -5,6 +5,7 @@ import { formatarDataIso } from "@/lib/formatacao";
 import { rotuloFormaCobranca, rotuloStatusFatura } from "@/lib/rotulos";
 import type { FaturaDTO, PreferenciasCobrancaDTO } from "@/lib/tipos";
 import { AcoesCompartilhar } from "./acoes-compartilhar";
+import { AcoesLembrete } from "./acoes-lembrete";
 import { BotaoCancelarFatura } from "./botao-cancelar-fatura";
 
 function segundaVia(fatura: FaturaDTO) {
@@ -17,12 +18,16 @@ export function TabelaFaturas({
   mostrarCliente,
   destaqueId,
   preferencias = PREFERENCIAS_COBRANCA_PADRAO,
+  passosRegua = [],
+  podeEnviarRegua = false,
 }: {
   faturas: FaturaDTO[];
   podeCancelar: boolean;
   mostrarCliente: boolean;
   destaqueId?: string | null;
   preferencias?: PreferenciasCobrancaDTO;
+  passosRegua?: { id: string; rotulo: string }[];
+  podeEnviarRegua?: boolean;
 }) {
   if (faturas.length === 0) {
     return (
@@ -99,6 +104,12 @@ export function TabelaFaturas({
                   {fatura.pixCopiaCola ? (
                     <p className="mt-1 max-w-xs break-all text-xs text-muted">Pix: {fatura.pixCopiaCola}</p>
                   ) : null}
+                  <AcoesLembrete
+                    faturaId={fatura.id}
+                    lembretes={fatura.lembretes ?? []}
+                    passos={passosRegua}
+                    podeEnviar={podeEnviarRegua && !fatura.excluida && (fatura.status === "PENDING" || fatura.status === "OVERDUE")}
+                  />
                 </td>
               </tr>
             );

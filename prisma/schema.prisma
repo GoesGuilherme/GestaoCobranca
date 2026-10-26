@@ -105,6 +105,10 @@ model Empresa {
   preferenciaCobranca PreferenciaCobranca?
   faturas          Fatura[]
   eventosAsaas     EventoAsaas[]
+  configuracaoRegua ConfiguracaoRegua?
+  reguasCobranca   ReguaCobranca[]
+  passosRegua      PassoRegua[]
+  lembretesRegua   LembreteRegua[]
 
   @@map("empresas")
 }
@@ -151,14 +155,20 @@ model Cliente {
   status          StatusCliente
   observacoes     String?          @db.Text
   asaasCustomerId String?          @map("asaas_customer_id")
+  reguaId         String?          @map("regua_id")
+  reguaModo       String           @default("PADRAO") @map("regua_modo")
+  reguaPausada    Boolean          @default(false) @map("regua_pausada")
   criadoEm        DateTime         @default(now()) @map("criado_em") @db.Timestamptz(3)
   atualizadoEm    DateTime         @updatedAt @map("atualizado_em") @db.Timestamptz(3)
   empresa         Empresa          @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  regua           ReguaCobranca?   @relation(fields: [reguaId], references: [id], onDelete: Restrict)
   filiais         Filial[]
   servicos        ClienteServico[]
   faturas         Fatura[]
+  lembretesRegua  LembreteRegua[]
 
   @@index([asaasCustomerId])
+  @@index([reguaId])
 
   @@unique([empresaId, documento])
   @@index([empresaId])
@@ -316,6 +326,7 @@ model Fatura {
   empresa          Empresa   @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   cliente          Cliente   @relation(fields: [clienteId], references: [id], onDelete: Cascade)
   clienteServico   ClienteServico? @relation(fields: [clienteServicoId], references: [id], onDelete: SetNull)
+  lembretes        LembreteRegua[]
 
   @@unique([empresaId, asaasPaymentId])
   @@index([empresaId, excluida, status])
@@ -336,4 +347,91 @@ model EventoAsaas {
   @@unique([empresaId, asaasEventId])
   @@index([empresaId])
   @@map("eventos_asaas")
+}
+
+// Liga e desliga a régua da empresa e guarda o remetente. A chave da Resend
+// usa a mesma cifra da ASAAS_ENCRYPTION_KEY. modoTeste começa ligado: o envio
+// vai para o dono, não para o cliente, até o dono desligar.
+model ConfiguracaoRegua {
+  id                 String   @id @default(cuid())
+  empresaId          String   @unique @map("empresa_id")
+  ativa              Boolean  @default(false)
+  modoTeste          Boolean  @default(true) @map("modo_teste")
+  remetenteNome      String?  @map("remetente_nome")
+  remetenteEmail     String?  @map("remetente_email")
+  replyTo            String?  @map("reply_to")
+  chaveResendCifrada String?  @map("chave_resend_cifrada") @db.Text
+  criadoEm           DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm       DateTime @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  empresa            Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+
+  @@map("configuracoes_regua")
+}
+
+// Várias réguas por empresa. Uma delas é a padrão (índice único parcial na
+// migration). Horário e fim de semana são desta régua, não da empresa.
+model ReguaCobranca {
+  id                 String   @id @default(cuid())
+  empresaId          String   @map("empresa_id")
+  nome               String
+  padrao             Boolean  @default(false)
+  horaInicio         Int      @default(8) @map("hora_inicio")
+  horaFim            Int      @default(18) @map("hora_fim")
+  enviarFimDeSemana  Boolean  @default(false) @map("enviar_fim_de_semana")
+  criadoEm           DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm       DateTime @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  empresa            Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  passos             PassoRegua[]
+  clientes           Cliente[]
+
+  @@unique([empresaId, nome])
+  @@index([empresaId])
+  @@map("reguas_cobranca")
+}
+
+model PassoRegua {
+  id         String   @id @default(cuid())
+  reguaId    String   @map("regua_id")
+  empresaId  String   @map("empresa_id")
+  ordem      Int
+  naEmissao  Boolean  @default(false) @map("na_emissao")
+  dias       Int?
+  canal      String   @default("EMAIL")
+  assunto    String
+  corpo      String   @db.Text
+  criadoEm   DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm DateTime @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  regua      ReguaCobranca @relation(fields: [reguaId], references: [id], onDelete: Cascade)
+  empresa    Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  lembretes  LembreteRegua[]
+
+  @@index([reguaId, ordem])
+  @@index([empresaId])
+  @@map("passos_regua")
+}
+
+// Histórico por cobrança. O índice único parcial de envio automático bem-sucedido
+// (fatura + passo) fica na migration, para uma falha ou um envio manual poder repetir.
+model LembreteRegua {
+  id          String   @id @default(cuid())
+  empresaId   String   @map("empresa_id")
+  faturaId    String   @map("fatura_id")
+  passoId     String?  @map("passo_id")
+  clienteId   String   @map("cliente_id")
+  canal       String
+  status      String
+  motivo      String?
+  destino     String?
+  automatico  Boolean
+  modoTeste   Boolean  @map("modo_teste")
+  rotulo      String
+  criadoEm    DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
+  empresa     Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  fatura      Fatura   @relation(fields: [faturaId], references: [id], onDelete: Cascade)
+  passo       PassoRegua? @relation(fields: [passoId], references: [id], onDelete: SetNull)
+  cliente     Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@index([faturaId, criadoEm])
+  @@index([empresaId])
+  @@map("lembretes_regua")
 }

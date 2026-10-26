@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { podeConfigurarAsaas, podeVerFaturas, podeVerResultado } from "@/lib/permissoes";
+import { podeConfigurarAsaas, podeVerFaturas, podeVerRegua, podeVerResultado } from "@/lib/permissoes";
 import { COOKIE_SESSAO } from "@/server/auth/constantes";
 import { verificarToken } from "@/server/auth/token";
 
@@ -44,7 +44,8 @@ export async function middleware(request: NextRequest) {
     pathname === "/cadastro" ||
     pathname === "/api/auth/entrar" ||
     pathname === "/api/cadastro" ||
-    pathname === "/api/webhooks/asaas";
+    pathname === "/api/webhooks/asaas" ||
+    pathname === "/api/cron/regua";
 
   if (rotaPublica) {
     const empresaSuspensa = request.nextUrl.searchParams.get("motivo") === "suspensa";
@@ -83,6 +84,20 @@ export async function middleware(request: NextRequest) {
       pathname,
       "Faturas ficam com o dono e o financeiro",
       "Só o dono ou o financeiro pode ver as faturas.",
+    );
+  }
+
+  const rotaRegua =
+    pathname === "/regua" ||
+    pathname.startsWith("/regua/") ||
+    pathname === "/api/regua" ||
+    pathname.startsWith("/api/regua/") ||
+    /^\/api\/clientes\/[^/]+\/regua\/?$/.test(pathname);
+  if (rotaRegua && !podeVerRegua(sessao.papel)) {
+    return paginaProibida(
+      pathname,
+      "A régua fica com o dono e o financeiro",
+      "Só o dono ou o financeiro pode ver a régua de cobrança.",
     );
   }
 

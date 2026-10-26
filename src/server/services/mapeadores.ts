@@ -7,6 +7,7 @@ import type {
   ClienteResumo,
   ClienteServicoDTO,
   FilialDTO,
+  ModoReguaCliente,
   ServicoDTO,
   SituacaoCartao,
 } from "@/lib/tipos";
@@ -56,12 +57,21 @@ export function paraCliente(cliente: ClienteComContagem): ClienteResumo {
   };
 }
 
+function modoRegua(valor: string): ModoReguaCliente {
+  if (valor === "ESPECIFICA" || valor === "NENHUMA") return valor;
+  return "PADRAO";
+}
+
 export function paraClienteDetalhe(
-  cliente: ClienteComContagem & { filiais: Filial[] },
+  cliente: ClienteComContagem & { filiais: Filial[]; regua?: { nome: string } | null },
 ): ClienteDetalhe {
   return {
     ...paraCliente({ ...cliente, _count: { filiais: cliente.filiais.length } }),
     filiais: cliente.filiais.map(paraFilial),
+    reguaModo: modoRegua(cliente.reguaModo),
+    reguaId: cliente.reguaId,
+    reguaPausada: cliente.reguaPausada,
+    reguaNome: cliente.regua?.nome ?? null,
   };
 }
 

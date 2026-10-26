@@ -82,7 +82,7 @@ O comando cria o banco `gestaocobranca_test` se ele ainda não existir (usando o
 - a configuração do Asaas, a emissão e o cancelamento de fatura com cliente HTTP simulado, o webhook idempotente, e a regra de que só dono e financeiro veem faturas;
 - o autocadastro, o limite de tentativas, a empresa suspensa e o papel de quem cadastra usuário.
 
-Os testes apagam empresas, usuários, clientes, filiais, serviços, vínculos, faturas, a configuração do Asaas, os eventos de webhook e o limite de cadastro desse banco de teste.
+Os testes apagam empresas, usuários, clientes, filiais, serviços, vínculos, faturas, a configuração do Asaas, a régua, os lembretes, os eventos de webhook e o limite de cadastro desse banco de teste.
 
 ## Variáveis
 
@@ -98,7 +98,8 @@ Os testes apagam empresas, usuários, clientes, filiais, serviços, vínculos, f
 | `ADMIN_NOME` | Nome do primeiro acesso real. Só para `npm run criar-admin`. |
 | `ADMIN_EMAIL` | E-mail desse acesso. |
 | `ADMIN_SENHA` | Senha em texto. O script grava o hash e não altera a senha se o e-mail já existir. |
-| `ASAAS_ENCRYPTION_KEY` | 32 bytes em base64 (`openssl rand -base64 32`). Cifra, no banco, a chave da API do Asaas e o token do webhook de cada empresa. Não é a chave da API e não pode ir para o repositório. Sem ela, a tela Asaas não grava nem lê esses segredos. |
+| `ASAAS_ENCRYPTION_KEY` | 32 bytes em base64 (`openssl rand -base64 32`). Cifra, no banco, a chave da API do Asaas, o token do webhook e a chave da Resend de cada empresa. Não é a chave da API e não pode ir para o repositório. Sem ela, a tela Asaas e a régua não gravam nem leem esses segredos. |
+| `CRON_SECRET` | Segredo da rota diária `/api/cron/regua`. A Vercel Cron envia `Authorization: Bearer`. Sem ele a rota responde 500 e não envia. Não é a chave da Resend. |
 | `ASAAS_MOCK` | Só no computador de desenvolvimento. `true` usa um Asaas em memória, sem rede e sem chave real, para a tela funcionar antes de existir a chave. Se `NODE_ENV` for `production`, a aplicação recusa esse modo. Não defina na Vercel. |
 
 ## Publicar no Supabase e na Vercel
@@ -143,7 +144,8 @@ Em **Project Settings → Environment Variables**, no ambiente Production (e no 
 | `DATABASE_URL` | Pooler de transação, porta 6543, com `?pgbouncer=true` |
 | `DIRECT_URL` | Conexão direta ou pooler em modo sessão, porta 5432 |
 | `AUTH_SECRET` | Saída de `openssl rand -base64 32` |
-| `ASAAS_ENCRYPTION_KEY` | Outra saída de `openssl rand -base64 32`, diferente do `AUTH_SECRET` e diferente da chave da API do Asaas |
+| `ASAAS_ENCRYPTION_KEY` | Outra saída de `openssl rand -base64 32`, diferente do `AUTH_SECRET` e diferente da chave da API do Asaas. A mesma chave cifra a Resend de cada empresa. |
+| `CRON_SECRET` | Saída de `openssl rand -base64 32`. A Vercel Cron envia esse valor em `Authorization: Bearer` para `/api/cron/regua`. |
 
 Não defina `ASAAS_MOCK` na Vercel. Em produção a integração chama `https://api.asaas.com/v3` ou `https://api-sandbox.asaas.com/v3`, conforme o ambiente salvo pelo dono, e envia a chave no cabeçalho `access_token`. A chave real ainda não entra neste repositório.
 
@@ -182,6 +184,8 @@ Um servidor MCP futuro (`buscar cliente`, `listar filiais`, e as ações de escr
 - planos da plataforma para a empresa assinante, separados do catálogo que ela vende aos clientes dela.
 
 Dono e financeiro ativam a cobrança recorrente nas vendas `MENSAL` ativas. Forma, dia de vencimento, texto da descrição, multa, juros, desconto e a opção de atualizar cobranças em aberto começam pelas preferências da empresa, gravadas pelo dono em Asaas. Cada venda e o lote podem trocar esses valores. Sem percentual informado, a cobrança não envia multa, juros nem desconto, e o Asaas conserva o padrão da conta. O prazo de gerar a cobrança antes do vencimento não vai na assinatura: o Asaas usa 7, 14 ou 40 dias na configuração da conta, e o número escolhido fica só na preferência. A assinatura usa ciclo mensal. Dá para editar, pausar ou cancelar. O lote mostra a prévia antes de criar. As cobranças da assinatura entram em Faturas pelo webhook (o pagamento traz o campo `subscription`) e pelo botão Importar faturas, sem duplicar. Suporte não vê faturas nem recorrência. A chave da API continua só com o dono.
+
+A régua de cobrança fica em Régua, só para o dono alterar e para o financeiro consultar. A empresa liga a régua, monta várias réguas nomeadas (uma é a padrão) e define, em cada uma, os passos, o horário e se o e-mail sai no fim de semana. O cliente usa a padrão, outra régua, nenhuma, ou fica pausado. O passo pode ser na emissão ou em dias antes, no vencimento ou em atraso, com assunto e texto usando `{cliente}`, `{servico}`, `{valor}`, `{vencimento}`, `{link}`, `{dias_atraso}` e `{empresa}`. O canal desta versão é o e-mail, pela Resend da própria empresa; a chave fica cifrada com `ASAAS_ENCRYPTION_KEY` e a tela só diz se ela está configurada. WhatsApp aparece desligado. O modo teste começa ligado: o envio diário vai para o dono e o botão Enviar agora vai para quem está logado, até o dono desligar. A rota `/api/cron/regua` roda todo dia e exige `CRON_SECRET`. Fora de produção o envio não chama a Resend.
 
 A forma também pode ser cartão de crédito. A assinatura nasce no Asaas com `billingType` `CREDIT_CARD` e sem dados de cartão: o cliente informa o cartão na página da primeira cobrança, e o Asaas passa a cobrar sozinho. A venda mostra “Aguardando cadastro do cartão” até o webhook confirmar o pagamento, “Cartão cadastrado” (só bandeira e quatro últimos dígitos, quando o Asaas os devolve) ou “Cartão recusado”. O número completo e o CVV não entram no banco nem no log. Qualquer cobrança com link pode ser copiada, aberta no WhatsApp de quem está usando o sistema ou no e-mail, com o texto gravado nas preferências da empresa (`{cliente}`, `{servico}`, `{valor}`, `{vencimento}`, `{link}`). Nada disso envia a mensagem sozinho.
 

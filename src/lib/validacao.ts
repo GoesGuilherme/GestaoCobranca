@@ -458,6 +458,70 @@ export const esquemaPreferenciasCobranca = z.object({
     .default(MODELO_ASSUNTO_PADRAO),
 });
 
+const esquemaEmailOpcional = z
+  .string()
+  .trim()
+  .max(160, "O e-mail pode ter no máximo 160 caracteres.")
+  .refine((valor) => valor === "" || (valor.includes("@") && !/\s/.test(valor) && valor.length >= 3), "Informe um e-mail válido.");
+
+export const esquemaPassoRegua = z
+  .object({
+    id: z.preprocess(
+      (valor) => (typeof valor === "string" && valor.trim() === "" ? undefined : valor),
+      z.string().trim().min(1).max(64).optional(),
+    ),
+    naEmissao: z.boolean("Informe se o passo é na emissão."),
+    dias: z.number().int().min(-365).max(365).nullable(),
+    canal: z.enum(["EMAIL"], "O canal disponível agora é o e-mail. WhatsApp entra depois."),
+    assunto: z.string().trim().min(1, "Informe o assunto.").max(200, "O assunto pode ter no máximo 200 caracteres."),
+    corpo: z.string().trim().min(1, "Informe o texto.").max(2000, "O texto pode ter no máximo 2000 caracteres."),
+  })
+  .refine(
+    (passo) => (passo.naEmissao && passo.dias === null) || (!passo.naEmissao && passo.dias !== null),
+    "Na emissão não usa dias. Os outros passos informam os dias em relação ao vencimento.",
+  );
+
+export const esquemaRegua = z
+  .object({
+    nome: z.string().trim().min(2, "Informe o nome da régua.").max(60, "O nome pode ter no máximo 60 caracteres."),
+    padrao: z.boolean("Informe se esta é a régua padrão."),
+    horaInicio: z.number().int().min(0).max(23),
+    horaFim: z.number().int().min(0).max(23),
+    enviarFimDeSemana: z.boolean("Informe se a régua envia no fim de semana."),
+    passos: z.array(esquemaPassoRegua).max(20, "Uma régua pode ter no máximo 20 passos."),
+  })
+  .refine((regua) => regua.horaInicio < regua.horaFim, "A hora final precisa ser depois da hora inicial.");
+
+export const esquemaConfiguracaoRegua = z.object({
+  ativa: z.boolean("Informe se a régua está ligada."),
+  modoTeste: z.boolean("Informe se o modo teste está ligado."),
+  remetenteNome: z.string().trim().max(80, "O nome do remetente pode ter no máximo 80 caracteres."),
+  remetenteEmail: esquemaEmailOpcional,
+  replyTo: esquemaEmailOpcional,
+  chaveResend: z.preprocess(
+    (valor) => (typeof valor === "string" && valor.trim() === "" ? undefined : valor),
+    z
+      .string()
+      .trim()
+      .min(10, "A chave da Resend parece incompleta.")
+      .max(200, "A chave da Resend passa do tamanho esperado.")
+      .refine((valor) => !/\s/.test(valor), "A chave da Resend não pode ter espaço.")
+      .optional(),
+  ),
+});
+
+export const esquemaAtribuicaoRegua = z
+  .object({
+    modo: z.enum(["PADRAO", "ESPECIFICA", "NENHUMA"], "Escolha a régua do cliente."),
+    reguaId: z.string().trim().min(1).max(64).nullable().optional(),
+    pausada: z.boolean("Informe se a régua deste cliente está pausada."),
+  })
+  .refine((dados) => dados.modo !== "ESPECIFICA" || Boolean(dados.reguaId), "Escolha qual régua este cliente usa.");
+
+export const esquemaLembreteManual = z.object({
+  passoId: z.string().trim().min(1, "Escolha o passo.").max(64),
+});
+
 export type EntradaFatura = z.infer<typeof esquemaFatura>;
 export type EntradaAtivarRecorrencia = z.infer<typeof esquemaAtivarRecorrencia>;
 export type EntradaEditarRecorrencia = z.infer<typeof esquemaEditarRecorrencia>;

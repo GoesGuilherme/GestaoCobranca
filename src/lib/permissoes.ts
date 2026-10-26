@@ -26,3 +26,11 @@ export function podeVerFaturas(papel: PapelUsuario): boolean {
 export function podeEmitirCobranca(papel: PapelUsuario): boolean {
   return podeVerFaturas(papel);
 }
+
+export function podeVerRegua(papel: PapelUsuario): boolean {
+  return papel === "DONO" || papel === "FINANCEIRO";
+}
+
+export function podeConfigurarRegua(papel: PapelUsuario): boolean {
+  return papel === "DONO";
+}
