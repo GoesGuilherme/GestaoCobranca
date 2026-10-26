@@ -1,8 +1,10 @@
 import {
   podeAlterarServicos,
   podeConfigurarAsaas,
+  podeConfigurarRegua,
   podeEmitirCobranca,
   podeVerFaturas,
+  podeVerRegua,
   podeVerResultado,
 } from "@/lib/permissoes";
 import type { PapelUsuario } from "@/lib/tipos";
@@ -57,6 +59,26 @@ export function exigirCobranca(autor: AutorEmpresa) {
   if (!podeEmitirCobranca(autor.papel)) {
     throw new ErroAplicacao(
       "Só o dono ou o financeiro pode emitir ou cancelar cobranças.",
+      403,
+      "sem_permissao",
+    );
+  }
+}
+
+export function exigirVerRegua(autor: AutorEmpresa) {
+  if (!podeVerRegua(autor.papel)) {
+    throw new ErroAplicacao(
+      "Só o dono ou o financeiro pode ver a régua de cobrança.",
+      403,
+      "sem_permissao",
+    );
+  }
+}
+
+export function exigirRegua(autor: AutorEmpresa) {
+  if (!podeConfigurarRegua(autor.papel)) {
+    throw new ErroAplicacao(
+      "Só o dono da empresa pode configurar a régua.",
       403,
       "sem_permissao",
     );

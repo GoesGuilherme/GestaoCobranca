@@ -21,6 +21,7 @@ export function BarraLateral({
   nomeEmpresa,
   mostrarUsuarios,
   mostrarFaturas,
+  mostrarRegua,
   mostrarResultado,
   mostrarAsaas,
   mostrarAdmin,
@@ -30,6 +31,7 @@ export function BarraLateral({
   nomeEmpresa: string;
   mostrarUsuarios: boolean;
   mostrarFaturas: boolean;
+  mostrarRegua: boolean;
   mostrarResultado: boolean;
   mostrarAsaas: boolean;
   mostrarAdmin: boolean;
@@ -40,6 +42,7 @@ export function BarraLateral({
     itensBase[0],
     itensBase[1],
     ...(mostrarFaturas ? [{ href: "/faturas", rotulo: "Faturas" }] : []),
+    ...(mostrarRegua ? [{ href: "/regua", rotulo: "Régua" }] : []),
     itensBase[2],
     ...(mostrarResultado ? [{ href: "/resultado", rotulo: "Resultado" }] : []),
     ...(mostrarAsaas ? [{ href: "/asaas", rotulo: "Asaas" }] : []),

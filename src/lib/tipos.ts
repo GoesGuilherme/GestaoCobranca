@@ -125,8 +125,15 @@ export type PreferenciasCobrancaDTO = {
   modeloAssunto: string;
 };
 
+export type ModoReguaCliente = "PADRAO" | "ESPECIFICA" | "NENHUMA";
+export type StatusLembrete = "ENVIADO" | "FALHOU" | "IGNORADO";
+
 export type ClienteDetalhe = ClienteResumo & {
   filiais: FilialDTO[];
+  reguaModo: ModoReguaCliente;
+  reguaId: string | null;
+  reguaPausada: boolean;
+  reguaNome: string | null;
 };
 
 export type EmpresaResumo = {
@@ -204,6 +211,58 @@ export type FaturaDTO = {
   excluida: boolean;
   whatsapp: string;
   email: string;
+  lembretes: LembreteReguaDTO[];
+};
+
+export type ConfiguracaoReguaDTO = {
+  gravada: boolean;
+  ativa: boolean;
+  modoTeste: boolean;
+  remetenteNome: string;
+  remetenteEmail: string;
+  replyTo: string;
+  configurada: boolean;
+};
+
+export type PassoReguaDTO = {
+  id: string;
+  ordem: number;
+  naEmissao: boolean;
+  dias: number | null;
+  canal: "EMAIL";
+  assunto: string;
+  corpo: string;
+  rotulo: string;
+};
+
+export type ReguaDTO = {
+  id: string;
+  nome: string;
+  padrao: boolean;
+  horaInicio: number;
+  horaFim: number;
+  enviarFimDeSemana: boolean;
+  passos: PassoReguaDTO[];
+};
+
+export type LembreteReguaDTO = {
+  id: string;
+  passoId: string | null;
+  canal: string;
+  status: StatusLembrete;
+  motivo: string | null;
+  destino: string | null;
+  automatico: boolean;
+  modoTeste: boolean;
+  rotulo: string;
+  criadoEm: string;
+};
+
+export type AtribuicaoReguaDTO = {
+  modo: ModoReguaCliente;
+  reguaId: string | null;
+  pausada: boolean;
+  nome: string | null;
 };
 
 export type ConfiguracaoAsaasDTO = {

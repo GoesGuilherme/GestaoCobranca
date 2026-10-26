@@ -26,12 +26,16 @@ export function PainelFaturasCliente({
   faturas,
   podeCancelar,
   preferencias = PREFERENCIAS_COBRANCA_PADRAO,
+  passosRegua = [],
+  podeEnviarRegua = false,
 }: {
   clienteId: string;
   vinculos: ClienteServicoDTO[];
   faturas: FaturaDTO[];
   podeCancelar: boolean;
   preferencias?: PreferenciasCobrancaDTO;
+  passosRegua?: { id: string; rotulo: string }[];
+  podeEnviarRegua?: boolean;
 }) {
   const [emitida, setEmitida] = useState<FaturaDTO | null>(null);
 
@@ -79,6 +83,8 @@ export function PainelFaturasCliente({
           mostrarCliente={false}
           destaqueId={emitida?.id}
           preferencias={preferencias}
+          passosRegua={passosRegua}
+          podeEnviarRegua={podeEnviarRegua}
         />
       </div>
     </>

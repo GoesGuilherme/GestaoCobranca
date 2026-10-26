@@ -4,13 +4,16 @@ import { BotaoExcluir } from "@/components/botao-excluir";
 import { classeBotaoSecundario } from "@/components/estilos";
 import { PainelFiliais } from "@/components/painel-filiais";
 import { PainelServicosCliente } from "@/components/painel-servicos-cliente";
+import { AvisoModoTeste } from "@/components/aviso-modo-teste";
 import { PainelFaturasCliente } from "@/components/painel-faturas-cliente";
+import { PainelReguaCliente } from "@/components/painel-regua-cliente";
 import { PainelRecorrenciaLote } from "@/components/painel-recorrencia-lote";
 import { Selo } from "@/components/selo";
 import { formatarReais } from "@/lib/dinheiro";
 import { formatarData } from "@/lib/formatacao";
 import { somenteDigitos } from "@/lib/documento";
-import { podeAlterarServicos, podeEmitirCobranca, podeVerCustoServico, podeVerFaturas } from "@/lib/permissoes";
+import { podeAlterarServicos, podeEmitirCobranca, podeVerCustoServico, podeVerFaturas, podeVerRegua } from "@/lib/permissoes";
+import { opcoesDePasso } from "@/lib/regua";
 import type { ClienteDetalhe, ClienteServicoDTO, FaturaDTO, ServicoDTO } from "@/lib/tipos";
 import { acessoDaPagina } from "@/server/auth/pagina";
 import { ErroAplicacao } from "@/server/erros";
@@ -18,6 +21,7 @@ import { obterCliente } from "@/server/services/cliente-service";
 import { listarServicosDoCliente } from "@/server/services/cliente-servico-service";
 import { listarFaturas } from "@/server/services/fatura-service";
 import { obterPreferenciasCobranca } from "@/server/services/preferencia-cobranca-service";
+import { obterPainelRegua } from "@/server/services/regua-service";
 import { listarServicos } from "@/server/services/servico-service";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
@@ -65,6 +69,8 @@ export default async function PaginaCliente({ params }: { params: Promise<{ id: 
   }
 
   const preferencias = podeCobrar ? await obterPreferenciasCobranca(acesso.empresaId) : undefined;
+  const regua = podeVerRegua(acesso.papel) ? await obterPainelRegua(acesso) : null;
+  const passosRegua = regua ? opcoesDePasso(regua.reguas) : [];
   const whatsapp = somenteDigitos(cliente.whatsapp);
 
   return (
@@ -124,6 +130,18 @@ export default async function PaginaCliente({ params }: { params: Promise<{ id: 
         Cadastrado em {formatarData(cliente.criadoEm)} · Atualizado em {formatarData(cliente.atualizadoEm)}
       </p>
 
+      {regua ? <AvisoModoTeste ativo={regua.config.gravada && regua.config.modoTeste} /> : null}
+
+      <PainelReguaCliente
+        clienteId={cliente.id}
+        modo={cliente.reguaModo}
+        reguaId={cliente.reguaId}
+        pausada={cliente.reguaPausada}
+        nome={cliente.reguaNome}
+        reguas={regua?.reguas ?? []}
+        podeEditar={podeCobrar}
+      />
+
       <PainelServicosCliente
         clienteId={cliente.id}
         vinculos={vinculos}
@@ -150,6 +168,8 @@ export default async function PaginaCliente({ params }: { params: Promise<{ id: 
             faturas={faturas}
             podeCancelar={podeCobrar}
             preferencias={preferencias}
+            passosRegua={passosRegua}
+            podeEnviarRegua={podeCobrar}
           />
         </section>
       ) : null}

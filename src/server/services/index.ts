@@ -47,6 +47,17 @@ export {
 } from "./asaas-config-service";
 export { obterPreferenciasCobranca, salvarPreferenciasCobranca } from "./preferencia-cobranca-service";
 export { cancelarFatura, emitirFatura, importarFaturas, listarFaturas } from "./fatura-service";
+export {
+  atribuirReguaCliente,
+  atualizarRegua,
+  criarRegua,
+  enviarEmailTesteRegua,
+  enviarLembreteAgora,
+  excluirRegua,
+  obterPainelRegua,
+  salvarConfiguracaoRegua,
+} from "./regua-service";
+export { executarRegua } from "./regua-job";
 export { processarWebhookAsaas } from "./asaas-webhook-service";
 export {
   ativarRecorrencia,

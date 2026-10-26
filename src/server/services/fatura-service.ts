@@ -1,7 +1,7 @@
 import { formaCobrancaDe } from "@/lib/cobranca";
 import { isoDeData } from "@/lib/data";
 import { somenteDocumento } from "@/lib/documento";
-import type { FaturaDTO, SituacaoFatura } from "@/lib/tipos";
+import type { FaturaDTO, LembreteReguaDTO, SituacaoFatura, StatusLembrete } from "@/lib/tipos";
 import { esquemaFatura } from "@/lib/validacao";
 import { abrirClienteAsaas, asaasRespondeu, traduzirErroAsaas } from "@/server/asaas/abrir";
 import { type ClienteHttpAsaas, type CobrancaAsaas, type PaginaCobrancasAsaas } from "@/server/asaas/contrato";
@@ -35,7 +35,39 @@ type FaturaComNomes = {
   excluida: boolean;
   cliente: { nomeFantasia: string; whatsapp: string; email: string };
   clienteServico: { servico: { nome: string } } | null;
+  lembretes?: {
+    id: string;
+    passoId: string | null;
+    canal: string;
+    status: string;
+    motivo: string | null;
+    destino: string | null;
+    automatico: boolean;
+    modoTeste: boolean;
+    rotulo: string;
+    criadoEm: Date;
+  }[];
 };
+
+function statusLembrete(valor: string): StatusLembrete {
+  if (valor === "ENVIADO" || valor === "FALHOU" || valor === "IGNORADO") return valor;
+  return "FALHOU";
+}
+
+function paraLembrete(lembrete: NonNullable<FaturaComNomes["lembretes"]>[number]): LembreteReguaDTO {
+  return {
+    id: lembrete.id,
+    passoId: lembrete.passoId,
+    canal: lembrete.canal,
+    status: statusLembrete(lembrete.status),
+    motivo: lembrete.motivo,
+    destino: lembrete.destino,
+    automatico: lembrete.automatico,
+    modoTeste: lembrete.modoTeste,
+    rotulo: lembrete.rotulo,
+    criadoEm: lembrete.criadoEm.toISOString(),
+  };
+}
 
 function paraFatura(fatura: FaturaComNomes): FaturaDTO {
   return {
@@ -57,12 +89,14 @@ function paraFatura(fatura: FaturaComNomes): FaturaDTO {
     excluida: fatura.excluida,
     whatsapp: fatura.cliente.whatsapp,
     email: fatura.cliente.email,
+    lembretes: (fatura.lembretes ?? []).map(paraLembrete),
   };
 }
 
 const includeNomes = {
   cliente: { select: { nomeFantasia: true, whatsapp: true, email: true } },
   clienteServico: { select: { servico: { select: { nome: true } } } },
+  lembretes: { orderBy: { criadoEm: "desc" as const }, take: 20 },
 } as const;
 
 function filtroSituacao(situacao: SituacaoFatura) {
