@@ -148,7 +148,7 @@ export function PainelRegua({
       horaInicio: 8,
       horaFim: 18,
       enviarFimDeSemana: false,
-      passos: [passoNovo()],
+      passos: [{ ...passoNovo(), canal: "EMAIL" }],
     });
     setEnviando(false);
     if (!resposta.ok) {
