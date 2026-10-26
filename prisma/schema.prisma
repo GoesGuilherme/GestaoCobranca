@@ -30,6 +30,7 @@ enum StatusCliente {
   ATIVO
   INATIVO
   EM_IMPLANTACAO
+  BLOQUEADO
 
   @@map("status_cliente")
 }

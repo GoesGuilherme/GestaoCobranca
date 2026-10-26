@@ -138,4 +138,24 @@ describe("serviço de clientes", () => {
     await expect(obterCliente(empresaId, cliente.id)).rejects.toMatchObject({ status: 404 });
     expect(await prisma.filial.count()).toBe(0);
   });
+
+  it("só o dono marca ou tira o status bloqueado", async () => {
+    const pessoa = await criarCliente(empresaId, exemplo(completarCnpj("300000000008")), "DONO");
+    await expect(
+      atualizarCliente(empresaId, pessoa.id, exemplo(completarCnpj("300000000008"), { status: "BLOQUEADO" }), "FINANCEIRO"),
+    ).rejects.toMatchObject({ status: 403 });
+    const bloqueado = await atualizarCliente(
+      empresaId,
+      pessoa.id,
+      exemplo(completarCnpj("300000000008"), { status: "BLOQUEADO" }),
+      "DONO",
+    );
+    expect(bloqueado.status).toBe("BLOQUEADO");
+    await expect(
+      atualizarCliente(empresaId, pessoa.id, exemplo(completarCnpj("300000000008"), { status: "ATIVO" }), "FINANCEIRO"),
+    ).rejects.toMatchObject({ status: 403 });
+    await expect(criarCliente(empresaId, exemplo(completarCnpj("300000000009"), { status: "BLOQUEADO" }), "FINANCEIRO")).rejects.toMatchObject({
+      status: 403,
+    });
+  });
 });

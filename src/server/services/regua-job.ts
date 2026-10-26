@@ -121,6 +121,18 @@ export async function executarRegua(
         if (!passoCombina(hoje, alvo, regua.enviarFimDeSemana)) continue;
 
         const rotulo = rotuloPasso(passo);
+        if (cliente.status === "BLOQUEADO") {
+          if (await registrarIgnorado({
+            empresaId: config.empresaId,
+            faturaId: fatura.id,
+            clienteId: cliente.id,
+            passoId: passo.id,
+            modoTeste: config.modoTeste,
+            rotulo,
+            motivo: "cliente bloqueado",
+          })) resultado.ignorados += 1;
+          continue;
+        }
         if (cliente.reguaPausada) {
           if (await registrarIgnorado({
             empresaId: config.empresaId,

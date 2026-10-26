@@ -7,6 +7,7 @@ import {
   passoCombina,
   rotuloAtribuicao,
   rotuloPasso,
+  rotuloReguaDaFatura,
   textoRegua,
 } from "./regua";
 
@@ -51,5 +52,92 @@ describe("texto da régua", () => {
     expect(dentroDaJanela(18, 8, 18)).toBe(false);
     expect(diasAtraso("2026-10-29", "2026-10-26")).toBe(3);
     expect(diasAtraso("2026-10-26", "2026-10-29")).toBe(0);
+  });
+
+  it("mostra o assunto cadastrado e pinta só pela data", () => {
+    const passos = [
+      { naEmissao: false, dias: -5, assunto: "Aviso cinco dias antes" },
+      { naEmissao: false, dias: 0, assunto: "Vence hoje" },
+      { naEmissao: false, dias: 3, assunto: "Cobrança em atraso" },
+    ];
+    expect(
+      rotuloReguaDaFatura({
+        status: "PENDING",
+        excluida: false,
+        vencimento: "2026-10-31",
+        hoje: "2026-10-26",
+        passos,
+      }),
+    ).toEqual({
+      fase: "antes",
+      texto: "Aviso cinco dias antes",
+      aria: "Antes do vencimento: Aviso cinco dias antes",
+    });
+    expect(
+      rotuloReguaDaFatura({
+        status: "PENDING",
+        excluida: false,
+        vencimento: "2026-10-26",
+        hoje: "2026-10-26",
+        passos,
+      }),
+    ).toMatchObject({ fase: "hoje", texto: "Vence hoje" });
+    expect(
+      rotuloReguaDaFatura({
+        status: "OVERDUE",
+        excluida: false,
+        vencimento: "2026-10-23",
+        hoje: "2026-10-26",
+        passos,
+      }),
+    ).toMatchObject({ fase: "atraso", texto: "Cobrança em atraso" });
+    expect(
+      rotuloReguaDaFatura({
+        status: "OVERDUE",
+        excluida: false,
+        vencimento: "2026-10-25",
+        hoje: "2026-10-26",
+        passos,
+      }),
+    ).toMatchObject({ fase: "atraso", texto: "Cobrança em atraso" });
+  });
+
+  it("cai no deslocamento quando o assunto está vazio e encerra paga ou cancelada", () => {
+    expect(
+      rotuloReguaDaFatura({
+        status: "PENDING",
+        excluida: false,
+        vencimento: "2026-10-31",
+        hoje: "2026-10-26",
+        passos: [{ naEmissao: false, dias: -5, assunto: "   " }],
+      }),
+    ).toMatchObject({ fase: "antes", texto: "5 dias antes" });
+    expect(
+      rotuloReguaDaFatura({
+        status: "RECEIVED",
+        excluida: false,
+        vencimento: "2026-10-26",
+        hoje: "2026-10-26",
+        passos: [{ naEmissao: false, dias: 0, assunto: "Vence hoje" }],
+      }),
+    ).toEqual({ fase: "encerrada", texto: "Encerrada", aria: "Régua encerrada" });
+    expect(
+      rotuloReguaDaFatura({
+        status: "PENDING",
+        excluida: true,
+        vencimento: "2026-10-26",
+        hoje: "2026-10-26",
+        passos: [],
+      })?.texto,
+    ).toBe("Encerrada");
+    expect(
+      rotuloReguaDaFatura({
+        status: "PENDING",
+        excluida: false,
+        vencimento: "2026-10-26",
+        hoje: "2026-10-26",
+        passos: null,
+      }),
+    ).toBeNull();
   });
 });

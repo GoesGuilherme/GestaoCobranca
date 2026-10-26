@@ -1,5 +1,6 @@
 import { formaCobrancaDe } from "@/lib/cobranca";
 import { isoDeData } from "@/lib/data";
+import { STATUS_ABERTAS, STATUS_PAGAS, STATUS_VENCIDAS } from "@/lib/fatura-situacao";
 import { somenteDocumento } from "@/lib/documento";
 import type { FaturaDTO, LembreteReguaDTO, SituacaoFatura, StatusLembrete } from "@/lib/tipos";
 import { esquemaFatura } from "@/lib/validacao";
@@ -13,10 +14,6 @@ import { ErroAplicacao } from "@/server/erros";
 import { lerEsquema } from "@/server/validar";
 import { espelharCobrancaImportada } from "./asaas-pagamento";
 import { encargosDaPreferencia, obterPreferenciasCobranca } from "./preferencia-cobranca-service";
-
-const ABERTAS = ["PENDING", "AWAITING_RISK_ANALYSIS"];
-const VENCIDAS = ["OVERDUE", "DUNNING_REQUESTED"];
-const PAGAS = ["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH", "DUNNING_RECEIVED"];
 
 type FaturaComNomes = {
   id: string;
@@ -33,6 +30,7 @@ type FaturaComNomes = {
   faturaUrl: string | null;
   descricao: string | null;
   excluida: boolean;
+  atualizadoEm: Date;
   cliente: { nomeFantasia: string; whatsapp: string; email: string };
   clienteServico: { servico: { nome: string } } | null;
   lembretes?: {
@@ -87,6 +85,7 @@ function paraFatura(fatura: FaturaComNomes): FaturaDTO {
     faturaUrl: fatura.faturaUrl,
     descricao: fatura.descricao,
     excluida: fatura.excluida,
+    atualizadoEm: fatura.atualizadoEm.toISOString(),
     whatsapp: fatura.cliente.whatsapp,
     email: fatura.cliente.email,
     lembretes: (fatura.lembretes ?? []).map(paraLembrete),
@@ -102,9 +101,9 @@ const includeNomes = {
 function filtroSituacao(situacao: SituacaoFatura) {
   if (situacao === "todas") return {};
   if (situacao === "canceladas") return { excluida: true };
-  if (situacao === "vencidas") return { excluida: false, status: { in: VENCIDAS } };
-  if (situacao === "pagas") return { excluida: false, status: { in: PAGAS } };
-  return { excluida: false, status: { in: [...ABERTAS, ...VENCIDAS] } };
+  if (situacao === "vencidas") return { excluida: false, status: { in: [...STATUS_VENCIDAS] } };
+  if (situacao === "pagas") return { excluida: false, status: { in: [...STATUS_PAGAS] } };
+  return { excluida: false, status: { in: [...STATUS_ABERTAS, ...STATUS_VENCIDAS] } };
 }
 
 export async function listarFaturas(

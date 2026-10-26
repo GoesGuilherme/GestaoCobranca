@@ -1,6 +1,8 @@
+import { tomFatura, type TomFatura } from "@/lib/fatura-situacao";
 import {
   rotuloSegmento,
   rotuloStatusCliente,
+  rotuloStatusFatura,
   rotuloStatusFilial,
   rotuloStatusServicoCliente,
 } from "@/lib/rotulos";
@@ -12,6 +14,15 @@ const cores: Record<string, string> = {
   INATIVO: "bg-clay-soft text-clay",
   INATIVA: "bg-clay-soft text-clay",
   EM_IMPLANTACAO: "bg-gold-soft text-gold",
+  BLOQUEADO: "bg-clay text-white",
+};
+
+const coresFatura: Record<TomFatura, string> = {
+  aberto: "bg-gold-soft text-gold",
+  vencida: "bg-clay-soft text-clay",
+  paga: "bg-leaf text-forest",
+  cancelada: "bg-sand text-muted",
+  estorno: "bg-[#f8e6d4] text-[#9a3412]",
 };
 
 export function Selo({
@@ -35,6 +46,16 @@ export function Selo({
     <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${cor}`}>
       {tipo === "segmento" ? null : <span className="size-1.5 rounded-full bg-current" />}
       {rotulo}
+    </span>
+  );
+}
+
+export function SeloFatura({ status, excluida }: { status: string; excluida: boolean }) {
+  const tom = tomFatura(status, excluida);
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${coresFatura[tom]}`}>
+      <span className="size-1.5 rounded-full bg-current" />
+      {rotuloStatusFatura(status, excluida)}
     </span>
   );
 }

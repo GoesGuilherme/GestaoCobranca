@@ -2,15 +2,12 @@ import Link from "next/link";
 import { PREFERENCIAS_COBRANCA_PADRAO } from "@/lib/cobranca";
 import { formatarReais } from "@/lib/dinheiro";
 import { formatarDataIso } from "@/lib/formatacao";
-import { rotuloFormaCobranca, rotuloStatusFatura } from "@/lib/rotulos";
-import type { FaturaDTO, PreferenciasCobrancaDTO } from "@/lib/tipos";
-import { AcoesCompartilhar } from "./acoes-compartilhar";
-import { AcoesLembrete } from "./acoes-lembrete";
-import { BotaoCancelarFatura } from "./botao-cancelar-fatura";
-
-function segundaVia(fatura: FaturaDTO) {
-  return fatura.boletoUrl ?? fatura.faturaUrl;
-}
+import { rotuloReguaDaFatura, type PassoParaRotulo } from "@/lib/regua";
+import { rotuloFormaCobranca } from "@/lib/rotulos";
+import type { ClienteServicoDTO, FaturaDTO, PreferenciasCobrancaDTO } from "@/lib/tipos";
+import { AcoesFatura } from "./acoes-fatura";
+import { SeloFatura } from "./selo";
+import { SemaforoRegua } from "./semaforo-regua";
 
 export function TabelaFaturas({
   faturas,
@@ -20,6 +17,9 @@ export function TabelaFaturas({
   preferencias = PREFERENCIAS_COBRANCA_PADRAO,
   passosRegua = [],
   podeEnviarRegua = false,
+  vinculos = [],
+  passosCliente = null,
+  hoje = "",
 }: {
   faturas: FaturaDTO[];
   podeCancelar: boolean;
@@ -28,6 +28,9 @@ export function TabelaFaturas({
   preferencias?: PreferenciasCobrancaDTO;
   passosRegua?: { id: string; rotulo: string }[];
   podeEnviarRegua?: boolean;
+  vinculos?: ClienteServicoDTO[];
+  passosCliente?: PassoParaRotulo[] | null;
+  hoje?: string;
 }) {
   if (faturas.length === 0) {
     return (
@@ -38,84 +41,54 @@ export function TabelaFaturas({
   }
 
   return (
-    <div className="overflow-x-auto rounded-3xl border border-line bg-card">
-      <table className="w-full min-w-[980px] text-left text-sm">
-        <thead className="border-b border-line text-xs uppercase tracking-wide text-muted">
-          <tr>
-            {mostrarCliente ? <th className="px-4 py-3 font-medium">Cliente</th> : null}
-            <th className="px-4 py-3 font-medium">Vencimento</th>
-            <th className="px-4 py-3 font-medium">Valor</th>
-            <th className="px-4 py-3 font-medium">Forma</th>
-            <th className="px-4 py-3 font-medium">Situação</th>
-            <th className="px-4 py-3 font-medium">Cobrança</th>
-          </tr>
-        </thead>
-        <tbody>
-          {faturas.map((fatura) => {
-            const via = segundaVia(fatura);
-            return (
-              <tr
-                key={fatura.id}
-                id={`fatura-${fatura.id}`}
-                className={`scroll-mt-24 border-b border-line/70 last:border-0 ${destaqueId === fatura.id ? "bg-gold-soft" : ""}`}
-              >
+    <ul className="divide-y divide-line overflow-hidden rounded-3xl border border-line bg-card">
+      {faturas.map((fatura) => {
+        const rotulo = hoje
+          ? rotuloReguaDaFatura({
+              status: fatura.status,
+              excluida: fatura.excluida,
+              vencimento: fatura.vencimento,
+              hoje,
+              passos: passosCliente,
+            })
+          : null;
+        return (
+          <li
+            key={fatura.id}
+            id={`fatura-${fatura.id}`}
+            className={`scroll-mt-24 px-4 py-4 ${fatura.excluida ? "opacity-60" : ""} ${destaqueId === fatura.id ? "bg-gold-soft" : ""}`}
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
                 {mostrarCliente ? (
-                  <td className="px-4 py-3">
-                    <Link href={`/clientes/${fatura.clienteId}`} className="font-medium text-canopy hover:underline">
-                      {fatura.nomeCliente}
-                    </Link>
-                    {fatura.nomeServico ? <p className="text-xs text-muted">{fatura.nomeServico}</p> : null}
-                  </td>
-                ) : (
-                  null
-                )}
-                <td className="px-4 py-3">{formatarDataIso(fatura.vencimento)}</td>
-                <td className="px-4 py-3">
-                  {formatarReais(fatura.valor)}
-                  {!mostrarCliente && fatura.nomeServico ? <p className="text-xs text-muted">{fatura.nomeServico}</p> : null}
-                </td>
-                <td className="px-4 py-3">{rotuloFormaCobranca(fatura.formaCobranca)}</td>
-                <td className="px-4 py-3">{rotuloStatusFatura(fatura.status, fatura.excluida)}</td>
-                <td className="px-4 py-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    {via ? (
-                      <a href={via} target="_blank" rel="noreferrer" className="font-medium text-canopy hover:underline">
-                        {fatura.formaCobranca === "CREDIT_CARD" ? "Página do cartão" : "Segunda via"}
-                      </a>
-                    ) : (
-                      <span className="text-muted">Sem link</span>
-                    )}
-                    <AcoesCompartilhar
-                      link={via}
-                      whatsapp={fatura.whatsapp}
-                      email={fatura.email}
-                      cliente={fatura.nomeCliente}
-                      servico={fatura.nomeServico ?? fatura.descricao ?? ""}
-                      valor={fatura.valor}
-                      vencimento={fatura.vencimento}
-                      modeloMensagem={preferencias.modeloMensagem}
-                      modeloAssunto={preferencias.modeloAssunto}
-                    />
-                    {podeCancelar && !fatura.excluida ? <BotaoCancelarFatura id={fatura.id} /> : null}
-                  </div>
-                  {fatura.linhaDigitavel ? (
-                    <p className="mt-2 max-w-xs break-all text-xs text-muted">{fatura.linhaDigitavel}</p>
-                  ) : null}
-                  {fatura.pixCopiaCola ? (
-                    <p className="mt-1 max-w-xs break-all text-xs text-muted">Pix: {fatura.pixCopiaCola}</p>
-                  ) : null}
-                  <AcoesLembrete
-                    faturaId={fatura.id}
-                    lembretes={fatura.lembretes ?? []}
-                    passos={passosRegua}
-                    podeEnviar={podeEnviarRegua && !fatura.excluida && (fatura.status === "PENDING" || fatura.status === "OVERDUE")}
-                  />
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+                  <Link href={`/clientes/${fatura.clienteId}`} className="font-medium text-canopy hover:underline">
+                    {fatura.nomeCliente}
+                  </Link>
+                ) : null}
+                <p className={mostrarCliente ? "mt-1 text-sm" : "text-sm font-medium"}>
+                  {formatarDataIso(fatura.vencimento)} · {formatarReais(fatura.valor)}
+                </p>
+                <p className="text-xs text-muted">
+                  {rotuloFormaCobranca(fatura.formaCobranca)}
+                  {fatura.nomeServico ? ` · ${fatura.nomeServico}` : ""}
+                </p>
+              </div>
+              <SeloFatura status={fatura.status} excluida={fatura.excluida} />
+            </div>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+              {rotulo ? <SemaforoRegua fase={rotulo.fase} texto={rotulo.texto} aria={rotulo.aria} /> : <span />}
+              <AcoesFatura
+                fatura={fatura}
+                podeCancelar={podeCancelar}
+                preferencias={preferencias}
+                passosRegua={passosRegua}
+                podeEnviarRegua={podeEnviarRegua}
+                vinculos={vinculos}
+              />
+            </div>
+          </li>
+        );
+      })}
+    </ul>
   );
 }

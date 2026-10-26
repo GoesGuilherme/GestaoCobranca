@@ -62,7 +62,7 @@ export const esquemaCliente = z.object({
     .trim()
     .min(1, "Escolha a UF.")
     .refine((valor) => ufValida(valor), "Escolha uma UF válida."),
-  status: z.enum(["ATIVO", "INATIVO", "EM_IMPLANTACAO"], "Escolha o status."),
+  status: z.enum(["ATIVO", "INATIVO", "EM_IMPLANTACAO", "BLOQUEADO"], "Escolha o status."),
   observacoes: z
     .string()
     .trim()

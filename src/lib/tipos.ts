@@ -1,5 +1,5 @@
 export type Segmento = "RESTAURANTE" | "MERCADO_AUTONOMO" | "OUTRO";
-export type StatusCliente = "ATIVO" | "INATIVO" | "EM_IMPLANTACAO";
+export type StatusCliente = "ATIVO" | "INATIVO" | "EM_IMPLANTACAO" | "BLOQUEADO";
 export type StatusFilial = "ATIVA" | "INATIVA" | "EM_IMPLANTACAO";
 export type TipoDocumento = "CPF" | "CNPJ";
 export type StatusEmpresa = "ATIVA" | "SUSPENSA";
@@ -209,6 +209,7 @@ export type FaturaDTO = {
   faturaUrl: string | null;
   descricao: string | null;
   excluida: boolean;
+  atualizadoEm: string;
   whatsapp: string;
   email: string;
   lembretes: LembreteReguaDTO[];

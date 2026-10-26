@@ -45,7 +45,7 @@ export default async function PaginaEditarCliente({
         titulo={cliente.nomeFantasia}
         descricao="Altere os dados do cliente. Os serviços vendidos ficam nesta página e na ficha. As unidades continuam na ficha."
       />
-      <FormularioCliente cliente={cliente} />
+      <FormularioCliente cliente={cliente} podeBloquear={acesso.papel === "DONO"} />
       <PainelServicosCliente
         clienteId={cliente.id}
         vinculos={vinculos}

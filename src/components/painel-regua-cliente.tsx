@@ -6,7 +6,7 @@ import { enviarJson } from "@/lib/api-cliente";
 import { rotuloAtribuicao } from "@/lib/regua";
 import type { AtribuicaoReguaDTO, ModoReguaCliente, ReguaDTO } from "@/lib/tipos";
 import { Campo, classeCampo } from "./campo";
-import { classeBotaoPrimario } from "./estilos";
+import { classeBotaoPrimario, classeBotaoSecundario } from "./estilos";
 
 export function PainelReguaCliente({
   clienteId,
@@ -33,6 +33,7 @@ export function PainelReguaCliente({
   const [erro, setErro] = useState("");
   const [aviso, setAviso] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const [editando, setEditando] = useState(false);
 
   async function salvar(evento: React.FormEvent) {
     evento.preventDefault();
@@ -59,6 +60,7 @@ export function PainelReguaCliente({
     setModoLocal(resposta.dados.atribuicao.modo);
     setNomeLocal(resposta.dados.atribuicao.nome);
     setAviso("Régua do cliente salva.");
+    setEditando(false);
     router.refresh();
   }
 
@@ -73,7 +75,12 @@ export function PainelReguaCliente({
       <p className="mt-1 max-w-2xl text-sm text-muted">
         A padrão da empresa vale para quem não tem outra. Nenhuma tira o cliente da régua. Pausar guarda a escolha e volta nela quando soltar.
       </p>
-      {podeEditar ? (
+      {podeEditar && !editando ? (
+        <button type="button" className={`${classeBotaoSecundario} mt-4`} onClick={() => setEditando(true)}>
+          Alterar
+        </button>
+      ) : null}
+      {podeEditar && editando ? (
         <form className="mt-4 grid gap-4" onSubmit={salvar}>
           <Campo label="Régua deste cliente" htmlFor="cliente-regua-modo">
             <select
@@ -102,9 +109,12 @@ export function PainelReguaCliente({
           </label>
           {erro ? <p className="text-sm text-clay">{erro}</p> : null}
           {aviso ? <p className="text-sm text-canopy">{aviso}</p> : null}
-          <div>
+          <div className="flex flex-wrap gap-2">
             <button type="submit" className={classeBotaoPrimario} disabled={enviando}>
               {enviando ? "Salvando…" : "Salvar régua do cliente"}
+            </button>
+            <button type="button" className={classeBotaoSecundario} onClick={() => setEditando(false)}>
+              Fechar
             </button>
           </div>
         </form>

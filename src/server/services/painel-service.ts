@@ -2,7 +2,7 @@ import type { Painel, Segmento, StatusCliente } from "@/lib/tipos";
 import { prisma } from "@/server/db";
 import { paraCliente } from "./mapeadores";
 
-const STATUS: StatusCliente[] = ["ATIVO", "INATIVO", "EM_IMPLANTACAO"];
+const STATUS: StatusCliente[] = ["ATIVO", "INATIVO", "EM_IMPLANTACAO", "BLOQUEADO"];
 const SEGMENTOS: Segmento[] = ["RESTAURANTE", "MERCADO_AUTONOMO", "OUTRO"];
 
 export async function obterPainel(empresaId: string): Promise<Painel> {

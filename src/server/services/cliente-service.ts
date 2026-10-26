@@ -1,6 +1,6 @@
 import { Prisma } from "@/generated/prisma/client";
 import { identificarDocumento, somenteDigitos, somenteDocumento } from "@/lib/documento";
-import type { ClienteDetalhe, ClienteResumo, Segmento, StatusCliente } from "@/lib/tipos";
+import type { ClienteDetalhe, ClienteResumo, PapelUsuario, Segmento, StatusCliente } from "@/lib/tipos";
 import { esquemaCliente, type EntradaCliente } from "@/lib/validacao";
 import { prisma } from "@/server/db";
 import { ErroAplicacao } from "@/server/erros";
@@ -8,7 +8,7 @@ import { lerEsquema } from "@/server/validar";
 import { paraCliente, paraClienteDetalhe } from "./mapeadores";
 
 const SEGMENTOS = new Set<Segmento>(["RESTAURANTE", "MERCADO_AUTONOMO", "OUTRO"]);
-const STATUS = new Set<StatusCliente>(["ATIVO", "INATIVO", "EM_IMPLANTACAO"]);
+const STATUS = new Set<StatusCliente>(["ATIVO", "INATIVO", "EM_IMPLANTACAO", "BLOQUEADO"]);
 
 export type FiltroClientes = {
   q?: string;
@@ -123,8 +123,13 @@ export async function obterCliente(empresaId: string, id: string): Promise<Clien
   return comReguaVisivel(empresaId, paraClienteDetalhe(cliente));
 }
 
-export async function criarCliente(empresaId: string, entrada: unknown): Promise<ClienteDetalhe> {
+export async function criarCliente(
+  empresaId: string,
+  entrada: unknown,
+  papel?: PapelUsuario,
+): Promise<ClienteDetalhe> {
   const dados = dadosPersistidos(lerEsquema(esquemaCliente, entrada));
+  exigirDonoParaBloqueio(null, dados.status, papel);
   await garantirDocumentoLivre(empresaId, dados.documento);
 
   try {
@@ -154,9 +159,11 @@ export async function atualizarCliente(
   empresaId: string,
   id: string,
   entrada: unknown,
+  papel?: PapelUsuario,
 ): Promise<ClienteDetalhe> {
-  await obterCliente(empresaId, id);
+  const atual = await obterCliente(empresaId, id);
   const dados = dadosPersistidos(lerEsquema(esquemaCliente, entrada));
+  exigirDonoParaBloqueio(atual.status, dados.status, papel);
   await garantirDocumentoLivre(empresaId, dados.documento, id);
 
   const alterado = await prisma.cliente.updateMany({
@@ -192,6 +199,13 @@ export async function excluirCliente(empresaId: string, id: string): Promise<voi
   const apagado = await prisma.cliente.deleteMany({ where: { id, empresaId } });
   if (apagado.count !== 1) {
     throw new ErroAplicacao("Cliente não encontrado.", 404, "nao_encontrado");
+  }
+}
+
+function exigirDonoParaBloqueio(atual: StatusCliente | null, proximo: StatusCliente, papel?: PapelUsuario) {
+  if (!papel || papel === "DONO") return;
+  if ((proximo === "BLOQUEADO" || atual === "BLOQUEADO") && atual !== proximo) {
+    throw new ErroAplicacao("Só o dono marca ou tira o status Bloqueado.", 403, "proibido");
   }
 }
 
