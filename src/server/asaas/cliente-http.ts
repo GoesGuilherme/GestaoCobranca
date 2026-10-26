@@ -1,3 +1,4 @@
+import { bandeiraCartaoSegura, finalCartaoSeguro } from "@/lib/cobranca";
 import { somenteDocumento } from "@/lib/documento";
 import { normalizarDinheiro } from "@/lib/dinheiro";
 import {
@@ -79,7 +80,17 @@ function lerCobranca(json: unknown): CobrancaAsaas {
     faturaUrl: textoDe(corpo.invoiceUrl),
     descricao: textoDe(corpo.description),
     excluida: corpo.deleted === true,
+    cartao: cartaoSeguro(corpo.creditCard),
   };
+}
+
+function cartaoSeguro(valor: unknown): { bandeira: string | null; final: string | null } | null {
+  if (!valor || typeof valor !== "object") return null;
+  const corpo = valor as Record<string, unknown>;
+  const bandeira = bandeiraCartaoSegura(corpo.creditCardBrand);
+  const final = finalCartaoSeguro(corpo.creditCardNumber);
+  if (!bandeira && !final) return null;
+  return { bandeira, final };
 }
 
 function lerAssinatura(json: unknown): AssinaturaAsaas {

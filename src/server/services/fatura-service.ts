@@ -33,7 +33,7 @@ type FaturaComNomes = {
   faturaUrl: string | null;
   descricao: string | null;
   excluida: boolean;
-  cliente: { nomeFantasia: string };
+  cliente: { nomeFantasia: string; whatsapp: string; email: string };
   clienteServico: { servico: { nome: string } } | null;
 };
 
@@ -55,11 +55,13 @@ function paraFatura(fatura: FaturaComNomes): FaturaDTO {
     faturaUrl: fatura.faturaUrl,
     descricao: fatura.descricao,
     excluida: fatura.excluida,
+    whatsapp: fatura.cliente.whatsapp,
+    email: fatura.cliente.email,
   };
 }
 
 const includeNomes = {
-  cliente: { select: { nomeFantasia: true } },
+  cliente: { select: { nomeFantasia: true, whatsapp: true, email: true } },
   clienteServico: { select: { servico: { select: { nome: true } } } },
 } as const;
 
@@ -289,6 +291,9 @@ function registroDeCobranca(cobranca: CobrancaAsaas): Record<string, unknown> {
     invoiceUrl: cobranca.faturaUrl,
     description: cobranca.descricao,
     deleted: cobranca.excluida,
+    ...(cobranca.cartao
+      ? { creditCard: { creditCardBrand: cobranca.cartao.bandeira, creditCardNumber: cobranca.cartao.final } }
+      : {}),
   };
 }
 

@@ -7,8 +7,9 @@ import { descreverCobranca, PREFERENCIAS_COBRANCA_PADRAO } from "@/lib/cobranca"
 import { dataHojeIso, proximoVencimentoIso } from "@/lib/data";
 import { formatarAliquotaCampo, formatarValorCampo } from "@/lib/dinheiro";
 import { formatarDataIso } from "@/lib/formatacao";
-import { FORMAS_COBRANCA, rotuloAssinatura } from "@/lib/rotulos";
+import { FORMAS_COBRANCA, rotuloAssinatura, rotuloCartao } from "@/lib/rotulos";
 import type { ClienteServicoDTO, PreferenciasCobrancaDTO } from "@/lib/tipos";
+import { AcoesCompartilhar } from "./acoes-compartilhar";
 import { Campo, classeCampo } from "./campo";
 import { classeBotaoPerigo, classeBotaoPrimario, classeBotaoSecundario } from "./estilos";
 
@@ -29,10 +30,14 @@ function percentualCampo(valor: string | null) {
 export function AcoesRecorrencia({
   vinculo,
   nomeCliente,
+  whatsapp = "",
+  email = "",
   preferencias = PREFERENCIAS_COBRANCA_PADRAO,
 }: {
   vinculo: ClienteServicoDTO;
   nomeCliente: string;
+  whatsapp?: string;
+  email?: string;
   preferencias?: PreferenciasCobrancaDTO;
 }) {
   const router = useRouter();
@@ -177,6 +182,11 @@ export function AcoesRecorrencia({
           <input id={`dias-desconto-recorrencia-${vinculo.id}`} className={classeCampo} inputMode="numeric" value={diasDesconto} onChange={(evento) => setDiasDesconto(evento.target.value)} placeholder="0" />
         </Campo>
       </div>
+      {forma === "CREDIT_CARD" ? (
+        <p className="text-sm text-muted">
+          O cliente cadastra o cartão na página do Asaas. Esta empresa não recebe o número nem o CVV.
+        </p>
+      ) : null}
     </>
   );
 
@@ -186,6 +196,16 @@ export function AcoesRecorrencia({
         {assinatura ? (
           <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${ativa ? "bg-leaf text-forest" : pausada ? "bg-gold-soft text-gold" : "bg-clay-soft text-clay"}`}>
             {rotuloAssinatura(assinatura.status)}
+          </span>
+        ) : null}
+        {assinatura?.cartaoStatus ? (
+          <span
+            className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${assinatura.cartaoStatus === "CADASTRADO" ? "bg-leaf text-forest" : assinatura.cartaoStatus === "RECUSADO" ? "bg-clay-soft text-clay" : "bg-gold-soft text-gold"}`}
+          >
+            {rotuloCartao(assinatura.cartaoStatus)}
+            {assinatura.cartaoStatus === "CADASTRADO" && assinatura.cartaoFinal
+              ? ` · ${assinatura.cartaoBandeira ? `${assinatura.cartaoBandeira} ` : ""}•••• ${assinatura.cartaoFinal}`
+              : ""}
           </span>
         ) : null}
         {encerrada && vinculo.status === "ATIVO" && vinculo.recorrencia === "MENSAL" ? (
@@ -214,6 +234,27 @@ export function AcoesRecorrencia({
           </button>
         ) : null}
       </div>
+
+      {assinatura?.urlCobranca ? (
+        <div className="mt-3">
+          {assinatura.cartaoStatus === "RECUSADO" ? (
+            <p className="mb-2 text-sm text-clay">
+              O cartão foi recusado. Envie o link de novo para o cliente cadastrar outro cartão na página do Asaas.
+            </p>
+          ) : null}
+          <AcoesCompartilhar
+            link={assinatura.urlCobranca}
+            whatsapp={whatsapp}
+            email={email}
+            cliente={nomeCliente}
+            servico={vinculo.nomeServico}
+            valor={vinculo.valor}
+            vencimento={assinatura.proximoVencimento ?? ""}
+            modeloMensagem={preferencias.modeloMensagem}
+            modeloAssunto={preferencias.modeloAssunto}
+          />
+        </div>
+      ) : null}
 
       {modo === "ativar" ? (
         <form onSubmit={ativar} className="mt-3 grid gap-4 rounded-2xl border border-line bg-paper p-4">

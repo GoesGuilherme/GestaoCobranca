@@ -134,6 +134,11 @@ export function PainelRecorrenciaLote({
                 ))}
               </select>
             </Campo>
+            {forma === "CREDIT_CARD" ? (
+              <p className="text-sm text-muted sm:col-span-2">
+                O cliente cadastra o cartão na página do Asaas. Esta empresa não recebe o número nem o CVV.
+              </p>
+            ) : null}
             <Campo label="Modelo da descrição" htmlFor="modelo-lote" dica="Marcadores: {servico}, {cliente} e {mes}.">
               <input id="modelo-lote" className={classeCampo} value={modelo} maxLength={500} onChange={(evento) => setModelo(evento.target.value)} />
             </Campo>

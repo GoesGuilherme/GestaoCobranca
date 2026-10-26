@@ -220,7 +220,10 @@ export class AsaasMemoria implements ClienteHttpAsaas {
       vencimento: dados.vencimento,
       status: "PENDING",
       formaCobranca: dados.formaCobranca,
-      boletoUrl: dados.formaCobranca === "PIX" ? null : `https://sandbox.asaas.com/b/pdf/${id}`,
+      boletoUrl:
+        dados.formaCobranca === "PIX" || dados.formaCobranca === "CREDIT_CARD"
+          ? null
+          : `https://sandbox.asaas.com/b/pdf/${id}`,
       faturaUrl: `https://sandbox.asaas.com/i/${id}`,
       descricao: dados.descricao,
       excluida: false,

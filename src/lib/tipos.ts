@@ -55,12 +55,18 @@ export type ServicoDTO = {
   atualizadoEm: string;
 };
 
+export type SituacaoCartao = "AGUARDANDO" | "CADASTRADO" | "RECUSADO";
+
 export type RecorrenciaAsaasDTO = {
   status: string;
   formaCobranca: string | null;
   diaVencimento: number | null;
   proximoVencimento: string | null;
   descricao: string | null;
+  urlCobranca: string | null;
+  cartaoStatus: SituacaoCartao | null;
+  cartaoBandeira: string | null;
+  cartaoFinal: string | null;
 };
 
 export type ClienteServicoDTO = {
@@ -106,7 +112,7 @@ export type ResultadoImportacaoFaturas = {
 };
 
 export type PreferenciasCobrancaDTO = {
-  formaCobranca: "BOLETO" | "PIX" | "UNDEFINED";
+  formaCobranca: "BOLETO" | "PIX" | "UNDEFINED" | "CREDIT_CARD";
   diaVencimento: number;
   modeloDescricao: string;
   multaPercentual: string | null;
@@ -115,6 +121,8 @@ export type PreferenciasCobrancaDTO = {
   descontoDiasAntes: number | null;
   diasAntesGerar: 7 | 14 | 40 | null;
   atualizarPendentes: boolean;
+  modeloMensagem: string;
+  modeloAssunto: string;
 };
 
 export type ClienteDetalhe = ClienteResumo & {
@@ -174,7 +182,7 @@ export type Resultado = {
 };
 
 export type AmbienteAsaas = "SANDBOX" | "PRODUCAO";
-export type FormaCobranca = "BOLETO" | "PIX" | "UNDEFINED";
+export type FormaCobranca = "BOLETO" | "PIX" | "UNDEFINED" | "CREDIT_CARD";
 export type SituacaoFatura = "em_aberto" | "vencidas" | "pagas" | "canceladas" | "todas";
 
 export type FaturaDTO = {
@@ -194,6 +202,8 @@ export type FaturaDTO = {
   faturaUrl: string | null;
   descricao: string | null;
   excluida: boolean;
+  whatsapp: string;
+  email: string;
 };
 
 export type ConfiguracaoAsaasDTO = {

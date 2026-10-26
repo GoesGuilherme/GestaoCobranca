@@ -2,7 +2,14 @@ import type { Cliente, ClienteServico, Filial, Servico } from "@/generated/prism
 import { isoDeData } from "@/lib/data";
 import { calcularMargem, somarDinheiro } from "@/lib/dinheiro";
 import { formatarDocumento, formatarWhatsapp } from "@/lib/documento";
-import type { ClienteDetalhe, ClienteResumo, ClienteServicoDTO, FilialDTO, ServicoDTO } from "@/lib/tipos";
+import type {
+  ClienteDetalhe,
+  ClienteResumo,
+  ClienteServicoDTO,
+  FilialDTO,
+  ServicoDTO,
+  SituacaoCartao,
+} from "@/lib/tipos";
 
 type ValorDecimal = { toFixed(casas: number): string };
 
@@ -118,9 +125,18 @@ export function paraClienteServico(
             diaVencimento: vinculo.diaVencimento,
             proximoVencimento: vinculo.proximoVencimento ? isoDeData(vinculo.proximoVencimento) : null,
             descricao: vinculo.descricaoRecorrente,
+            urlCobranca: vinculo.urlCobranca,
+            cartaoStatus: situacaoCartao(vinculo.cartaoStatus),
+            cartaoBandeira: vinculo.cartaoBandeira,
+            cartaoFinal: vinculo.cartaoFinal,
           }
         : null,
     criadoEm: vinculo.criadoEm.toISOString(),
     atualizadoEm: vinculo.atualizadoEm.toISOString(),
   };
+}
+
+function situacaoCartao(valor: string | null): SituacaoCartao | null {
+  if (valor === "AGUARDANDO" || valor === "CADASTRADO" || valor === "RECUSADO") return valor;
+  return null;
 }

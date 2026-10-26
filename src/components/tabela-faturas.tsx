@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { PREFERENCIAS_COBRANCA_PADRAO } from "@/lib/cobranca";
 import { formatarReais } from "@/lib/dinheiro";
 import { formatarDataIso } from "@/lib/formatacao";
 import { rotuloFormaCobranca, rotuloStatusFatura } from "@/lib/rotulos";
-import type { FaturaDTO } from "@/lib/tipos";
+import type { FaturaDTO, PreferenciasCobrancaDTO } from "@/lib/tipos";
+import { AcoesCompartilhar } from "./acoes-compartilhar";
 import { BotaoCancelarFatura } from "./botao-cancelar-fatura";
 
 function segundaVia(fatura: FaturaDTO) {
@@ -14,11 +16,13 @@ export function TabelaFaturas({
   podeCancelar,
   mostrarCliente,
   destaqueId,
+  preferencias = PREFERENCIAS_COBRANCA_PADRAO,
 }: {
   faturas: FaturaDTO[];
   podeCancelar: boolean;
   mostrarCliente: boolean;
   destaqueId?: string | null;
+  preferencias?: PreferenciasCobrancaDTO;
 }) {
   if (faturas.length === 0) {
     return (
@@ -30,7 +34,7 @@ export function TabelaFaturas({
 
   return (
     <div className="overflow-x-auto rounded-3xl border border-line bg-card">
-      <table className="w-full min-w-[760px] text-left text-sm">
+      <table className="w-full min-w-[980px] text-left text-sm">
         <thead className="border-b border-line text-xs uppercase tracking-wide text-muted">
           <tr>
             {mostrarCliente ? <th className="px-4 py-3 font-medium">Cliente</th> : null}
@@ -71,11 +75,22 @@ export function TabelaFaturas({
                   <div className="flex flex-wrap items-center gap-2">
                     {via ? (
                       <a href={via} target="_blank" rel="noreferrer" className="font-medium text-canopy hover:underline">
-                        Segunda via
+                        {fatura.formaCobranca === "CREDIT_CARD" ? "Página do cartão" : "Segunda via"}
                       </a>
                     ) : (
                       <span className="text-muted">Sem link</span>
                     )}
+                    <AcoesCompartilhar
+                      link={via}
+                      whatsapp={fatura.whatsapp}
+                      email={fatura.email}
+                      cliente={fatura.nomeCliente}
+                      servico={fatura.nomeServico ?? fatura.descricao ?? ""}
+                      valor={fatura.valor}
+                      vencimento={fatura.vencimento}
+                      modeloMensagem={preferencias.modeloMensagem}
+                      modeloAssunto={preferencias.modeloAssunto}
+                    />
                     {podeCancelar && !fatura.excluida ? <BotaoCancelarFatura id={fatura.id} /> : null}
                   </div>
                   {fatura.linhaDigitavel ? (

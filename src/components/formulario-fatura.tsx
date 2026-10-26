@@ -68,7 +68,7 @@ export function FormularioFatura({
 
   return (
     <form onSubmit={enviar} className="mt-4 grid gap-4 rounded-3xl border border-line bg-card p-6">
-      <h3 className="font-display text-2xl">Emitir boleto avulso</h3>
+      <h3 className="font-display text-2xl">Emitir cobrança avulsa</h3>
       <p className="text-sm text-muted">
         O cliente é criado no Asaas na primeira cobrança, ou reaproveitado se o CPF/CNPJ já existir lá. Multa, juros e desconto seguem as preferências desta empresa.
       </p>
@@ -99,6 +99,11 @@ export function FormularioFatura({
           </select>
         </Campo>
       </div>
+      {formaCobranca === "CREDIT_CARD" ? (
+        <p className="text-sm text-muted">
+          O cliente cadastra o cartão na página do Asaas. Esta empresa não recebe o número nem o CVV.
+        </p>
+      ) : null}
       <Campo label="Descrição" htmlFor="descricao-fatura" erro={campos.descricao}>
         <input id="descricao-fatura" className={classeCampo} value={descricao} onChange={(evento) => setDescricao(evento.target.value)} maxLength={500} />
       </Campo>

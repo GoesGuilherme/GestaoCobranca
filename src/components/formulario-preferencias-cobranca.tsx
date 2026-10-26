@@ -27,6 +27,8 @@ export function FormularioPreferenciasCobranca({ inicial }: { inicial: Preferenc
   );
   const [diasAntesGerar, setDiasAntesGerar] = useState(inicial.diasAntesGerar === null ? "" : String(inicial.diasAntesGerar));
   const [atualizarPendentes, setAtualizarPendentes] = useState(inicial.atualizarPendentes);
+  const [modeloMensagem, setModeloMensagem] = useState(inicial.modeloMensagem);
+  const [modeloAssunto, setModeloAssunto] = useState(inicial.modeloAssunto);
   const [campos, setCampos] = useState<Record<string, string>>({});
   const [erro, setErro] = useState("");
   const [aviso, setAviso] = useState("");
@@ -46,6 +48,8 @@ export function FormularioPreferenciasCobranca({ inicial }: { inicial: Preferenc
       descontoDiasAntes: descontoDiasAntes.trim() === "" ? null : Number(descontoDiasAntes),
       diasAntesGerar: diasAntesGerar === "" ? null : Number(diasAntesGerar),
       atualizarPendentes,
+      modeloMensagem,
+      modeloAssunto,
     };
     const validado = esquemaPreferenciasCobranca.safeParse(entrada);
     if (!validado.success) {
@@ -126,6 +130,35 @@ export function FormularioPreferenciasCobranca({ inicial }: { inicial: Preferenc
           <input id="pref-dias-desconto" className={classeCampo} inputMode="numeric" value={descontoDiasAntes} onChange={(evento) => setDescontoDiasAntes(evento.target.value)} placeholder="0" />
         </Campo>
       </div>
+      {formaCobranca === "CREDIT_CARD" ? (
+        <p className="text-sm text-muted">
+          No cartão, o cliente informa os dados na página do Asaas. Esta empresa não recebe o número nem o CVV.
+        </p>
+      ) : null}
+      <Campo
+        label="Mensagem para o cliente"
+        htmlFor="pref-mensagem"
+        erro={campos.modeloMensagem}
+        dica="Marcadores: {cliente}, {servico}, {valor}, {vencimento} e {link}. Vale para WhatsApp e e-mail."
+      >
+        <textarea
+          id="pref-mensagem"
+          className={classeCampo}
+          rows={4}
+          maxLength={2000}
+          value={modeloMensagem}
+          onChange={(evento) => setModeloMensagem(evento.target.value)}
+        />
+      </Campo>
+      <Campo label="Assunto do e-mail" htmlFor="pref-assunto" erro={campos.modeloAssunto} dica="Usa os mesmos marcadores da mensagem.">
+        <input
+          id="pref-assunto"
+          className={classeCampo}
+          maxLength={200}
+          value={modeloAssunto}
+          onChange={(evento) => setModeloAssunto(evento.target.value)}
+        />
+      </Campo>
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" checked={atualizarPendentes} onChange={(evento) => setAtualizarPendentes(evento.target.checked)} />
         Ao mudar o valor, atualizar as cobranças em aberto

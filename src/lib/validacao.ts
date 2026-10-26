@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MODELO_ASSUNTO_PADRAO, MODELO_MENSAGEM_PADRAO } from "./cobranca";
 import { dataIsoValida } from "./data";
 import { normalizarAliquota, normalizarDinheiro } from "./dinheiro";
 import { cnpjValido, identificarDocumento, whatsappValido } from "./documento";
@@ -306,7 +307,7 @@ export const esquemaFatura = z.object({
     .trim()
     .refine((valor) => dataIsoValida(valor), "Informe o vencimento."),
   formaCobranca: z
-    .enum(["BOLETO", "PIX", "UNDEFINED"], "Escolha boleto, Pix ou deixar o cliente escolher.")
+    .enum(["BOLETO", "PIX", "UNDEFINED", "CREDIT_CARD"], "Escolha boleto, Pix, cartão ou deixar o cliente escolher.")
     .optional(),
   descricao: z
     .string()
@@ -335,8 +336,8 @@ export const esquemaDiaVencimento = z
   .max(31, "O dia de vencimento fica entre 1 e 31.");
 
 const esquemaFormaCobranca = z.enum(
-  ["BOLETO", "PIX", "UNDEFINED"],
-  "Escolha boleto, Pix ou deixar o cliente escolher.",
+  ["BOLETO", "PIX", "UNDEFINED", "CREDIT_CARD"],
+  "Escolha boleto, Pix, cartão ou deixar o cliente escolher.",
 );
 
 const esquemaDiasDesconto = z.preprocess(
@@ -443,6 +444,18 @@ export const esquemaPreferenciasCobranca = z.object({
   descontoDiasAntes: esquemaDiasDesconto,
   diasAntesGerar: esquemaDiasAntesGerar,
   atualizarPendentes: z.boolean("Informe se as cobranças em aberto devem ser atualizadas."),
+  modeloMensagem: z
+    .string()
+    .trim()
+    .min(1, "Informe a mensagem para o cliente.")
+    .max(2000, "A mensagem pode ter no máximo 2000 caracteres.")
+    .default(MODELO_MENSAGEM_PADRAO),
+  modeloAssunto: z
+    .string()
+    .trim()
+    .min(1, "Informe o assunto do e-mail.")
+    .max(200, "O assunto pode ter no máximo 200 caracteres.")
+    .default(MODELO_ASSUNTO_PADRAO),
 });
 
 export type EntradaFatura = z.infer<typeof esquemaFatura>;

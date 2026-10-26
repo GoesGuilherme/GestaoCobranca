@@ -131,6 +131,8 @@ export default async function PaginaCliente({ params }: { params: Promise<{ id: 
         podeEditar={podeAlterarServicos(acesso.papel)}
         podeCobrar={podeCobrar}
         nomeCliente={cliente.nomeFantasia}
+        whatsapp={cliente.whatsapp}
+        email={cliente.email}
         preferencias={preferencias}
       />
 

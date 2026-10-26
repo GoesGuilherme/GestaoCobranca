@@ -383,4 +383,115 @@ describe("recorrência Asaas", () => {
     const resultado = await importarFaturas(autor("FINANCEIRO"), http);
     expect(resultado.criadas + resultado.atualizadas).toBeGreaterThan(0);
   });
+
+  it("ativa cartão sem dados do cartão e acompanha cadastro e recusa", async () => {
+    const config = await salvarConfiguracaoAsaas(autor("DONO"), { ambiente: "SANDBOX", chaveApi: CHAVE });
+    const modelo = "Olá {cliente}, pague {servico} ({valor}) até {vencimento}: {link}";
+    const salvas = await salvarPreferenciasCobranca(autor("DONO"), {
+      formaCobranca: "CREDIT_CARD",
+      diaVencimento: 10,
+      modeloDescricao: "Mensalidade {servico}",
+      multaPercentual: null,
+      jurosPercentual: null,
+      descontoPercentual: null,
+      descontoDiasAntes: null,
+      diasAntesGerar: null,
+      atualizarPendentes: false,
+      modeloMensagem: modelo,
+      modeloAssunto: "Cobrança {cliente}",
+    });
+    expect(salvas.formaCobranca).toBe("CREDIT_CARD");
+    expect(salvas.modeloMensagem).toBe(modelo);
+    expect(await obterPreferenciasCobranca(outraEmpresaId)).toMatchObject({
+      formaCobranca: "BOLETO",
+      modeloMensagem: "Olá, {cliente}. Segue a cobrança de {servico}, no valor de {valor}, com vencimento em {vencimento}: {link}",
+    });
+
+    const { vinculo } = await vendaMensal("Cantina Cartão", "120,00", completarCnpj("580000000011"));
+    const memoria = new AsaasMemoria("card");
+    const ativada = await ativarRecorrencia(
+      autor("FINANCEIRO"),
+      vinculo.id,
+      { diaVencimento: 10, formaCobranca: "CREDIT_CARD", valor: "120,00" },
+      memoria,
+    );
+    expect(ativada.recorrenciaAsaas?.cartaoStatus).toBe("AGUARDANDO");
+    expect(ativada.recorrenciaAsaas?.urlCobranca).toContain("https://sandbox.asaas.com/i/");
+    const guardada = [...memoria.assinaturas.values()][0];
+    expect(guardada?.formaCobranca).toBe("CREDIT_CARD");
+    expect(JSON.stringify(guardada)).not.toMatch(/creditCard|cvv|ccv|cardNumber/i);
+
+    const linha = await prisma.clienteServico.findUniqueOrThrow({ where: { id: vinculo.id } });
+    const token = config.tokenWebhook ?? "";
+    const pan = "4111111111118829";
+    await processarWebhookAsaas(token, {
+      id: "evt_cartao_confirmado_pan",
+      event: "PAYMENT_CONFIRMED",
+      payment: {
+        id: "pay_cartao_pan",
+        subscription: linha.asaasSubscriptionId,
+        value: 120,
+        dueDate: "2026-11-10",
+        status: "CONFIRMED",
+        billingType: "CREDIT_CARD",
+        invoiceUrl: linha.urlCobranca,
+        creditCard: { creditCardNumber: pan, creditCardBrand: "VISA", creditCardToken: "tok_super_secreto" },
+      },
+    });
+    const comPan = await prisma.clienteServico.findUniqueOrThrow({ where: { id: vinculo.id } });
+    expect(comPan.cartaoStatus).toBe("CADASTRADO");
+    expect(comPan.cartaoFinal).toBeNull();
+    expect(JSON.stringify(comPan)).not.toContain(pan);
+    expect(JSON.stringify(comPan)).not.toContain("tok_super_secreto");
+
+    await processarWebhookAsaas(token, {
+      id: "evt_cartao_confirmado_final",
+      event: "PAYMENT_RECEIVED",
+      payment: {
+        id: "pay_cartao_ok",
+        subscription: linha.asaasSubscriptionId,
+        value: 120,
+        dueDate: "2026-11-10",
+        status: "RECEIVED",
+        billingType: "CREDIT_CARD",
+        invoiceUrl: "https://sandbox.asaas.com/i/pay_cartao_ok",
+        creditCard: { creditCardNumber: "8829", creditCardBrand: "VISA", creditCardToken: "tok_super_secreto" },
+      },
+    });
+    const cadastrado = await prisma.clienteServico.findUniqueOrThrow({ where: { id: vinculo.id } });
+    expect(cadastrado.cartaoStatus).toBe("CADASTRADO");
+    expect(cadastrado.cartaoBandeira).toBe("VISA");
+    expect(cadastrado.cartaoFinal).toBe("8829");
+    expect(cadastrado.urlCobranca).toBe("https://sandbox.asaas.com/i/pay_cartao_ok");
+    expect(JSON.stringify(cadastrado)).not.toContain("tok_super_secreto");
+
+    await processarWebhookAsaas(token, {
+      id: "evt_cartao_recusado",
+      event: "PAYMENT_CREDIT_CARD_CAPTURE_REFUSED",
+      payment: {
+        id: "pay_cartao_ok",
+        subscription: linha.asaasSubscriptionId,
+        value: 120,
+        dueDate: "2026-12-10",
+        status: "PENDING",
+        billingType: "CREDIT_CARD",
+        invoiceUrl: "https://sandbox.asaas.com/i/pay_cartao_ok",
+      },
+    });
+    const recusado = await prisma.clienteServico.findUniqueOrThrow({ where: { id: vinculo.id } });
+    expect(recusado.cartaoStatus).toBe("RECUSADO");
+    expect(recusado.cartaoBandeira).toBe("VISA");
+    expect(recusado.cartaoFinal).toBe("8829");
+    expect(recusado.urlCobranca).toContain("https://sandbox.asaas.com/i/");
+
+    const editada = await editarRecorrencia(
+      autor("DONO"),
+      vinculo.id,
+      { diaVencimento: 10, formaCobranca: "PIX", valor: "120,00" },
+      memoria,
+    );
+    expect(editada.recorrenciaAsaas?.formaCobranca).toBe("PIX");
+    expect(editada.recorrenciaAsaas?.cartaoStatus).toBeNull();
+    expect(editada.recorrenciaAsaas?.cartaoFinal).toBeNull();
+  });
 });
