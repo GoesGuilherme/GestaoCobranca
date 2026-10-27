@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { CabecalhoPagina } from "@/components/cabecalho";
 import { Selo } from "@/components/selo";
-import { classeBotaoPrimario } from "@/components/estilos";
+import { classeBotaoPrimario, classeBotaoSecundario } from "@/components/estilos";
+import { podeVerFaturas } from "@/lib/permissoes";
 import { formatarReais } from "@/lib/dinheiro";
 import { formatarNumero } from "@/lib/formatacao";
 import { rotuloSegmento, rotuloStatusCliente } from "@/lib/rotulos";
@@ -26,9 +27,16 @@ export default async function PaginaPainel() {
         titulo="Painel"
         descricao="Quantos clientes estão ativos, em implantação, parados ou bloqueados, em qual segmento, e quanto está contratado por mês."
         acao={
-          <Link href="/clientes/novo" className={classeBotaoPrimario}>
-            Novo cliente
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            {podeVerFaturas(acesso.papel) ? (
+              <Link href="/painel-financeiro" className={classeBotaoSecundario}>
+                Financeiro
+              </Link>
+            ) : null}
+            <Link href="/clientes/novo" className={classeBotaoPrimario}>
+              Novo cliente
+            </Link>
+          </div>
         }
       />
 
