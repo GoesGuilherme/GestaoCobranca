@@ -66,7 +66,12 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(login);
   }
 
-  const rotaResultado = pathname === "/resultado" || pathname.startsWith("/resultado/") || pathname === "/api/resultado";
+  const rotaResultado =
+    pathname === "/resultado" ||
+    pathname.startsWith("/resultado/") ||
+    pathname === "/dashboards/resultado" ||
+    pathname.startsWith("/dashboards/resultado/") ||
+    pathname === "/api/resultado";
   if (rotaResultado && !podeVerResultado(sessao.papel)) {
     return resultadoProibido(pathname);
   }

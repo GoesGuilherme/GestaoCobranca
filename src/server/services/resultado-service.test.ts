@@ -1,5 +1,10 @@
+import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it } from "vitest";
 import { completarCnpj } from "@/lib/documento";
+import { destinoAbaResultado } from "@/lib/rotas-dashboard";
+import { middleware } from "@/middleware";
+import { COOKIE_SESSAO } from "@/server/auth/constantes";
+import { emitirToken } from "@/server/auth/token";
 import { prisma } from "@/server/db";
 import { criarCliente } from "./cliente-service";
 import { criarServicoDoCliente } from "./cliente-servico-service";
@@ -194,5 +199,41 @@ describe("resultado custo x faturamento", () => {
       porServico: [],
     });
     expect(vazio.avulso.quantidade).toBe(0);
+  });
+
+  it("só o dono entra na aba e o endereço antigo preserva a query", async () => {
+    async function token(papel: "DONO" | "FINANCEIRO" | "SUPORTE") {
+      return emitirToken({
+        sub: `usuario-${papel.toLowerCase()}`,
+        email: `${papel.toLowerCase()}@exemplo.test`,
+        nome: papel,
+        empresaId,
+        papel,
+        superadministrador: false,
+      });
+    }
+
+    const financeiro = await token("FINANCEIRO");
+    const suporte = await token("SUPORTE");
+    const donoToken = await token("DONO");
+    for (const caminho of ["/resultado?aba=1", "/dashboards/resultado", "/api/resultado"]) {
+      expect(
+        (await middleware(new NextRequest(`http://127.0.0.1${caminho}`, { headers: { cookie: `${COOKIE_SESSAO}=${financeiro}` } }))).status,
+      ).toBe(403);
+      expect(
+        (await middleware(new NextRequest(`http://127.0.0.1${caminho}`, { headers: { cookie: `${COOKIE_SESSAO}=${suporte}` } }))).status,
+      ).toBe(403);
+    }
+    expect(
+      (await middleware(new NextRequest("http://127.0.0.1/resultado?visao=mensal", { headers: { cookie: `${COOKIE_SESSAO}=${donoToken}` } }))).status,
+    ).toBe(200);
+    expect(
+      (await middleware(new NextRequest("http://127.0.0.1/dashboards/resultado", { headers: { cookie: `${COOKIE_SESSAO}=${donoToken}` } }))).status,
+    ).toBe(200);
+    expect(
+      (await middleware(new NextRequest("http://127.0.0.1/dashboards/painel", { headers: { cookie: `${COOKIE_SESSAO}=${financeiro}` } }))).status,
+    ).toBe(200);
+    expect(destinoAbaResultado({ visao: "mensal" })).toBe("/dashboards/resultado?visao=mensal");
+    expect(destinoAbaResultado({})).toBe("/dashboards/resultado");
   });
 });

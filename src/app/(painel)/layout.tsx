@@ -16,7 +16,6 @@ export default async function LayoutPainel({ children }: { children: React.React
         mostrarUsuarios={acesso.papel === "DONO"}
         mostrarFaturas={podeVerFaturas(acesso.papel)}
         mostrarRegua={podeVerRegua(acesso.papel)}
-        mostrarResultado={acesso.papel === "DONO"}
         mostrarAsaas={acesso.papel === "DONO"}
         mostrarAdmin={acesso.superadministrador}
       />
