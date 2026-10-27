@@ -7,7 +7,6 @@ import { PainelRecorrenciaLote } from "@/components/painel-recorrencia-lote";
 import { AvisoModoTeste } from "@/components/aviso-modo-teste";
 import { TabelaFaturas } from "@/components/tabela-faturas";
 import { podeEmitirCobranca, podeVerFaturas } from "@/lib/permissoes";
-import { opcoesDePasso } from "@/lib/regua";
 import { SITUACOES_FATURA, situacaoFatura } from "@/lib/rotulos";
 import { acessoDaPagina } from "@/server/auth/pagina";
 import { listarFaturas } from "@/server/services/fatura-service";
@@ -38,7 +37,6 @@ export default async function PaginaFaturas({ searchParams }: { searchParams: Pr
   const faturas = await listarFaturas(acesso, { situacao, busca });
   const preferencias = podeEmitirCobranca(acesso.papel) ? await obterPreferenciasCobranca(acesso.empresaId) : undefined;
   const regua = await obterPainelRegua(acesso);
-  const passosRegua = opcoesDePasso(regua.reguas);
 
   return (
     <>
@@ -74,8 +72,10 @@ export default async function PaginaFaturas({ searchParams }: { searchParams: Pr
         podeCancelar={podeEmitirCobranca(acesso.papel)}
         mostrarCliente
         preferencias={preferencias}
-        passosRegua={passosRegua}
+        reguasEnvio={regua.reguas}
         podeEnviarRegua={podeEmitirCobranca(acesso.papel)}
+        modoTeste={regua.config.gravada && regua.config.modoTeste}
+        emailLogado={acesso.email}
       />
       <p className="mt-4 text-sm text-muted">
         Para emitir uma cobrança nova, abra o cliente em <Link href="/clientes" className="text-canopy hover:underline">Clientes</Link>.

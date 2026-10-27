@@ -2,7 +2,7 @@ import { formaCobrancaDe } from "@/lib/cobranca";
 import { isoDeData } from "@/lib/data";
 import { STATUS_ABERTAS, STATUS_PAGAS, STATUS_VENCIDAS } from "@/lib/fatura-situacao";
 import { somenteDocumento } from "@/lib/documento";
-import type { FaturaDTO, LembreteReguaDTO, SituacaoFatura, StatusLembrete } from "@/lib/tipos";
+import type { FaturaDTO, LembreteReguaDTO, ModoReguaCliente, SituacaoFatura, StatusLembrete } from "@/lib/tipos";
 import { esquemaFatura } from "@/lib/validacao";
 import { abrirClienteAsaas, asaasRespondeu, traduzirErroAsaas } from "@/server/asaas/abrir";
 import { type ClienteHttpAsaas, type CobrancaAsaas, type PaginaCobrancasAsaas } from "@/server/asaas/contrato";
@@ -31,7 +31,7 @@ type FaturaComNomes = {
   descricao: string | null;
   excluida: boolean;
   atualizadoEm: Date;
-  cliente: { nomeFantasia: string; whatsapp: string; email: string };
+  cliente: { nomeFantasia: string; whatsapp: string; email: string; reguaModo: string; reguaId: string | null };
   clienteServico: { servico: { nome: string } } | null;
   lembretes?: {
     id: string;
@@ -88,15 +88,22 @@ function paraFatura(fatura: FaturaComNomes): FaturaDTO {
     atualizadoEm: fatura.atualizadoEm.toISOString(),
     whatsapp: fatura.cliente.whatsapp,
     email: fatura.cliente.email,
+    reguaModo: modoRegua(fatura.cliente.reguaModo),
+    reguaId: fatura.cliente.reguaId,
     lembretes: (fatura.lembretes ?? []).map(paraLembrete),
   };
 }
 
 const includeNomes = {
-  cliente: { select: { nomeFantasia: true, whatsapp: true, email: true } },
+  cliente: { select: { nomeFantasia: true, whatsapp: true, email: true, reguaModo: true, reguaId: true } },
   clienteServico: { select: { servico: { select: { nome: true } } } },
   lembretes: { orderBy: { criadoEm: "desc" as const }, take: 20 },
 } as const;
+
+function modoRegua(valor: string): ModoReguaCliente {
+  if (valor === "ESPECIFICA" || valor === "NENHUMA") return valor;
+  return "PADRAO";
+}
 
 function filtroSituacao(situacao: SituacaoFatura) {
   if (situacao === "todas") return {};

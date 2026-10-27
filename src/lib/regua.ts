@@ -266,11 +266,38 @@ function menorDias(passos: PassoParaRotulo[]): PassoParaRotulo | null {
   }, null);
 }
 
-export function opcoesDePasso(reguas: { nome: string; passos: { id: string; naEmissao: boolean; dias: number | null }[] }[]) {
+export type OpcaoPassoRegua = {
+  id: string;
+  rotulo: string;
+  canal: string;
+};
+
+export function nomePassoConfigurado(passo: { naEmissao: boolean; dias: number | null; assunto?: string }): string {
+  const assunto = passo.assunto?.trim() ?? "";
+  return assunto || rotuloPasso(passo);
+}
+
+export function opcoesDePasso(
+  reguas: { nome: string; passos: { id: string; naEmissao: boolean; dias: number | null; assunto?: string; canal?: string }[] }[],
+): OpcaoPassoRegua[] {
   return reguas.flatMap((regua) =>
     regua.passos.map((passo) => ({
       id: passo.id,
-      rotulo: `${regua.nome} · ${rotuloPasso(passo)}`,
+      rotulo: `${regua.nome} · ${nomePassoConfigurado(passo)}`,
+      canal: passo.canal || "EMAIL",
     })),
   );
+}
+
+export function opcoesDaReguaAplicavel(
+  atribuicao: { modo: ModoReguaCliente; reguaId: string | null },
+  reguas: { id: string; padrao: boolean; nome: string; passos: { id: string; naEmissao: boolean; dias: number | null; assunto?: string; canal?: string }[] }[],
+): OpcaoPassoRegua[] {
+  if (atribuicao.modo === "NENHUMA") return [];
+  const regua =
+    atribuicao.modo === "ESPECIFICA"
+      ? reguas.find((item) => item.id === atribuicao.reguaId)
+      : reguas.find((item) => item.padrao);
+  if (!regua) return [];
+  return opcoesDePasso([regua]);
 }

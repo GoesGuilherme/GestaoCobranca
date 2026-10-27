@@ -212,6 +212,8 @@ export type FaturaDTO = {
   atualizadoEm: string;
   whatsapp: string;
   email: string;
+  reguaModo: ModoReguaCliente;
+  reguaId: string | null;
   lembretes: LembreteReguaDTO[];
 };
 
