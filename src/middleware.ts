@@ -74,6 +74,8 @@ export async function middleware(request: NextRequest) {
   const rotaPainelFinanceiro =
     pathname === "/painel-financeiro" ||
     pathname.startsWith("/painel-financeiro/") ||
+    pathname === "/dashboards/financeiro" ||
+    pathname.startsWith("/dashboards/financeiro/") ||
     pathname === "/api/painel-financeiro" ||
     pathname.startsWith("/api/painel-financeiro/");
   if (rotaPainelFinanceiro && !podeVerFaturas(sessao.papel)) {
@@ -82,6 +84,12 @@ export async function middleware(request: NextRequest) {
       "O painel financeiro fica com o dono e o financeiro",
       "Só o dono ou o financeiro pode ver o painel financeiro.",
     );
+  }
+
+  if (pathname === "/painel-financeiro" || pathname.startsWith("/painel-financeiro/")) {
+    const destino = request.nextUrl.clone();
+    destino.pathname = "/dashboards/financeiro";
+    return NextResponse.redirect(destino);
   }
 
   const rotaFaturas =

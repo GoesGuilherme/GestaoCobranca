@@ -1,0 +1,14 @@
+import { AbasDashboards } from "@/components/abas-dashboards";
+import { podeVerFaturas } from "@/lib/permissoes";
+import { acessoDaPagina } from "@/server/auth/pagina";
+
+export default async function LayoutDashboards({ children }: { children: React.ReactNode }) {
+  const acesso = await acessoDaPagina();
+
+  return (
+    <>
+      <AbasDashboards mostrarFinanceiro={podeVerFaturas(acesso.papel)} />
+      {children}
+    </>
+  );
+}

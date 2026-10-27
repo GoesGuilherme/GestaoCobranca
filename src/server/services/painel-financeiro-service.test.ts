@@ -170,6 +170,14 @@ describe("painel financeiro", () => {
       headers: { cookie: `${COOKIE_SESSAO}=${suporte}` },
     });
     expect((await middleware(pedido)).status).toBe(403);
+    const aba = new NextRequest("http://127.0.0.1/dashboards/financeiro", {
+      headers: { cookie: `${COOKIE_SESSAO}=${suporte}` },
+    });
+    expect((await middleware(aba)).status).toBe(403);
+    const painel = new NextRequest("http://127.0.0.1/dashboards/painel", {
+      headers: { cookie: `${COOKIE_SESSAO}=${suporte}` },
+    });
+    expect((await middleware(painel)).status).toBe(200);
     const api = new NextRequest("http://127.0.0.1/api/painel-financeiro", {
       headers: { cookie: `${COOKIE_SESSAO}=${suporte}` },
     });
@@ -183,8 +191,18 @@ describe("painel financeiro", () => {
       papel: "FINANCEIRO",
       superadministrador: false,
     });
+    const antigo = await middleware(
+      new NextRequest("http://127.0.0.1/painel-financeiro?periodo=ultimos_3&forma=PIX", {
+        headers: { cookie: `${COOKIE_SESSAO}=${financeiro}` },
+      }),
+    );
+    expect(antigo.status).toBe(307);
+    const destino = new URL(antigo.headers.get("location") ?? "", "http://127.0.0.1");
+    expect(destino.pathname).toBe("/dashboards/financeiro");
+    expect(destino.searchParams.get("periodo")).toBe("ultimos_3");
+    expect(destino.searchParams.get("forma")).toBe("PIX");
     const liberado = await middleware(
-      new NextRequest("http://127.0.0.1/painel-financeiro", {
+      new NextRequest("http://127.0.0.1/dashboards/financeiro", {
         headers: { cookie: `${COOKIE_SESSAO}=${financeiro}` },
       }),
     );
