@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { PREFERENCIAS_COBRANCA_PADRAO } from "@/lib/cobranca";
 import { formatarDiaMes } from "@/lib/formatacao";
+import type { OpcaoPassoRegua } from "@/lib/regua";
 import type { ClienteServicoDTO, FaturaDTO, PreferenciasCobrancaDTO } from "@/lib/tipos";
 import { AcoesCompartilhar } from "./acoes-compartilhar";
 import { AcoesLembrete } from "./acoes-lembrete";
@@ -26,13 +27,17 @@ export function AcoesFatura({
   passosRegua = [],
   podeEnviarRegua = false,
   vinculos = [],
+  modoTeste = false,
+  emailLogado = "",
 }: {
   fatura: FaturaDTO;
   podeCancelar: boolean;
   preferencias?: PreferenciasCobrancaDTO;
-  passosRegua?: { id: string; rotulo: string }[];
+  passosRegua?: OpcaoPassoRegua[];
   podeEnviarRegua?: boolean;
   vinculos?: ClienteServicoDTO[];
+  modoTeste?: boolean;
+  emailLogado?: string;
 }) {
   const [codigos, setCodigos] = useState(false);
   if (fatura.excluida) {
@@ -85,6 +90,9 @@ export function AcoesFatura({
           lembretes={fatura.lembretes ?? []}
           passos={passosRegua}
           podeEnviar={podeEnviarRegua && (fatura.status === "PENDING" || fatura.status === "OVERDUE")}
+          modoTeste={modoTeste}
+          emailCliente={fatura.email}
+          emailLogado={emailLogado}
         />
         {podeCancelar ? <BotaoCancelarFatura id={fatura.id} recorrencia={recorrencia} /> : null}
       </div>

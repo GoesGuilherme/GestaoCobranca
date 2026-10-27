@@ -4,9 +4,9 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { enviarJson } from "@/lib/api-cliente";
 import { formatarData } from "@/lib/formatacao";
+import type { OpcaoPassoRegua } from "@/lib/regua";
 import type { LembreteReguaDTO, StatusLembrete } from "@/lib/tipos";
-import { classeCampo } from "./campo";
-import { classeBotaoSecundario } from "./estilos";
+import { classeBotaoPrimario, classeBotaoSecundario } from "./estilos";
 
 function rotuloStatus(status: StatusLembrete) {
   if (status === "ENVIADO") return "Enviado";
@@ -14,24 +14,47 @@ function rotuloStatus(status: StatusLembrete) {
   return "Ignorado";
 }
 
+function rotuloCanal(canal: string) {
+  return canal === "EMAIL" ? "E-mail" : canal;
+}
+
 export function AcoesLembrete({
   faturaId,
   lembretes,
   passos,
   podeEnviar,
+  modoTeste = false,
+  emailCliente = "",
+  emailLogado = "",
 }: {
   faturaId: string;
   lembretes: LembreteReguaDTO[];
-  passos: { id: string; rotulo: string }[];
+  passos: OpcaoPassoRegua[];
   podeEnviar: boolean;
+  modoTeste?: boolean;
+  emailCliente?: string;
+  emailLogado?: string;
 }) {
   const router = useRouter();
   const [lista, setLista] = useState(lembretes);
+  const [aberto, setAberto] = useState(false);
   const [passoId, setPassoId] = useState(passos[0]?.id ?? "");
   const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
 
-  async function enviar() {
+  function abrir() {
+    setPassoId(passos[0]?.id ?? "");
+    setErro("");
+    setAberto(true);
+  }
+
+  function fechar() {
+    if (enviando) return;
+    setAberto(false);
+    setErro("");
+  }
+
+  async function confirmar() {
     if (!passoId) return;
     setErro("");
     setEnviando(true);
@@ -46,8 +69,11 @@ export function AcoesLembrete({
       return;
     }
     setLista((atual) => [resposta.dados.lembrete, ...atual]);
+    setAberto(false);
     router.refresh();
   }
+
+  const destinatario = modoTeste ? emailLogado : emailCliente;
 
   return (
     <div className="mt-3 max-w-md">
@@ -68,26 +94,57 @@ export function AcoesLembrete({
         </ul>
       )}
       {podeEnviar && passos.length > 0 ? (
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <select
-            id={`lembrete-passo-${faturaId}`}
-            aria-label="Passo para enviar agora"
-            className={`${classeCampo} max-w-xs`}
-            value={passoId}
-            onChange={(evento) => setPassoId(evento.target.value)}
+        <button type="button" className={`${classeBotaoSecundario} mt-2`} onClick={abrir}>
+          Enviar lembrete
+        </button>
+      ) : null}
+      {aberto ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-forest-deep/50 px-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={`titulo-lembrete-${faturaId}`}
+            className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-3xl bg-card p-6 shadow-xl"
           >
-            {passos.map((passo) => (
-              <option key={passo.id} value={passo.id}>
-                {passo.rotulo}
-              </option>
-            ))}
-          </select>
-          <button type="button" className={classeBotaoSecundario} disabled={enviando} onClick={enviar}>
-            {enviando ? "Enviando…" : "Enviar agora"}
-          </button>
+            <h2 id={`titulo-lembrete-${faturaId}`} className="font-display text-2xl">
+              Enviar lembrete
+            </h2>
+            <p className="mt-2 text-sm text-muted">Qual lembrete desta régua enviar?</p>
+            <fieldset className="mt-4 grid gap-2">
+              <legend className="sr-only">Passo da régua</legend>
+              {passos.map((passo) => (
+                <label key={passo.id} className="flex cursor-pointer items-start gap-3 rounded-2xl border border-line px-3 py-2">
+                  <input
+                    type="radio"
+                    name={`lembrete-${faturaId}`}
+                    className="mt-1"
+                    checked={passoId === passo.id}
+                    onChange={() => setPassoId(passo.id)}
+                  />
+                  <span>
+                    <span className="block text-sm font-medium">{passo.rotulo}</span>
+                    <span className="block text-xs text-muted">Canal: {rotuloCanal(passo.canal)}</span>
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+            <p className="mt-4 text-sm leading-6">
+              {modoTeste
+                ? `Modo teste ligado. Este envio não vai para o cliente. Vai para quem está logado${emailLogado ? ` (${emailLogado})` : ""}. O envio diário da régua vai só para o dono.`
+                : `Destinatário: ${destinatario || "o cliente não tem e-mail"}.`}
+            </p>
+            {erro ? <p className="mt-3 text-sm text-clay">{erro}</p> : null}
+            <div className="mt-6 flex justify-end gap-3">
+              <button type="button" className={classeBotaoSecundario} onClick={fechar} disabled={enviando}>
+                Cancelar
+              </button>
+              <button type="button" className={classeBotaoPrimario} onClick={() => void confirmar()} disabled={enviando || !passoId}>
+                {enviando ? "Enviando…" : "Confirmar"}
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
-      {erro ? <p className="mt-1 text-xs text-clay">{erro}</p> : null}
     </div>
   );
 }

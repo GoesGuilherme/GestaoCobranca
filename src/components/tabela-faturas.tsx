@@ -2,7 +2,7 @@ import Link from "next/link";
 import { PREFERENCIAS_COBRANCA_PADRAO } from "@/lib/cobranca";
 import { formatarReais } from "@/lib/dinheiro";
 import { formatarDataIso } from "@/lib/formatacao";
-import { rotuloReguaDaFatura, type PassoParaRotulo } from "@/lib/regua";
+import { opcoesDaReguaAplicavel, rotuloReguaDaFatura, type OpcaoPassoRegua, type PassoParaRotulo } from "@/lib/regua";
 import { rotuloFormaCobranca } from "@/lib/rotulos";
 import type { ClienteServicoDTO, FaturaDTO, PreferenciasCobrancaDTO } from "@/lib/tipos";
 import { AcoesFatura } from "./acoes-fatura";
@@ -20,17 +20,23 @@ export function TabelaFaturas({
   vinculos = [],
   passosCliente = null,
   hoje = "",
+  reguasEnvio,
+  modoTeste = false,
+  emailLogado = "",
 }: {
   faturas: FaturaDTO[];
   podeCancelar: boolean;
   mostrarCliente: boolean;
   destaqueId?: string | null;
   preferencias?: PreferenciasCobrancaDTO;
-  passosRegua?: { id: string; rotulo: string }[];
+  passosRegua?: OpcaoPassoRegua[];
   podeEnviarRegua?: boolean;
   vinculos?: ClienteServicoDTO[];
   passosCliente?: PassoParaRotulo[] | null;
   hoje?: string;
+  reguasEnvio?: { id: string; padrao: boolean; nome: string; passos: { id: string; naEmissao: boolean; dias: number | null; assunto?: string; canal?: string }[] }[];
+  modoTeste?: boolean;
+  emailLogado?: string;
 }) {
   if (faturas.length === 0) {
     return (
@@ -42,8 +48,11 @@ export function TabelaFaturas({
 
   return (
     <ul className="divide-y divide-line overflow-hidden rounded-3xl border border-line bg-card">
-      {faturas.map((fatura) => {
-        const rotulo = hoje
+          {faturas.map((fatura) => {
+            const passosEnvio = reguasEnvio
+              ? opcoesDaReguaAplicavel({ modo: fatura.reguaModo, reguaId: fatura.reguaId }, reguasEnvio)
+              : passosRegua;
+            const rotulo = hoje
           ? rotuloReguaDaFatura({
               status: fatura.status,
               excluida: fatura.excluida,
@@ -81,9 +90,11 @@ export function TabelaFaturas({
                 fatura={fatura}
                 podeCancelar={podeCancelar}
                 preferencias={preferencias}
-                passosRegua={passosRegua}
+                passosRegua={passosEnvio}
                 podeEnviarRegua={podeEnviarRegua}
                 vinculos={vinculos}
+                modoTeste={modoTeste}
+                emailLogado={emailLogado}
               />
             </div>
           </li>

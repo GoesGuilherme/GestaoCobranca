@@ -5,7 +5,7 @@ import { PREFERENCIAS_COBRANCA_PADRAO } from "@/lib/cobranca";
 import { formatarReais, somarDinheiro } from "@/lib/dinheiro";
 import { faturasNaSituacao, faturaNaSituacao } from "@/lib/fatura-situacao";
 import { formatarDataIso } from "@/lib/formatacao";
-import { dataSaoPaulo, type PassoParaRotulo } from "@/lib/regua";
+import { dataSaoPaulo, type OpcaoPassoRegua, type PassoParaRotulo } from "@/lib/regua";
 import type { ClienteServicoDTO, FaturaDTO, PreferenciasCobrancaDTO, SituacaoFatura } from "@/lib/tipos";
 import { AcoesCompartilhar } from "./acoes-compartilhar";
 import { FormularioFatura } from "./formulario-fatura";
@@ -75,16 +75,20 @@ export function PainelFaturasCliente({
   podeEnviarRegua = false,
   passosCliente = null,
   hoje,
+  modoTeste = false,
+  emailLogado = "",
 }: {
   clienteId: string;
   vinculos: ClienteServicoDTO[];
   faturas: FaturaDTO[];
   podeCancelar: boolean;
   preferencias?: PreferenciasCobrancaDTO;
-  passosRegua?: { id: string; rotulo: string }[];
+  passosRegua?: OpcaoPassoRegua[];
   podeEnviarRegua?: boolean;
   passosCliente?: PassoParaRotulo[] | null;
   hoje: string;
+  modoTeste?: boolean;
+  emailLogado?: string;
 }) {
   const [emitida, setEmitida] = useState<FaturaDTO | null>(null);
   const [emitindo, setEmitindo] = useState(false);
@@ -202,6 +206,8 @@ export function PainelFaturasCliente({
           vinculos={vinculos}
           passosCliente={passosCliente}
           hoje={hoje}
+          modoTeste={modoTeste}
+          emailLogado={emailLogado}
         />
       </div>
     </section>

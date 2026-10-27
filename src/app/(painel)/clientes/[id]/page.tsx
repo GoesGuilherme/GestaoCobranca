@@ -14,7 +14,7 @@ import { formatarReais } from "@/lib/dinheiro";
 import { formatarData } from "@/lib/formatacao";
 import { somenteDigitos } from "@/lib/documento";
 import { podeAlterarServicos, podeEmitirCobranca, podeVerCustoServico, podeVerFaturas, podeVerRegua } from "@/lib/permissoes";
-import { opcoesDePasso, passosDaAtribuicao } from "@/lib/regua";
+import { opcoesDaReguaAplicavel, passosDaAtribuicao } from "@/lib/regua";
 import type { ClienteDetalhe, ClienteServicoDTO, FaturaDTO, ServicoDTO } from "@/lib/tipos";
 import { acessoDaPagina } from "@/server/auth/pagina";
 import { ErroAplicacao } from "@/server/erros";
@@ -71,7 +71,9 @@ export default async function PaginaCliente({ params }: { params: Promise<{ id: 
 
   const preferencias = podeCobrar ? await obterPreferenciasCobranca(acesso.empresaId) : undefined;
   const regua = podeVerRegua(acesso.papel) ? await obterPainelRegua(acesso) : null;
-  const passosRegua = regua ? opcoesDePasso(regua.reguas) : [];
+  const passosRegua = regua
+    ? opcoesDaReguaAplicavel({ modo: cliente.reguaModo, reguaId: cliente.reguaId }, regua.reguas)
+    : [];
   const passosCliente = regua
     ? passosDaAtribuicao({ modo: cliente.reguaModo, reguaId: cliente.reguaId }, regua.reguas)
     : null;
@@ -146,6 +148,8 @@ export default async function PaginaCliente({ params }: { params: Promise<{ id: 
           podeEnviarRegua={podeCobrar}
           passosCliente={passosCliente}
           hoje={hoje}
+          modoTeste={Boolean(regua?.config.gravada && regua.config.modoTeste)}
+          emailLogado={acesso.email}
         />
       ) : null}
 

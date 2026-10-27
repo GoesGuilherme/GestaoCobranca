@@ -5,6 +5,8 @@ import {
   dentroDaJanela,
   diasAtraso,
   passoCombina,
+  opcoesDaReguaAplicavel,
+  opcoesDePasso,
   rotuloAtribuicao,
   rotuloPasso,
   rotuloReguaDaFatura,
@@ -37,6 +39,36 @@ describe("texto da régua", () => {
     expect(rotuloAtribuicao({ pausada: false, nome: "Padrão" })).toBe("Régua: Padrão");
     expect(rotuloAtribuicao({ pausada: true, nome: "Clientes VIP" })).toBe("Régua pausada · Clientes VIP");
     expect(rotuloAtribuicao({ pausada: false, nome: null })).toBe("Sem régua");
+  });
+
+  it("lista o assunto cadastrado da régua que vale para o cliente", () => {
+    const reguas = [
+      {
+        id: "padrao",
+        padrao: true,
+        nome: "Padrão",
+        passos: [{ id: "p1", naEmissao: false, dias: 0, assunto: "Assunto da padrão", canal: "EMAIL" }],
+      },
+      {
+        id: "pdv",
+        padrao: false,
+        nome: "PDVLegal",
+        passos: [
+          { id: "a", naEmissao: false, dias: 0, assunto: "No vencimento", canal: "EMAIL" },
+          { id: "b", naEmissao: false, dias: -5, assunto: "   ", canal: "EMAIL" },
+        ],
+      },
+    ];
+    expect(opcoesDePasso(reguas)).toEqual([
+      { id: "p1", rotulo: "Padrão · Assunto da padrão", canal: "EMAIL" },
+      { id: "a", rotulo: "PDVLegal · No vencimento", canal: "EMAIL" },
+      { id: "b", rotulo: "PDVLegal · 5 dias antes", canal: "EMAIL" },
+    ]);
+    expect(opcoesDaReguaAplicavel({ modo: "ESPECIFICA", reguaId: "pdv" }, reguas).map((passo) => passo.rotulo)).toEqual([
+      "PDVLegal · No vencimento",
+      "PDVLegal · 5 dias antes",
+    ]);
+    expect(opcoesDaReguaAplicavel({ modo: "NENHUMA", reguaId: null }, reguas)).toEqual([]);
   });
 
   it("não envia no fim de semana e recupera o alvo na segunda", () => {
