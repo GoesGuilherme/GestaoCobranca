@@ -3,11 +3,18 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-export function AbasDashboards({ mostrarFinanceiro }: { mostrarFinanceiro: boolean }) {
+export function AbasDashboards({
+  mostrarFinanceiro,
+  mostrarResultado,
+}: {
+  mostrarFinanceiro: boolean;
+  mostrarResultado: boolean;
+}) {
   const pathname = usePathname();
   const abas = [
     { href: "/dashboards/painel", rotulo: "Painel" },
     ...(mostrarFinanceiro ? [{ href: "/dashboards/financeiro", rotulo: "Financeiro" }] : []),
+    ...(mostrarResultado ? [{ href: "/dashboards/resultado", rotulo: "Resultado" }] : []),
   ];
 
   return (
