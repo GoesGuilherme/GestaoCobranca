@@ -1,4 +1,6 @@
 import { dataHojeIso, isoDeData } from "./data";
+import { STATUS_PAGAS } from "./fatura-situacao";
+import type { ModoReguaCliente } from "./tipos";
 
 export const NOME_REGUA_SUGERIDA = "Padrão";
 
@@ -168,6 +170,100 @@ export function passoCombina(hoje: string, alvo: string, enviarFimDeSemana: bool
 
 export function diasAtraso(hoje: string, vencimento: string): number {
   return Math.max(0, diferencaDias(vencimento, hoje));
+}
+
+export type PassoParaRotulo = {
+  naEmissao: boolean;
+  dias: number | null;
+  assunto: string;
+};
+
+export type FaseRegua = "antes" | "hoje" | "atraso" | "encerrada";
+
+export type RotuloReguaFatura = {
+  fase: FaseRegua;
+  texto: string;
+  aria: string;
+};
+
+const FASE_ARIA: Record<Exclude<FaseRegua, "encerrada">, string> = {
+  antes: "Antes do vencimento",
+  hoje: "No vencimento",
+  atraso: "Em atraso",
+};
+
+export function passosDaAtribuicao(
+  atribuicao: { modo: ModoReguaCliente; reguaId: string | null },
+  reguas: { id: string; padrao: boolean; passos: PassoParaRotulo[] }[],
+): PassoParaRotulo[] | null {
+  if (atribuicao.modo === "NENHUMA") return null;
+  const regua =
+    atribuicao.modo === "ESPECIFICA"
+      ? reguas.find((item) => item.id === atribuicao.reguaId)
+      : reguas.find((item) => item.padrao);
+  if (!regua || regua.passos.length === 0) return null;
+  return regua.passos;
+}
+
+export function rotuloReguaDaFatura(entrada: {
+  status: string;
+  excluida: boolean;
+  vencimento: string;
+  hoje: string;
+  passos: PassoParaRotulo[] | null;
+}): RotuloReguaFatura | null {
+  if (entrada.excluida || STATUS_PAGAS.some((status) => status === entrada.status)) {
+    return { fase: "encerrada", texto: "Encerrada", aria: "Régua encerrada" };
+  }
+  if (!entrada.passos || entrada.passos.length === 0) return null;
+
+  const diff = diferencaDias(entrada.vencimento, entrada.hoje);
+  const fase: Exclude<FaseRegua, "encerrada"> = diff < 0 ? "antes" : diff === 0 ? "hoje" : "atraso";
+  const texto = textoDoPasso(entrada.passos, diff, fase);
+  return { fase, texto, aria: `${FASE_ARIA[fase]}: ${texto}` };
+}
+
+function textoDoPasso(passos: PassoParaRotulo[], diff: number, fase: Exclude<FaseRegua, "encerrada">): string {
+  const comDias = passos.filter((passo) => !passo.naEmissao && typeof passo.dias === "number");
+  if (fase === "hoje") {
+    const noDia = comDias.find((passo) => passo.dias === 0);
+    return noDia ? nomeDoPasso(noDia) : rotuloPasso({ naEmissao: false, dias: 0 });
+  }
+  if (fase === "antes") {
+    const anteriores = comDias.filter((passo) => (passo.dias as number) < 0);
+    const alcancado = maiorDias(anteriores.filter((passo) => (passo.dias as number) <= diff));
+    if (alcancado) return nomeDoPasso(alcancado);
+    const proximo = menorDias(anteriores.filter((passo) => (passo.dias as number) > diff));
+    if (proximo) return nomeDoPasso(proximo);
+  } else {
+    const posteriores = comDias.filter((passo) => (passo.dias as number) > 0);
+    const alcancado = maiorDias(posteriores.filter((passo) => (passo.dias as number) <= diff));
+    if (alcancado) return nomeDoPasso(alcancado);
+    const proximo = menorDias(posteriores.filter((passo) => (passo.dias as number) > diff));
+    if (proximo) return nomeDoPasso(proximo);
+  }
+  const emissao = passos.find((passo) => passo.naEmissao);
+  if (emissao) return nomeDoPasso(emissao);
+  return rotuloPasso({ naEmissao: false, dias: diff });
+}
+
+function nomeDoPasso(passo: PassoParaRotulo): string {
+  const assunto = passo.assunto.trim();
+  return assunto || rotuloPasso(passo);
+}
+
+function maiorDias(passos: PassoParaRotulo[]): PassoParaRotulo | null {
+  return passos.reduce<PassoParaRotulo | null>((escolhido, passo) => {
+    if (!escolhido || (passo.dias as number) > (escolhido.dias as number)) return passo;
+    return escolhido;
+  }, null);
+}
+
+function menorDias(passos: PassoParaRotulo[]): PassoParaRotulo | null {
+  return passos.reduce<PassoParaRotulo | null>((escolhido, passo) => {
+    if (!escolhido || (passo.dias as number) < (escolhido.dias as number)) return passo;
+    return escolhido;
+  }, null);
 }
 
 export function opcoesDePasso(reguas: { nome: string; passos: { id: string; naEmissao: boolean; dias: number | null }[] }[]) {

@@ -20,7 +20,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const acesso = await exigirAcesso();
-    const cliente = await criarCliente(acesso.empresaId, await lerJson(request));
+    const cliente = await criarCliente(acesso.empresaId, await lerJson(request), acesso.papel);
     return jsonOk({ cliente }, 201);
   } catch (erro) {
     return jsonErro(erro);

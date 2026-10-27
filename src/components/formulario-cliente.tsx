@@ -41,10 +41,16 @@ const vazio: Valores = {
 
 export function FormularioCliente({
   cliente,
+  podeBloquear = false,
 }: {
   cliente?: ClienteResumo;
+  podeBloquear?: boolean;
 }) {
   const router = useRouter();
+  const bloqueadoTravado = cliente?.status === "BLOQUEADO" && !podeBloquear;
+  const statusOpcoes = STATUS_CLIENTE.filter(
+    (item) => item.valor !== "BLOQUEADO" || podeBloquear || bloqueadoTravado,
+  );
   const [valores, setValores] = useState<Valores>(
     cliente
       ? {
@@ -188,9 +194,10 @@ export function FormularioCliente({
             id="status"
             className={classeCampo}
             value={valores.status}
+            disabled={bloqueadoTravado}
             onChange={(evento) => alterar("status", evento.target.value)}
           >
-            {STATUS_CLIENTE.map((item) => (
+            {statusOpcoes.map((item) => (
               <option key={item.valor} value={item.valor}>
                 {item.rotulo}
               </option>

@@ -21,6 +21,7 @@ export const STATUS_CLIENTE: { valor: StatusCliente; rotulo: string }[] = [
   { valor: "ATIVO", rotulo: "Ativo" },
   { valor: "INATIVO", rotulo: "Inativo" },
   { valor: "EM_IMPLANTACAO", rotulo: "Em implantação" },
+  { valor: "BLOQUEADO", rotulo: "Bloqueado" },
 ];
 
 export const STATUS_FILIAL: { valor: StatusFilial; rotulo: string }[] = [

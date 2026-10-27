@@ -1,0 +1,1 @@
+ALTER TYPE "status_cliente" ADD VALUE 'BLOQUEADO';

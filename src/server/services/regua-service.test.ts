@@ -408,4 +408,20 @@ describe("régua de cobrança", () => {
     if (anterior === undefined) delete process.env.CRON_SECRET;
     else process.env.CRON_SECRET = anterior;
   });
+
+  it("cliente bloqueado não recebe e-mail e o passo fica ignorado", async () => {
+    await ligar();
+    await umPasso(0, "Não enviar ao bloqueado");
+    const pessoa = await criarCliente(empresaId, cliente(completarCnpj("590000000010")));
+    await prisma.cliente.update({ where: { id: pessoa.id }, data: { status: "BLOQUEADO" } });
+    const fatura = await abrirFatura(pessoa.id, "2026-10-26");
+    const caixa = clienteResendMemoria();
+    const resultado = await executarRegua({ agora: AGORA, empresaId, resend: caixa });
+    expect(caixa.caixa).toHaveLength(0);
+    expect(resultado.enviados).toBe(0);
+    const lembretes = await prisma.lembreteRegua.findMany({ where: { faturaId: fatura.id } });
+    expect(lembretes).toHaveLength(1);
+    expect(lembretes[0]?.status).toBe("IGNORADO");
+    expect(lembretes[0]?.motivo).toBe("cliente bloqueado");
+  });
 });

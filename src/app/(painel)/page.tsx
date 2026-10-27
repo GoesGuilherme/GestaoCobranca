@@ -12,7 +12,7 @@ import { obterPainel } from "@/server/services/painel-service";
 
 export const metadata = { title: "Painel" };
 
-const ordemStatus: StatusCliente[] = ["ATIVO", "EM_IMPLANTACAO", "INATIVO"];
+const ordemStatus: StatusCliente[] = ["ATIVO", "EM_IMPLANTACAO", "INATIVO", "BLOQUEADO"];
 const ordemSegmento: Segmento[] = ["RESTAURANTE", "MERCADO_AUTONOMO", "OUTRO"];
 
 export default async function PaginaPainel() {
@@ -24,7 +24,7 @@ export default async function PaginaPainel() {
       <CabecalhoPagina
         olho="Visão geral"
         titulo="Painel"
-        descricao="Quantos clientes estão ativos, em implantação ou parados, em qual segmento, e quanto está contratado por mês."
+        descricao="Quantos clientes estão ativos, em implantação, parados ou bloqueados, em qual segmento, e quanto está contratado por mês."
         acao={
           <Link href="/clientes/novo" className={classeBotaoPrimario}>
             Novo cliente
@@ -42,7 +42,7 @@ export default async function PaginaPainel() {
         </p>
       ) : null}
 
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
         <article className="rounded-3xl bg-forest px-5 py-6 text-paper sm:col-span-2">
           <p className="text-sm text-white/70">Clientes</p>
           <p className="mt-2 font-display text-6xl">{formatarNumero(painel.totalClientes)}</p>

@@ -18,7 +18,7 @@ export async function PATCH(request: Request, contexto: Contexto) {
   try {
     const acesso = await exigirAcesso();
     const { id } = await contexto.params;
-    const cliente = await atualizarCliente(acesso.empresaId, id, await lerJson(request));
+    const cliente = await atualizarCliente(acesso.empresaId, id, await lerJson(request), acesso.papel);
     return jsonOk({ cliente });
   } catch (erro) {
     return jsonErro(erro);

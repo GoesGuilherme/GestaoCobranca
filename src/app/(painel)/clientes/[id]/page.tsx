@@ -9,11 +9,12 @@ import { PainelFaturasCliente } from "@/components/painel-faturas-cliente";
 import { PainelReguaCliente } from "@/components/painel-regua-cliente";
 import { PainelRecorrenciaLote } from "@/components/painel-recorrencia-lote";
 import { Selo } from "@/components/selo";
+import { dataHojeIso } from "@/lib/data";
 import { formatarReais } from "@/lib/dinheiro";
 import { formatarData } from "@/lib/formatacao";
 import { somenteDigitos } from "@/lib/documento";
 import { podeAlterarServicos, podeEmitirCobranca, podeVerCustoServico, podeVerFaturas, podeVerRegua } from "@/lib/permissoes";
-import { opcoesDePasso } from "@/lib/regua";
+import { opcoesDePasso, passosDaAtribuicao } from "@/lib/regua";
 import type { ClienteDetalhe, ClienteServicoDTO, FaturaDTO, ServicoDTO } from "@/lib/tipos";
 import { acessoDaPagina } from "@/server/auth/pagina";
 import { ErroAplicacao } from "@/server/erros";
@@ -71,6 +72,10 @@ export default async function PaginaCliente({ params }: { params: Promise<{ id: 
   const preferencias = podeCobrar ? await obterPreferenciasCobranca(acesso.empresaId) : undefined;
   const regua = podeVerRegua(acesso.papel) ? await obterPainelRegua(acesso) : null;
   const passosRegua = regua ? opcoesDePasso(regua.reguas) : [];
+  const passosCliente = regua
+    ? passosDaAtribuicao({ modo: cliente.reguaModo, reguaId: cliente.reguaId }, regua.reguas)
+    : null;
+  const hoje = dataHojeIso();
   const whatsapp = somenteDigitos(cliente.whatsapp);
 
   return (
@@ -130,6 +135,20 @@ export default async function PaginaCliente({ params }: { params: Promise<{ id: 
         Cadastrado em {formatarData(cliente.criadoEm)} · Atualizado em {formatarData(cliente.atualizadoEm)}
       </p>
 
+      {verFaturas ? (
+        <PainelFaturasCliente
+          clienteId={cliente.id}
+          vinculos={vinculos}
+          faturas={faturas}
+          podeCancelar={podeCobrar}
+          preferencias={preferencias}
+          passosRegua={passosRegua}
+          podeEnviarRegua={podeCobrar}
+          passosCliente={passosCliente}
+          hoje={hoje}
+        />
+      ) : null}
+
       {regua ? <AvisoModoTeste ativo={regua.config.gravada && regua.config.modoTeste} /> : null}
 
       <PainelReguaCliente
@@ -155,24 +174,6 @@ export default async function PaginaCliente({ params }: { params: Promise<{ id: 
       />
 
       {podeCobrar ? <PainelRecorrenciaLote clienteId={cliente.id} preferencias={preferencias} /> : null}
-
-      {verFaturas ? (
-        <section className="mt-10">
-          <h2 className="font-display text-3xl">Faturas</h2>
-          <p className="mt-2 max-w-2xl text-sm text-muted">
-            Em aberto, vencidas e pagas deste cliente. A segunda via abre o boleto ou a página da cobrança no Asaas.
-          </p>
-          <PainelFaturasCliente
-            clienteId={cliente.id}
-            vinculos={vinculos}
-            faturas={faturas}
-            podeCancelar={podeCobrar}
-            preferencias={preferencias}
-            passosRegua={passosRegua}
-            podeEnviarRegua={podeCobrar}
-          />
-        </section>
-      ) : null}
 
       <PainelFiliais
         clienteId={cliente.id}
