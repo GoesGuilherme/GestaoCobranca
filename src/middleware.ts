@@ -71,6 +71,19 @@ export async function middleware(request: NextRequest) {
     return resultadoProibido(pathname);
   }
 
+  const rotaPainelFinanceiro =
+    pathname === "/painel-financeiro" ||
+    pathname.startsWith("/painel-financeiro/") ||
+    pathname === "/api/painel-financeiro" ||
+    pathname.startsWith("/api/painel-financeiro/");
+  if (rotaPainelFinanceiro && !podeVerFaturas(sessao.papel)) {
+    return paginaProibida(
+      pathname,
+      "O painel financeiro fica com o dono e o financeiro",
+      "Só o dono ou o financeiro pode ver o painel financeiro.",
+    );
+  }
+
   const rotaFaturas =
     pathname === "/faturas" ||
     pathname.startsWith("/faturas/") ||

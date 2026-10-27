@@ -41,7 +41,12 @@ export function BarraLateral({
   const itens = [
     itensBase[0],
     itensBase[1],
-    ...(mostrarFaturas ? [{ href: "/faturas", rotulo: "Faturas" }] : []),
+    ...(mostrarFaturas
+      ? [
+          { href: "/faturas", rotulo: "Faturas" },
+          { href: "/painel-financeiro", rotulo: "Financeiro" },
+        ]
+      : []),
     ...(mostrarRegua ? [{ href: "/regua", rotulo: "Régua" }] : []),
     itensBase[2],
     ...(mostrarResultado ? [{ href: "/resultado", rotulo: "Resultado" }] : []),
