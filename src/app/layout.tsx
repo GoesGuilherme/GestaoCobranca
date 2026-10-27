@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { Fraunces, Outfit } from "next/font/google";
+import { Outfit } from "next/font/google";
+import { NOME_PRODUTO } from "@/lib/marca";
 import "./globals.css";
 
 const outfit = Outfit({
@@ -7,15 +8,10 @@ const outfit = Outfit({
   variable: "--font-outfit",
 });
 
-const fraunces = Fraunces({
-  subsets: ["latin"],
-  variable: "--font-fraunces",
-});
-
 export const metadata: Metadata = {
   title: {
-    default: "Gestão Cobrança",
-    template: "%s · Gestão Cobrança",
+    default: NOME_PRODUTO,
+    template: `%s · ${NOME_PRODUTO}`,
   },
   description: "Cadastro de clientes, filiais e serviços vendidos.",
   robots: { index: false, follow: false },
@@ -24,7 +20,7 @@ export const metadata: Metadata = {
 export default function LayoutRaiz({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="pt-BR">
-      <body className={`${outfit.variable} ${fraunces.variable} font-sans antialiased`}>
+      <body className={`${outfit.variable} font-sans antialiased`}>
         {children}
       </body>
     </html>

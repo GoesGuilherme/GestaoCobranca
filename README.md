@@ -1,4 +1,4 @@
-# Gestão Cobrança
+# Taguaro
 
 Sistema de cadastro e cobrança para várias empresas assinantes. Cada empresa vê só os próprios clientes, serviços e faturas.
 

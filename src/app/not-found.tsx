@@ -3,7 +3,7 @@ import Link from "next/link";
 export default function NaoEncontrado() {
   return (
     <main className="mx-auto flex min-h-screen max-w-lg flex-col justify-center px-6">
-      <p className="text-sm font-medium text-gold">404</p>
+      <p className="text-sm font-medium text-gold-ink">404</p>
       <h1 className="mt-2 font-display text-4xl">Página não encontrada</h1>
       <p className="mt-3 text-muted">Esse endereço não existe no cadastro.</p>
       <Link

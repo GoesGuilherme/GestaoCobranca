@@ -199,7 +199,7 @@ export function PainelRecorrenciaLote({
               <p className="mt-1">{erro}</p>
             </div>
           ) : null}
-          {resumo ? <p role="status" className="mt-4 text-sm text-forest">{resumo}</p> : null}
+          {resumo ? <p role="status" className="mt-4 text-sm text-ok">{resumo}</p> : null}
           <div className="mt-4 flex flex-wrap gap-2">
             <button type="button" className={classeBotaoPrimario} disabled={enviando || escolhidos.length === 0} onClick={() => void confirmar()}>
               {enviando ? "Criando..." : "Confirmar e criar as assinaturas"}

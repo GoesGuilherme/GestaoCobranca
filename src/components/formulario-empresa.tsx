@@ -59,7 +59,7 @@ export function FormularioEmpresa({ empresa }: { empresa: EmpresaResumo }) {
           {erro}
         </p>
       ) : null}
-      {ok ? <p className="rounded-2xl bg-canopy/10 px-4 py-3 text-sm text-forest">{ok}</p> : null}
+      {ok ? <p className="rounded-2xl bg-leaf px-4 py-3 text-sm text-ok">{ok}</p> : null}
       <Campo label="Razão social" htmlFor="razaoSocial" erro={campos.razaoSocial}>
         <input id="razaoSocial" className={classeCampo} value={valores.razaoSocial} onChange={(evento) => alterar("razaoSocial", evento.target.value)} />
       </Campo>

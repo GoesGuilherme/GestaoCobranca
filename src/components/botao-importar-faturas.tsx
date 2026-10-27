@@ -40,7 +40,7 @@ export function BotaoImportarFaturas() {
       <button type="button" className={classeBotaoSecundario} disabled={enviando} onClick={() => void importar()}>
         {enviando ? "Importando..." : "Importar faturas"}
       </button>
-      {mensagem ? <p role="status" className="mt-3 text-sm text-forest">{mensagem}</p> : null}
+      {mensagem ? <p role="status" className="mt-3 text-sm text-ok">{mensagem}</p> : null}
       {erro ? (
         <div role="alert" className="mt-3 rounded-2xl border border-clay/40 bg-clay-soft px-4 py-3 text-sm text-clay">
           <p className="font-medium">O Asaas não devolveu as faturas.</p>

@@ -9,18 +9,18 @@ import {
 import type { Segmento, StatusCliente, StatusFilial, StatusServicoCliente } from "@/lib/tipos";
 
 const cores: Record<string, string> = {
-  ATIVO: "bg-leaf text-forest",
-  ATIVA: "bg-leaf text-forest",
+  ATIVO: "bg-leaf text-ok",
+  ATIVA: "bg-leaf text-ok",
   INATIVO: "bg-clay-soft text-clay",
   INATIVA: "bg-clay-soft text-clay",
-  EM_IMPLANTACAO: "bg-gold-soft text-gold",
+  EM_IMPLANTACAO: "bg-gold-soft text-gold-ink",
   BLOQUEADO: "bg-clay text-white",
 };
 
 const coresFatura: Record<TomFatura, string> = {
-  aberto: "bg-gold-soft text-gold",
+  aberto: "bg-gold-soft text-gold-ink",
   vencida: "bg-clay-soft text-clay",
-  paga: "bg-leaf text-forest",
+  paga: "bg-leaf text-ok",
   cancelada: "bg-sand text-muted",
   estorno: "bg-[#f8e6d4] text-[#9a3412]",
 };

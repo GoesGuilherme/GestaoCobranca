@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { NOME_PRODUTO } from "@/lib/marca";
 import { podeConfigurarAsaas, podeVerFaturas, podeVerRegua, podeVerResultado } from "@/lib/permissoes";
 import { COOKIE_SESSAO } from "@/server/auth/constantes";
 import { verificarToken } from "@/server/auth/token";
@@ -13,7 +14,7 @@ function paginaProibida(pathname: string, titulo: string, texto: string) {
   if (pathname.startsWith("/api/")) {
     return NextResponse.json({ erro: texto, codigo: "sem_permissao" }, { status: 403 });
   }
-  const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Acesso negado · Gestão Cobrança</title></head><body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#f3eee4;color:#1c1915;font-family:Georgia,serif"><main style="max-width:36rem;padding:2rem"><p style="letter-spacing:.14em;text-transform:uppercase;font-size:.75rem;color:#a97816">Acesso negado</p><h1 style="font-size:2.5rem;font-weight:500">${titulo}</h1><p style="color:#6d655c">${texto}</p><p><a href="/" style="color:#2f6a52">Voltar ao painel</a></p></main></body></html>`;
+  const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Acesso negado · ${NOME_PRODUTO}</title></head><body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#f4f7fb;color:#051a3a;font-family:Outfit,ui-sans-serif,system-ui,sans-serif"><main style="max-width:36rem;padding:2rem"><p style="letter-spacing:.14em;text-transform:uppercase;font-size:.75rem;color:#6b4e0e">Acesso negado</p><h1 style="font-size:2.5rem;font-weight:500">${titulo}</h1><p style="color:#5a6b80">${texto}</p><p><a href="/" style="color:#36679d">Voltar ao painel</a></p></main></body></html>`;
   return new NextResponse(html, {
     status: 403,
     headers: { "content-type": "text/html; charset=utf-8" },
@@ -27,7 +28,7 @@ function resultadoProibido(pathname: string) {
       { status: 403 },
     );
   }
-  const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Acesso negado · Gestão Cobrança</title></head><body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#f3eee4;color:#1c1915;font-family:Georgia,serif"><main style="max-width:36rem;padding:2rem"><p style="letter-spacing:.14em;text-transform:uppercase;font-size:.75rem;color:#a97816">Acesso negado</p><h1 style="font-size:2.5rem;font-weight:500">Só o dono vê esta página</h1><p style="color:#6d655c">O resultado de custo e faturamento fica com o dono da empresa. Financeiro e suporte não entram aqui.</p><p><a href="/" style="color:#2f6a52">Voltar ao painel</a></p></main></body></html>`;
+  const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Acesso negado · ${NOME_PRODUTO}</title></head><body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#f4f7fb;color:#051a3a;font-family:Outfit,ui-sans-serif,system-ui,sans-serif"><main style="max-width:36rem;padding:2rem"><p style="letter-spacing:.14em;text-transform:uppercase;font-size:.75rem;color:#6b4e0e">Acesso negado</p><h1 style="font-size:2.5rem;font-weight:500">Só o dono vê esta página</h1><p style="color:#5a6b80">O resultado de custo e faturamento fica com o dono da empresa. Financeiro e suporte não entram aqui.</p><p><a href="/" style="color:#36679d">Voltar ao painel</a></p></main></body></html>`;
   return new NextResponse(html, {
     status: 403,
     headers: { "content-type": "text/html; charset=utf-8" },

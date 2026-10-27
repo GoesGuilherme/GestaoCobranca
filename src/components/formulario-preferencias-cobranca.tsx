@@ -91,7 +91,7 @@ export function FormularioPreferenciasCobranca({ inicial }: { inicial: Preferenc
         </div>
       ) : null}
       {aviso ? (
-        <p role="status" className="rounded-2xl bg-leaf px-4 py-3 text-sm text-forest">
+        <p role="status" className="rounded-2xl bg-leaf px-4 py-3 text-sm text-ok">
           {aviso}
         </p>
       ) : null}

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { enviarJson } from "@/lib/api-cliente";
+import { LogoTaguaro } from "./logo-taguaro";
 
 const itensBase = [
   { href: "/dashboards/painel", rotulo: "Dashboards" },
@@ -63,7 +64,7 @@ export function BarraLateral({
             key={item.href}
             href={item.href}
             className={`rounded-full px-3 py-2 text-sm font-medium transition md:rounded-xl ${
-              ligado ? "bg-white/15 text-white" : "text-white/75 hover:bg-white/10 hover:text-white"
+              ligado ? "bg-canopy text-white" : "text-white/75 hover:bg-white/10 hover:text-white"
             }`}
           >
             {item.rotulo}
@@ -78,11 +79,8 @@ export function BarraLateral({
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 grid-rows-[auto_minmax(0,1fr)_auto] bg-forest-deep text-paper md:grid">
         <div className="px-6 pt-6">
           <Link href="/" className="block">
-            <span className="inline-flex size-10 items-center justify-center rounded-2xl bg-gold text-sm font-semibold text-forest-deep">
-              GC
-            </span>
-            <span className="mt-4 block font-display text-2xl leading-none">Gestão Cobrança</span>
-            <span className="mt-2 block text-sm text-white/65">{nomeEmpresa}</span>
+            <LogoTaguaro tom="escuro" />
+            <span className="mt-3 block text-sm text-white/65">{nomeEmpresa}</span>
           </Link>
         </div>
         <div className="overflow-y-auto px-4 py-6">{navegacao}</div>
@@ -101,8 +99,8 @@ export function BarraLateral({
 
       <div className="sticky top-0 z-20 border-b border-line bg-forest-deep text-paper md:hidden">
         <div className="flex items-center justify-between gap-3 px-4 py-3">
-          <Link href="/" className="font-display text-xl">
-            Gestão Cobrança
+          <Link href="/" className="block">
+            <LogoTaguaro tom="escuro" compacto />
           </Link>
           <button type="button" onClick={sair} className="cursor-pointer text-sm text-white/80">
             Sair
