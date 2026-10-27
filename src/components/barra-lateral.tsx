@@ -5,13 +5,13 @@ import { usePathname, useRouter } from "next/navigation";
 import { enviarJson } from "@/lib/api-cliente";
 
 const itensBase = [
-  { href: "/", rotulo: "Painel" },
+  { href: "/dashboards/painel", rotulo: "Dashboards" },
   { href: "/clientes", rotulo: "Clientes" },
   { href: "/servicos", rotulo: "Serviços" },
 ];
 
 function ativo(pathname: string, href: string) {
-  if (href === "/") return pathname === "/";
+  if (href === "/dashboards/painel") return pathname === "/dashboards" || pathname.startsWith("/dashboards/");
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -41,12 +41,7 @@ export function BarraLateral({
   const itens = [
     itensBase[0],
     itensBase[1],
-    ...(mostrarFaturas
-      ? [
-          { href: "/faturas", rotulo: "Faturas" },
-          { href: "/painel-financeiro", rotulo: "Financeiro" },
-        ]
-      : []),
+    ...(mostrarFaturas ? [{ href: "/faturas", rotulo: "Faturas" }] : []),
     ...(mostrarRegua ? [{ href: "/regua", rotulo: "Régua" }] : []),
     itensBase[2],
     ...(mostrarResultado ? [{ href: "/resultado", rotulo: "Resultado" }] : []),

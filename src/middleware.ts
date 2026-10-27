@@ -74,6 +74,8 @@ export async function middleware(request: NextRequest) {
   const rotaPainelFinanceiro =
     pathname === "/painel-financeiro" ||
     pathname.startsWith("/painel-financeiro/") ||
+    pathname === "/dashboards/financeiro" ||
+    pathname.startsWith("/dashboards/financeiro/") ||
     pathname === "/api/painel-financeiro" ||
     pathname.startsWith("/api/painel-financeiro/");
   if (rotaPainelFinanceiro && !podeVerFaturas(sessao.papel)) {
