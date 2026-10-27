@@ -168,7 +168,7 @@ export function PainelFaturasCliente({
         </div>
       ) : null}
       {emitida ? (
-        <div role="status" className="mt-4 rounded-2xl border border-forest/20 bg-leaf px-4 py-3 text-sm text-forest">
+        <div role="status" className="mt-4 rounded-2xl border border-ok/20 bg-leaf px-4 py-3 text-sm text-ok">
           <p className="font-medium">{tituloEmissao(emitida.formaCobranca)}</p>
           <p className="mt-1">
             {link ? (

@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { FormularioLogin } from "@/components/formulario-login";
+import { LogoTaguaro } from "@/components/logo-taguaro";
 
 export const metadata = { title: "Entrar" };
 
@@ -8,11 +9,8 @@ export default function PaginaLogin() {
     <main className="grid min-h-screen lg:grid-cols-2">
       <section className="relative hidden flex-col justify-between bg-forest-deep px-12 py-12 text-paper lg:flex">
         <div>
-          <span className="inline-flex size-12 items-center justify-center rounded-2xl bg-gold font-semibold text-forest-deep">
-            GC
-          </span>
-          <p className="mt-10 text-sm uppercase tracking-[0.18em] text-gold">Gestão Cobrança</p>
-          <h2 className="mt-3 max-w-md font-display text-5xl leading-[1.05]">
+          <LogoTaguaro tom="escuro" />
+          <h2 className="mt-10 max-w-md font-display text-5xl leading-[1.05]">
             Clientes e unidades, num lugar só.
           </h2>
           <p className="mt-5 max-w-md text-base leading-7 text-white/75">
@@ -32,7 +30,9 @@ export default function PaginaLogin() {
       </section>
       <section className="flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-md">
-          <p className="mb-6 font-display text-3xl lg:hidden">Gestão Cobrança</p>
+          <p className="mb-6 lg:hidden">
+            <LogoTaguaro tom="claro" />
+          </p>
           <Suspense fallback={<p className="text-muted">Carregando...</p>}>
             <FormularioLogin mostrarExemplo={process.env.NODE_ENV !== "production"} />
           </Suspense>

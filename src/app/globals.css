@@ -2,21 +2,23 @@
 
 @theme inline {
   --font-sans: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-fraunces), Georgia, "Times New Roman", serif;
-  --color-paper: #f3eee4;
-  --color-ink: #1c1915;
-  --color-muted: #6d655c;
-  --color-line: #e4d9c6;
-  --color-card: #fffdf8;
-  --color-forest: #1e3d32;
-  --color-forest-deep: #12261f;
-  --color-canopy: #2f6a52;
+  --font-display: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
+  --color-paper: #f4f7fb;
+  --color-ink: #051a3a;
+  --color-muted: #5a6b80;
+  --color-line: #d5dee8;
+  --color-card: #ffffff;
+  --color-forest: #0b3861;
+  --color-forest-deep: #051a3a;
+  --color-canopy: #36679d;
   --color-leaf: #e4f2ea;
-  --color-gold: #a97816;
-  --color-gold-soft: #f8edd2;
+  --color-ok: #146c43;
+  --color-gold: #c7922e;
+  --color-gold-ink: #6b4e0e;
+  --color-gold-soft: #f8efda;
   --color-clay: #a33b24;
   --color-clay-soft: #f8e3da;
-  --color-sand: #efe4d2;
+  --color-sand: #e6eef6;
 }
 
 html {
@@ -25,15 +27,26 @@ html {
 
 body {
   background:
-    radial-gradient(1100px 480px at 0% -10%, rgba(47, 106, 82, 0.09), transparent 55%),
-    radial-gradient(800px 420px at 100% 0%, rgba(169, 120, 22, 0.1), transparent 46%),
+    radial-gradient(1100px 480px at 0% -10%, rgba(11, 56, 97, 0.08), transparent 55%),
+    radial-gradient(800px 420px at 100% 0%, rgba(199, 146, 46, 0.12), transparent 46%),
     var(--color-paper);
   color: var(--color-ink);
   font-family: var(--font-sans);
 }
 
+.font-display {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+}
+
 ::selection {
-  background: #d7ebdf;
+  background: #d6e4f5;
+}
+
+a:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--color-gold);
+  outline-offset: 2px;
 }
 
 input,

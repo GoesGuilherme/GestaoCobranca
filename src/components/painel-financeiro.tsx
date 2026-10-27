@@ -139,10 +139,10 @@ function Cartao({
 }
 
 const SERIES = [
-  { chave: "recebido", rotulo: "Recebido", cor: "#2f6a52" },
-  { chave: "atraso", rotulo: "Em atraso", cor: "#a33b24" },
-  { chave: "aReceber", rotulo: "A receber", cor: "#a97816" },
-  { chave: "previsao", rotulo: "Previsão", cor: "#8fb39a" },
+  { chave: "recebido", rotulo: "Recebido", cor: "#0B3861" },
+  { chave: "atraso", rotulo: "Em atraso", cor: "#A33B24" },
+  { chave: "aReceber", rotulo: "A receber", cor: "#36679D" },
+  { chave: "previsao", rotulo: "Previsão", cor: "#B7CDE4" },
 ] as const;
 
 function Grafico({ painel }: { painel: PainelFinanceiro }) {
@@ -196,7 +196,7 @@ function Grafico({ painel }: { painel: PainelFinanceiro }) {
           role="img"
           aria-label="Barras de recebido, em atraso, a receber e previsão por mês de vencimento"
         >
-          <line x1={esquerda} y1={base} x2={largura - direita} y2={base} stroke="#e4ddd0" />
+          <line x1={esquerda} y1={base} x2={largura - direita} y2={base} stroke="#D5DEE8" />
           {painel.meses.map((mes, indice) => {
             const x = esquerda + passo * indice + (passo - passo * 0.62) / 2;
             const larguraBarra = passo * 0.62;
@@ -214,7 +214,7 @@ function Grafico({ painel }: { painel: PainelFinanceiro }) {
                   if (parte.altura <= 0) return null;
                   return <rect key={parte.cor} x={x} y={y} width={larguraBarra} height={parte.altura} fill={parte.cor} rx="2" />;
                 })}
-                <text x={esquerda + passo * indice + passo / 2} y="220" textAnchor="middle" fontSize="10" fill="#6d655c">
+                <text x={esquerda + passo * indice + passo / 2} y="220" textAnchor="middle" fontSize="10" fill="#5A6B80">
                   {mes.rotulo}
                 </text>
               </g>
@@ -222,15 +222,15 @@ function Grafico({ painel }: { painel: PainelFinanceiro }) {
           })}
           {segmentos.map((pontos) =>
             pontos.includes(" ") ? (
-              <polyline key={pontos} points={pontos} fill="none" stroke="#1e3d32" strokeWidth="2" />
+              <polyline key={pontos} points={pontos} fill="none" stroke="#C7922E" strokeWidth="2" />
             ) : (
-              <circle key={pontos} cx={pontos.split(",")[0]} cy={pontos.split(",")[1]} r="3" fill="#1e3d32" />
+              <circle key={pontos} cx={pontos.split(",")[0]} cy={pontos.split(",")[1]} r="3" fill="#C7922E" />
             ),
           )}
-          <text x={largura - 4} y={topo + 8} textAnchor="end" fontSize="10" fill="#6d655c">
+          <text x={largura - 4} y={topo + 8} textAnchor="end" fontSize="10" fill="#5A6B80">
             100%
           </text>
-          <text x={largura - 4} y={base} textAnchor="end" fontSize="10" fill="#6d655c">
+          <text x={largura - 4} y={base} textAnchor="end" fontSize="10" fill="#5A6B80">
             0%
           </text>
         </svg>
@@ -243,7 +243,7 @@ function Grafico({ painel }: { painel: PainelFinanceiro }) {
           </li>
         ))}
         <li className="inline-flex items-center gap-2">
-          <span className="inline-block h-0.5 w-4 bg-forest" />
+          <span className="inline-block h-0.5 w-4 bg-gold" />
           Inadimplência
         </li>
       </ul>

@@ -7,8 +7,8 @@ const LUZES: { fase: Exclude<FaseRegua, "encerrada">; acesa: string; apagada: st
 ];
 
 const TEXTO: Record<FaseRegua, string> = {
-  antes: "text-canopy",
-  hoje: "text-gold",
+  antes: "text-ok",
+  hoje: "text-gold-ink",
   atraso: "text-clay",
   encerrada: "text-muted",
 };
@@ -16,7 +16,7 @@ const TEXTO: Record<FaseRegua, string> = {
 export function SemaforoRegua({ fase, texto, aria }: { fase: FaseRegua; texto: string; aria: string }) {
   return (
     <span className="inline-flex min-w-0 max-w-full items-center gap-2" role="img" aria-label={aria}>
-      <span aria-hidden="true" className="inline-flex shrink-0 items-center gap-1 rounded-full bg-forest px-1.5 py-1">
+      <span aria-hidden="true" className="inline-flex shrink-0 items-center gap-1 rounded-full bg-forest-deep px-1.5 py-1">
         {LUZES.map((luz) => (
           <span
             key={luz.fase}

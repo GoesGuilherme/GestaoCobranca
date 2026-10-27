@@ -194,13 +194,13 @@ export function AcoesRecorrencia({
     <div className="mt-3 w-full">
       <div className="flex flex-wrap items-center gap-2">
         {assinatura ? (
-          <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${ativa ? "bg-leaf text-forest" : pausada ? "bg-gold-soft text-gold" : "bg-clay-soft text-clay"}`}>
+          <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${ativa ? "bg-leaf text-ok" : pausada ? "bg-gold-soft text-gold-ink" : "bg-clay-soft text-clay"}`}>
             {rotuloAssinatura(assinatura.status)}
           </span>
         ) : null}
         {assinatura?.cartaoStatus ? (
           <span
-            className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${assinatura.cartaoStatus === "CADASTRADO" ? "bg-leaf text-forest" : assinatura.cartaoStatus === "RECUSADO" ? "bg-clay-soft text-clay" : "bg-gold-soft text-gold"}`}
+            className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${assinatura.cartaoStatus === "CADASTRADO" ? "bg-leaf text-ok" : assinatura.cartaoStatus === "RECUSADO" ? "bg-clay-soft text-clay" : "bg-gold-soft text-gold-ink"}`}
           >
             {rotuloCartao(assinatura.cartaoStatus)}
             {assinatura.cartaoStatus === "CADASTRADO" && assinatura.cartaoFinal

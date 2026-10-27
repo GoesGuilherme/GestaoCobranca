@@ -53,7 +53,7 @@ export function FormularioLogin({ mostrarExemplo }: { mostrarExemplo: boolean })
       <h1 className="font-display text-4xl">Entrar</h1>
       <p className="mt-2 text-sm text-muted">Entre com o acesso da sua empresa.</p>
       {cadastrado ? (
-        <p className="mt-5 rounded-2xl bg-canopy/10 px-4 py-3 text-sm text-forest">
+        <p className="mt-5 rounded-2xl bg-leaf px-4 py-3 text-sm text-ok">
           Empresa criada. Entre com o e-mail e a senha do dono.
         </p>
       ) : null}
