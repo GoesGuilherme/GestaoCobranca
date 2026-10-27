@@ -86,12 +86,6 @@ export async function middleware(request: NextRequest) {
     );
   }
 
-  if (pathname === "/painel-financeiro" || pathname.startsWith("/painel-financeiro/")) {
-    const destino = request.nextUrl.clone();
-    destino.pathname = "/dashboards/financeiro";
-    return NextResponse.redirect(destino);
-  }
-
   const rotaFaturas =
     pathname === "/faturas" ||
     pathname.startsWith("/faturas/") ||
