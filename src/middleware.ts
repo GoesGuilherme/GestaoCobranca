@@ -43,7 +43,11 @@ export async function middleware(request: NextRequest) {
   const rotaPublica =
     pathname === "/login" ||
     pathname === "/cadastro" ||
+    pathname === "/esqueci-senha" ||
+    pathname === "/redefinir-senha" ||
     pathname === "/api/auth/entrar" ||
+    pathname === "/api/auth/esqueci-senha" ||
+    pathname === "/api/auth/redefinir-senha" ||
     pathname === "/api/cadastro" ||
     pathname === "/api/webhooks/asaas" ||
     pathname === "/api/cron/regua";

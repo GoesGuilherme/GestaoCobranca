@@ -21,6 +21,7 @@ export function usarBancoDeTeste() {
     await prisma.servico.deleteMany();
     await prisma.filial.deleteMany();
     await prisma.cliente.deleteMany();
+    await prisma.redefinicaoSenha.deleteMany();
     await prisma.usuario.deleteMany();
     await prisma.limiteCadastro.deleteMany();
     await prisma.empresa.deleteMany();
