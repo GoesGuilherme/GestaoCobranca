@@ -61,6 +61,10 @@ O seed cria um acesso fictício, só para desenvolvimento:
 
 Os clientes gravados pelo seed têm **Exemplo** no nome. CPF, CNPJ, telefones e e-mails são inventados. Não são empresas reais.
 
+Quem esquece a senha pede um link em Esqueci minha senha. O e-mail sai pela Resend da plataforma (`AUTH_RESEND_API_KEY`), de `Taguaro <noreply@taguaro.com.br>` (`AUTH_EMAIL_FROM`). Não usa a chave que cada empresa grava na régua. Sem a chave, o pedido falha com um aviso genérico e o link não aparece no log.
+
+O boleto e a régua saem do endereço gravado em Régua, no campo E-mail do remetente. Se a empresa ainda não preencheu, o código usa `cobranca@taguaro.com.br`. O dono pode trocar esse endereço na mesma tela. A chave da Resend continua sendo a da empresa.
+
 O seed recusa rodar quando `NODE_ENV` é `production`. Em produção o primeiro acesso da Collab já nasce na migration multiempresa. `npm run criar-admin` ainda serve para criar outro superadministrador nessa empresa, se o e-mail ainda não existir.
 
 A migration `20261021235900_multiempresa` cria a empresa **Collab Software** e liga nela os usuários e clientes que já existirem. O CNPJ gravado é `00000000000000`. **Esse número é um placeholder, não é um CNPJ válido, e precisa ser trocado** na tela Empresa pelo dono. O e-mail `guilherme.goes@collabsoftware.com.br` fica como dono dessa empresa e superadministrador da plataforma. Outros usuários que já existirem entram na mesma empresa como donos, sem o flag da plataforma.

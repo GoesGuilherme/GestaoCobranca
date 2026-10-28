@@ -1,6 +1,8 @@
+import { decifrarSegredoAsaas } from "@/lib/asaas-cripto";
 import { isoDeData } from "@/lib/data";
 import { formatarReais } from "@/lib/dinheiro";
 import { formatarDataIso } from "@/lib/formatacao";
+import { emailDeCobranca } from "@/lib/remetentes";
 import {
   assuntoRegua,
   dataSaoPaulo,
@@ -16,7 +18,6 @@ import {
 import { prisma } from "@/server/db";
 import { dispararLembrete, registrarIgnorado, textoErroEnvio } from "@/server/regua/envio";
 import { clienteResendPadrao, remetenteResend, type ClienteResend } from "@/server/regua/resend";
-import { decifrarSegredoAsaas } from "@/lib/asaas-cripto";
 
 const ABERTAS = ["PENDING", "OVERDUE"];
 
@@ -75,7 +76,8 @@ export async function executarRegua(
 
     const padrao = reguas.find((regua) => regua.padrao) ?? null;
     const segredo = chaveOuNula(config.chaveResendCifrada);
-    const remetentePronto = Boolean(segredo.chave && config.remetenteEmail);
+    const remetente = emailDeCobranca(config.remetenteEmail);
+    const remetentePronto = Boolean(segredo.chave && remetente);
     const nomeEmpresa = empresa?.nomeFantasia ?? "";
 
     for (const fatura of faturas) {
@@ -171,7 +173,7 @@ export async function executarRegua(
           })) resultado.ignorados += 1;
           continue;
         }
-        if (!remetentePronto || !segredo.chave || !config.remetenteEmail) {
+        if (!remetentePronto || !segredo.chave) {
           if (await registrarIgnorado({
             empresaId: config.empresaId,
             faturaId: fatura.id,
@@ -207,7 +209,7 @@ export async function executarRegua(
           destino: config.modoTeste ? dono!.email : emailCliente,
           assunto: assuntoRegua(passo.assunto, config.modoTeste),
           texto,
-          de: remetenteResend(config.remetenteNome ?? "", config.remetenteEmail),
+          de: remetenteResend(config.remetenteNome ?? "", remetente),
           replyTo: config.replyTo,
           chave: segredo.chave,
           resend,

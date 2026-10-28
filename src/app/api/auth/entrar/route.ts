@@ -18,6 +18,7 @@ export async function POST(request: Request) {
       empresaId: usuario.empresaId,
       papel: usuario.papel,
       superadministrador: usuario.superadministrador,
+      versaoSessao: usuario.versaoSessao,
     });
 
     const resposta = NextResponse.json({ nome: usuario.nome, email: usuario.email });

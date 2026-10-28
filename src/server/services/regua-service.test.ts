@@ -187,6 +187,22 @@ describe("régua de cobrança", () => {
     expect(liberado.status).toBe(200);
   });
 
+  it("sem e-mail gravado, a régua usa cobranca@taguaro.com.br", async () => {
+    await salvarConfiguracaoRegua(autor("DONO"), {
+      ativa: true,
+      modoTeste: true,
+      remetenteNome: "Empresa Régua",
+      remetenteEmail: "",
+      replyTo: "",
+      chaveResend: CHAVE,
+    });
+    const painel = await obterPainelRegua(autor("DONO"));
+    expect(painel.config.remetenteEmail).toBe("cobranca@taguaro.com.br");
+    const caixa = clienteResendMemoria();
+    await enviarEmailTesteRegua(autor("DONO"), { resend: caixa });
+    expect(caixa.caixa[0]?.de).toBe("Empresa Régua <cobranca@taguaro.com.br>");
+  });
+
   it("guarda a chave cifrada e o teste vai para quem está logado", async () => {
     const painel = await ligar();
     expect(painel.config.configurada).toBe(true);

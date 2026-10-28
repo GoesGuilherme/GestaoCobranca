@@ -13,6 +13,7 @@ Estes arquivos existem para quem quiser ler o banco sem abrir o Prisma. Eles esp
 9. `009_cobranca_cartao.sql` — inclui cartão de crédito nas formas de cobrança, o texto da mensagem e do assunto por empresa, e o estado do cartão no serviço vendido (aguardando, cadastrado ou recusado, com bandeira e quatro últimos dígitos). Não há coluna para número completo nem CVV. Espelha `prisma/migrations/20261024020000_cobranca_cartao`.
 10. `010_regua_cobranca.sql` — régua de cobrança por e-mail: configuração da empresa (incluindo modo teste e a chave da Resend cifrada), várias réguas nomeadas com passos, horário e fim de semana, a régua de cada cliente e o histórico de lembretes. Espelha `prisma/migrations/20261026180000_regua_cobranca`.
 11. `011_cliente_bloqueado.sql` — acrescenta o status Bloqueado ao cliente. Espelha `prisma/migrations/20261026230000_cliente_bloqueado`.
+12. `012_redefinicao_senha.sql` — versão da sessão no usuário e a tabela do link de redefinição de senha (só o hash do token). Espelha `prisma/migrations/20261028150000_redefinicao_senha`.
 
 A fonte da verdade é a pasta `prisma/migrations`. Se uma migration nova entrar, estes scripts precisam ser atualizados para continuar iguais a ela. Não rode os dois jeitos no mesmo banco: ou o Prisma Migrate, ou estes arquivos, nunca os dois em sequência no mesmo esquema vazio.
 

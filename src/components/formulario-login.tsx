@@ -23,6 +23,7 @@ export function FormularioLogin({ mostrarExemplo }: { mostrarExemplo: boolean })
   const [enviando, setEnviando] = useState(false);
   const suspensa = params.get("motivo") === "suspensa";
   const cadastrado = params.get("cadastrado") === "1";
+  const senhaRedefinida = params.get("senha") === "redefinida";
 
   async function enviar(evento: React.FormEvent) {
     evento.preventDefault();
@@ -57,6 +58,11 @@ export function FormularioLogin({ mostrarExemplo }: { mostrarExemplo: boolean })
           Empresa criada. Entre com o e-mail e a senha do dono.
         </p>
       ) : null}
+      {senhaRedefinida ? (
+        <p className="mt-5 rounded-2xl bg-leaf px-4 py-3 text-sm text-ok" role="status">
+          Senha redefinida. Entre com a senha nova.
+        </p>
+      ) : null}
       {suspensa ? (
         <p className="mt-5 rounded-2xl bg-clay-soft px-4 py-3 text-sm text-clay" role="alert">
           Esta empresa está suspensa. O acesso volta quando a plataforma reativar a conta.
@@ -89,6 +95,11 @@ export function FormularioLogin({ mostrarExemplo }: { mostrarExemplo: boolean })
           />
         </Campo>
       </div>
+      <p className="mt-3 text-right text-sm">
+        <Link href="/esqueci-senha" className="font-medium text-canopy hover:underline">
+          Esqueci minha senha
+        </Link>
+      </p>
       <button type="submit" className={`${classeBotaoPrimario} mt-6 w-full`} disabled={enviando}>
         {enviando ? "Entrando..." : "Entrar"}
       </button>

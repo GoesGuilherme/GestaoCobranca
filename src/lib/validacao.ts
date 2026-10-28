@@ -19,6 +19,15 @@ export const esquemaLogin = z.object({
   senha: z.string().min(1, "Informe a senha."),
 });
 
+export const esquemaEsqueciSenha = z.object({
+  email: z
+    .string()
+    .trim()
+    .min(1, "Informe o e-mail.")
+    .refine((valor) => z.email().safeParse(valor).success, "Informe um e-mail válido.")
+    .max(160, "O e-mail pode ter no máximo 160 caracteres."),
+});
+
 export const esquemaCliente = z.object({
   nomeFantasia: z
     .string()
@@ -139,6 +148,17 @@ export const esquemaDadosEmpresa = z.object({
     .min(1, "Informe o telefone.")
     .refine((valor) => whatsappValido(valor), "Informe um telefone válido com DDD."),
 });
+
+export const esquemaRedefinirSenha = z
+  .object({
+    token: z.string().trim().min(20, "Este link não vale mais. Peça outro.").max(200),
+    senha: senhaNova,
+    confirmacao: z.string(),
+  })
+  .refine((valor) => valor.senha === valor.confirmacao, {
+    path: ["confirmacao"],
+    message: "A confirmação não confere com a senha.",
+  });
 
 export const esquemaCadastroEmpresa = esquemaDadosEmpresa.extend({
   nome: z

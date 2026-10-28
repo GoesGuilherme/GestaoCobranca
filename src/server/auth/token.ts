@@ -10,6 +10,7 @@ export type Sessao = {
   empresaId: string;
   papel: PapelUsuario;
   superadministrador: boolean;
+  versaoSessao?: number;
 };
 
 function segredo() {
@@ -27,6 +28,7 @@ export async function emitirToken(sessao: Sessao): Promise<string> {
     empresaId: sessao.empresaId,
     papel: sessao.papel,
     superadministrador: sessao.superadministrador,
+    versaoSessao: sessao.versaoSessao ?? 0,
   })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(sessao.sub)
@@ -56,6 +58,7 @@ export async function verificarToken(token: string): Promise<Sessao | null> {
       empresaId: payload.empresaId,
       papel: papel as PapelUsuario,
       superadministrador: payload.superadministrador === true,
+      versaoSessao: typeof payload.versaoSessao === "number" ? payload.versaoSessao : 0,
     };
   } catch {
     return null;

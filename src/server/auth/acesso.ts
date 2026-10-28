@@ -1,3 +1,4 @@
+import { sessaoCompativel } from "@/lib/redefinicao-senha";
 import type { PapelUsuario } from "@/lib/tipos";
 import { prisma } from "@/server/db";
 import { ErroAplicacao } from "@/server/erros";
@@ -23,6 +24,7 @@ export async function carregarAcesso(): Promise<Acesso | "anonimo" | "suspensa">
     include: { empresa: true },
   });
   if (!usuario) return "anonimo";
+  if (!sessaoCompativel(sessao.versaoSessao ?? 0, usuario.versaoSessao)) return "anonimo";
   if (usuario.empresa.status !== "ATIVA") return "suspensa";
 
   return {

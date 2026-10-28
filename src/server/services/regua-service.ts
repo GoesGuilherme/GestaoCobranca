@@ -1,6 +1,8 @@
 import { cifrarSegredoAsaas, decifrarSegredoAsaas } from "@/lib/asaas-cripto";
+import { isoDeData } from "@/lib/data";
 import { formatarReais } from "@/lib/dinheiro";
 import { formatarDataIso } from "@/lib/formatacao";
+import { emailDeCobranca } from "@/lib/remetentes";
 import {
   assuntoRegua,
   dataSaoPaulo,
@@ -25,7 +27,6 @@ import { ErroAplicacao } from "@/server/erros";
 import { dispararLembrete } from "@/server/regua/envio";
 import { clienteResendPadrao, remetenteResend, type ClienteResend } from "@/server/regua/resend";
 import { lerEsquema } from "@/server/validar";
-import { isoDeData } from "@/lib/data";
 
 type LinhaPasso = {
   id: string;
@@ -52,7 +53,7 @@ const configVazia: ConfiguracaoReguaDTO = {
   ativa: false,
   modoTeste: true,
   remetenteNome: "",
-  remetenteEmail: "",
+  remetenteEmail: emailDeCobranca(""),
   replyTo: "",
   configurada: false,
 };
@@ -96,7 +97,7 @@ function paraConfig(linha: {
     ativa: linha.ativa,
     modoTeste: linha.modoTeste,
     remetenteNome: linha.remetenteNome ?? "",
-    remetenteEmail: linha.remetenteEmail ?? "",
+    remetenteEmail: emailDeCobranca(linha.remetenteEmail),
     replyTo: linha.replyTo ?? "",
     configurada: Boolean(linha.chaveResendCifrada),
   };
@@ -389,13 +390,13 @@ export async function enviarEmailTesteRegua(
 ) {
   exigirRegua(autor);
   const config = await prisma.configuracaoRegua.findUnique({ where: { empresaId: autor.empresaId } });
-  if (!config?.chaveResendCifrada || !config.remetenteEmail) {
+  if (!config?.chaveResendCifrada) {
     throw new ErroAplicacao("Configure o remetente e a chave da Resend antes de testar.", 400, "regua_incompleta");
   }
   const resend = opcoes.resend ?? clienteResendPadrao();
   await resend.enviar({
     chave: abrirChaveResend(config.chaveResendCifrada),
-    de: remetenteResend(config.remetenteNome ?? "", config.remetenteEmail),
+    de: remetenteResend(config.remetenteNome ?? "", emailDeCobranca(config.remetenteEmail)),
     para: autor.email,
     assunto: "E-mail de teste da régua de cobrança",
     texto: "Este é um e-mail de teste da régua de cobrança. Ele foi enviado só para o seu endereço.",
@@ -430,7 +431,7 @@ export async function enviarLembreteAgora(
     throw new ErroAplicacao("Esta cobrança não está em aberto.", 400, "fatura_fechada");
   }
   if (!passo) throw new ErroAplicacao("Passo não encontrado.", 404, "nao_encontrado");
-  if (!config?.chaveResendCifrada || !config.remetenteEmail) {
+  if (!config?.chaveResendCifrada) {
     throw new ErroAplicacao("Configure o remetente e a chave da Resend antes de enviar.", 400, "regua_incompleta");
   }
 
@@ -464,7 +465,7 @@ export async function enviarLembreteAgora(
     destino,
     assunto: assuntoRegua(passo.assunto, modoTeste),
     texto,
-    de: remetenteResend(config.remetenteNome ?? "", config.remetenteEmail),
+    de: remetenteResend(config.remetenteNome ?? "", emailDeCobranca(config.remetenteEmail)),
     replyTo: config.replyTo,
     chave: abrirChaveResend(config.chaveResendCifrada),
     resend: opcoes.resend ?? clienteResendPadrao(),
