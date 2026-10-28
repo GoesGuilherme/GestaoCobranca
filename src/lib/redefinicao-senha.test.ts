@@ -24,6 +24,8 @@ describe("token de redefinição", () => {
     expect(carta.assunto).toBe("Redefinir sua senha no Taguaro");
     expect(carta.texto).toContain(link);
     expect(carta.html).toContain(link);
+    expect(carta.texto).toContain("noreply@taguaro.com.br");
+    expect(carta.html).toContain("noreply@taguaro.com.br");
     expect(carta.texto).not.toContain(tokenHash);
     expect(carta.html).not.toContain(tokenHash);
   });

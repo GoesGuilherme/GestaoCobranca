@@ -281,7 +281,7 @@ export function PainelRegua({
           <Campo label="Nome do remetente" htmlFor="resend-nome">
             <input id="resend-nome" className={classeCampo} value={remetenteNome} disabled={!podeEditar} onChange={(evento) => setRemetenteNome(evento.target.value)} />
           </Campo>
-          <Campo label="E-mail do remetente" htmlFor="resend-email" dica="O domínio precisa estar verificado na Resend.">
+          <Campo label="E-mail do remetente" htmlFor="resend-email" dica="Se ficar vazio, os e-mails saem de cobranca@taguaro.com.br. O domínio precisa estar verificado na Resend.">
             <input id="resend-email" className={classeCampo} value={remetenteEmail} disabled={!podeEditar} onChange={(evento) => setRemetenteEmail(evento.target.value)} />
           </Campo>
           <Campo label="Responder para" htmlFor="resend-reply">

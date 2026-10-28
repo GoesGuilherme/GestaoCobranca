@@ -1,3 +1,4 @@
+import { REMETENTE_AUTH_PADRAO } from "@/lib/remetentes";
 import { ErroAplicacao } from "@/server/erros";
 import { redigirSegredoResend } from "@/server/regua/resend";
 
@@ -12,17 +13,18 @@ export type EmailAuth = {
 
 export function lerRemetenteAuth(): { chave: string; de: string } | null {
   const chave = process.env.AUTH_RESEND_API_KEY?.trim() ?? "";
-  const de = process.env.AUTH_EMAIL_FROM?.trim() ?? "";
-  if (!chave || !de.includes("@")) return null;
+  if (!chave) return null;
+  const de = process.env.AUTH_EMAIL_FROM?.trim() || REMETENTE_AUTH_PADRAO;
+  if (!de.includes("@")) return null;
   return { chave, de };
 }
 
 export function descreverRemetenteAusente(): string {
   const chave = Boolean(process.env.AUTH_RESEND_API_KEY?.trim());
-  const de = Boolean(process.env.AUTH_EMAIL_FROM?.trim());
-  if (!chave && !de) return "Defina AUTH_RESEND_API_KEY e AUTH_EMAIL_FROM.";
+  const de = process.env.AUTH_EMAIL_FROM?.trim() ?? "";
   if (!chave) return "Defina AUTH_RESEND_API_KEY.";
-  return "Defina AUTH_EMAIL_FROM com um endereço do domínio já verificado.";
+  if (de && !de.includes("@")) return "AUTH_EMAIL_FROM precisa ser um e-mail. O padrão é noreply@taguaro.com.br.";
+  return "Defina AUTH_RESEND_API_KEY.";
 }
 
 export async function enviarEmailAuth(dados: EmailAuth): Promise<void> {
