@@ -4,6 +4,7 @@ import {
   podeConfigurarRegua,
   podeEmitirCobranca,
   podeVerFaturas,
+  podeVerMetricas,
   podeVerRegua,
   podeVerResultado,
 } from "@/lib/permissoes";
@@ -32,6 +33,12 @@ export function exigirResultado(autor: AutorEmpresa) {
       403,
       "sem_permissao",
     );
+  }
+}
+
+export function exigirMetricas(autor: AutorEmpresa) {
+  if (!podeVerMetricas(autor.papel)) {
+    throw new ErroAplicacao("Só o dono da empresa pode ver as métricas.", 403, "sem_permissao");
   }
 }
 

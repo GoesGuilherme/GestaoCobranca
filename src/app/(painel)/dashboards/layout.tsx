@@ -1,5 +1,5 @@
 import { AbasDashboards } from "@/components/abas-dashboards";
-import { podeVerFaturas, podeVerResultado } from "@/lib/permissoes";
+import { podeVerFaturas, podeVerMetricas, podeVerResultado } from "@/lib/permissoes";
 import { acessoDaPagina } from "@/server/auth/pagina";
 
 export default async function LayoutDashboards({ children }: { children: React.ReactNode }) {
@@ -10,6 +10,7 @@ export default async function LayoutDashboards({ children }: { children: React.R
       <AbasDashboards
         mostrarFinanceiro={podeVerFaturas(acesso.papel)}
         mostrarResultado={podeVerResultado(acesso.papel)}
+        mostrarMetricas={podeVerMetricas(acesso.papel)}
       />
       {children}
     </>
