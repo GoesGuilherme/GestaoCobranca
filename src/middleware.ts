@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { NOME_PRODUTO } from "@/lib/marca";
-import { podeConfigurarAsaas, podeVerFaturas, podeVerRegua, podeVerResultado } from "@/lib/permissoes";
+import { podeConfigurarAsaas, podeVerFaturas, podeVerMetricas, podeVerRegua, podeVerResultado } from "@/lib/permissoes";
 import { COOKIE_SESSAO } from "@/server/auth/constantes";
 import { verificarToken } from "@/server/auth/token";
 
@@ -79,6 +79,15 @@ export async function middleware(request: NextRequest) {
     pathname === "/api/resultado";
   if (rotaResultado && !podeVerResultado(sessao.papel)) {
     return resultadoProibido(pathname);
+  }
+
+  const rotaMetricas = pathname === "/dashboards/metricas" || pathname.startsWith("/dashboards/metricas/");
+  if (rotaMetricas && !podeVerMetricas(sessao.papel)) {
+    return paginaProibida(
+      pathname,
+      "Só o dono vê as métricas",
+      "MRR, churn e LTV ficam com o dono da empresa. Financeiro e suporte não entram aqui.",
+    );
   }
 
   const rotaPainelFinanceiro =

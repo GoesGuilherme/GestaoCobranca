@@ -6,15 +6,18 @@ import { usePathname } from "next/navigation";
 export function AbasDashboards({
   mostrarFinanceiro,
   mostrarResultado,
+  mostrarMetricas,
 }: {
   mostrarFinanceiro: boolean;
   mostrarResultado: boolean;
+  mostrarMetricas: boolean;
 }) {
   const pathname = usePathname();
   const abas = [
     { href: "/dashboards/painel", rotulo: "Painel" },
     ...(mostrarFinanceiro ? [{ href: "/dashboards/financeiro", rotulo: "Financeiro" }] : []),
     ...(mostrarResultado ? [{ href: "/dashboards/resultado", rotulo: "Resultado" }] : []),
+    ...(mostrarMetricas ? [{ href: "/dashboards/metricas", rotulo: "Métricas" }] : []),
   ];
 
   return (

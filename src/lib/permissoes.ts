@@ -15,6 +15,11 @@ export function podeVerResultado(papel: PapelUsuario): boolean {
   return papel === "DONO";
 }
 
+// MRR, churn e LTV são leitura de receita da empresa. Mesma regra do Resultado: só o dono.
+export function podeVerMetricas(papel: PapelUsuario): boolean {
+  return papel === "DONO";
+}
+
 export function podeConfigurarAsaas(papel: PapelUsuario): boolean {
   return papel === "DONO";
 }
