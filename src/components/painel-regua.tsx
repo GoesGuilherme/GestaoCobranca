@@ -3,7 +3,16 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { enviarJson } from "@/lib/api-cliente";
-import { AMOSTRA_REGUA, rotuloPasso, textoRegua } from "@/lib/regua";
+import { inteiroDeCampo, textoHoraPermitido, textoInteiroPermitido } from "@/lib/inteiro-campo";
+import { AMOSTRA_REGUA, textoRegua } from "@/lib/regua";
+import {
+  MENSAGEM_DIAS_REGUA,
+  MENSAGEM_HORA_REGUA,
+  MENSAGEM_JANELA_REGUA,
+  montarReguaParaSalvar,
+  rotuloPassoRascunho,
+  textoDiasDe,
+} from "@/lib/regua-rascunho";
 import type { ConfiguracaoReguaDTO, ReguaDTO } from "@/lib/tipos";
 import { AvisoModoTeste } from "./aviso-modo-teste";
 import { Campo, classeCampo } from "./campo";
@@ -12,7 +21,7 @@ import { classeBotaoPerigo, classeBotaoPrimario, classeBotaoSecundario } from ".
 type PassoEditavel = {
   id?: string;
   naEmissao: boolean;
-  dias: number | null;
+  dias: string;
   assunto: string;
   corpo: string;
 };
@@ -38,7 +47,7 @@ function rascunhoDe(regua: ReguaDTO): Rascunho {
     passos: regua.passos.map((passo) => ({
       id: passo.id,
       naEmissao: passo.naEmissao,
-      dias: passo.dias,
+      dias: textoDiasDe(passo.dias, passo.naEmissao),
       assunto: passo.assunto,
       corpo: passo.corpo,
     })),
@@ -48,7 +57,7 @@ function rascunhoDe(regua: ReguaDTO): Rascunho {
 function passoNovo(): PassoEditavel {
   return {
     naEmissao: false,
-    dias: 0,
+    dias: "0",
     assunto: "Sua cobrança vence hoje",
     corpo: "Olá, {cliente}. A cobrança de {servico}, no valor de {valor}, vence em {vencimento}: {link}",
   };
@@ -141,15 +150,24 @@ export function PainelRegua({
     if (!podeEditar) return;
     setErro("");
     setAviso("");
-    setEnviando(true);
-    const resposta = await enviarJson<{ config: ConfiguracaoReguaDTO; reguas: ReguaDTO[] }>("/api/regua/reguas", "POST", {
+    const montado = montarReguaParaSalvar({
       nome: nomeNova,
       padrao: lista.length === 0,
-      horaInicio: 8,
-      horaFim: 18,
+      horaInicio: "8",
+      horaFim: "18",
       enviarFimDeSemana: false,
-      passos: [{ ...passoNovo(), canal: "EMAIL" }],
+      passos: [passoNovo()],
     });
+    if (!montado.ok) {
+      setErro(montado.mensagem);
+      return;
+    }
+    setEnviando(true);
+    const resposta = await enviarJson<{ config: ConfiguracaoReguaDTO; reguas: ReguaDTO[] }>(
+      "/api/regua/reguas",
+      "POST",
+      montado.corpo,
+    );
     setEnviando(false);
     if (!resposta.ok) {
       setErro(resposta.erro);
@@ -165,27 +183,19 @@ export function PainelRegua({
   async function salvarRegua(evento: React.FormEvent) {
     evento.preventDefault();
     if (!podeEditar || !rascunho) return;
+    const montado = montarReguaParaSalvar(rascunho);
+    if (!montado.ok) {
+      setAviso("");
+      setErro(montado.mensagem);
+      return;
+    }
     setErro("");
     setAviso("");
     setEnviando(true);
     const resposta = await enviarJson<{ config: ConfiguracaoReguaDTO; reguas: ReguaDTO[] }>(
       `/api/regua/reguas/${rascunho.id}`,
       "PATCH",
-      {
-        nome: rascunho.nome,
-        padrao: rascunho.padrao,
-        horaInicio: Number(rascunho.horaInicio),
-        horaFim: Number(rascunho.horaFim),
-        enviarFimDeSemana: rascunho.enviarFimDeSemana,
-        passos: rascunho.passos.map((passo) => ({
-          id: passo.id,
-          naEmissao: passo.naEmissao,
-          dias: passo.naEmissao ? null : Number(passo.dias ?? 0),
-          canal: "EMAIL",
-          assunto: passo.assunto,
-          corpo: passo.corpo,
-        })),
-      },
+      montado.corpo,
     );
     setEnviando(false);
     if (!resposta.ok) {
@@ -354,11 +364,50 @@ export function PainelRegua({
                 <input id="regua-padrao" type="checkbox" checked={rascunho.padrao} disabled={!podeEditar} onChange={(evento) => setRascunho({ ...rascunho, padrao: evento.target.checked })} />
                 Régua padrão da empresa
               </label>
-              <Campo label="Enviar a partir da hora" htmlFor="regua-hora-inicio" dica="Horário de Brasília. O envio diário sai às 9h.">
-                <input id="regua-hora-inicio" className={classeCampo} inputMode="numeric" value={rascunho.horaInicio} disabled={!podeEditar} onChange={(evento) => setRascunho({ ...rascunho, horaInicio: evento.target.value })} />
+              <Campo
+                label="Enviar a partir da hora"
+                htmlFor="regua-hora-inicio"
+                dica="Horário de Brasília. O envio diário sai às 9h."
+                erro={erro === MENSAGEM_HORA_REGUA ? erro : undefined}
+              >
+                <input
+                  id="regua-hora-inicio"
+                  className={classeCampo}
+                  inputMode="numeric"
+                  value={rascunho.horaInicio}
+                  disabled={!podeEditar}
+                  onChange={(evento) => {
+                    const texto = evento.target.value.trim();
+                    if (!textoHoraPermitido(texto)) return;
+                    setRascunho({ ...rascunho, horaInicio: texto });
+                  }}
+                  onBlur={() => {
+                    const valor = inteiroDeCampo(rascunho.horaInicio);
+                    if (valor !== null && valor <= 23) setRascunho({ ...rascunho, horaInicio: String(valor) });
+                  }}
+                />
               </Campo>
-              <Campo label="Até antes da hora" htmlFor="regua-hora-fim">
-                <input id="regua-hora-fim" className={classeCampo} inputMode="numeric" value={rascunho.horaFim} disabled={!podeEditar} onChange={(evento) => setRascunho({ ...rascunho, horaFim: evento.target.value })} />
+              <Campo
+                label="Até antes da hora"
+                htmlFor="regua-hora-fim"
+                erro={erro === MENSAGEM_HORA_REGUA || erro === MENSAGEM_JANELA_REGUA ? erro : undefined}
+              >
+                <input
+                  id="regua-hora-fim"
+                  className={classeCampo}
+                  inputMode="numeric"
+                  value={rascunho.horaFim}
+                  disabled={!podeEditar}
+                  onChange={(evento) => {
+                    const texto = evento.target.value.trim();
+                    if (!textoHoraPermitido(texto)) return;
+                    setRascunho({ ...rascunho, horaFim: texto });
+                  }}
+                  onBlur={() => {
+                    const valor = inteiroDeCampo(rascunho.horaFim);
+                    if (valor !== null && valor <= 23) setRascunho({ ...rascunho, horaFim: String(valor) });
+                  }}
+                />
               </Campo>
             </div>
             <label className="flex items-center gap-2 text-sm">
@@ -372,7 +421,7 @@ export function PainelRegua({
                 {rascunho.passos.map((item, indice) => (
                   <li key={item.id ?? `novo-${indice}`} className="flex flex-wrap items-center gap-2">
                     <button type="button" className={indice === passoAberto ? classeBotaoPrimario : classeBotaoSecundario} onClick={() => setPassoAberto(indice)}>
-                      {rotuloPasso(item)}
+                      {rotuloPassoRascunho(item)}
                     </button>
                     {podeEditar ? (
                       <>
@@ -417,7 +466,10 @@ export function PainelRegua({
                     value={passo.naEmissao ? "emissao" : "dias"}
                     onChange={(evento) => {
                       const emissao = evento.target.value === "emissao";
-                      atualizarPasso(passoAberto, { naEmissao: emissao, dias: emissao ? null : passo.dias ?? 0 });
+                      atualizarPasso(passoAberto, {
+                        naEmissao: emissao,
+                        dias: emissao || passo.dias !== "" ? passo.dias : "0",
+                      });
                     }}
                   >
                     <option value="emissao">Na emissão</option>
@@ -425,14 +477,27 @@ export function PainelRegua({
                   </select>
                 </Campo>
                 {passo.naEmissao ? null : (
-                  <Campo label="Dias (negativo antes, zero no dia, positivo em atraso)" htmlFor="passo-dias">
+                  <Campo
+                    label="Dias (negativo antes, zero no dia, positivo em atraso)"
+                    htmlFor="passo-dias"
+                    erro={erro === MENSAGEM_DIAS_REGUA ? erro : undefined}
+                  >
                     <input
                       id="passo-dias"
                       className={classeCampo}
                       inputMode="numeric"
                       disabled={!podeEditar}
-                      value={passo.dias ?? 0}
-                      onChange={(evento) => atualizarPasso(passoAberto, { dias: Number(evento.target.value) })}
+                      value={passo.dias}
+                      onChange={(evento) => {
+                        const texto = evento.target.value.trim();
+                        if (!textoInteiroPermitido(texto)) return;
+                        if (erro === MENSAGEM_DIAS_REGUA) setErro("");
+                        atualizarPasso(passoAberto, { dias: texto });
+                      }}
+                      onBlur={() => {
+                        const valor = inteiroDeCampo(passo.dias);
+                        if (valor !== null) atualizarPasso(passoAberto, { dias: String(valor) });
+                      }}
                     />
                   </Campo>
                 )}
