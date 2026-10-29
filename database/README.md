@@ -14,6 +14,7 @@ Estes arquivos existem para quem quiser ler o banco sem abrir o Prisma. Eles esp
 10. `010_regua_cobranca.sql` — régua de cobrança por e-mail: configuração da empresa (incluindo modo teste e a chave da Resend cifrada), várias réguas nomeadas com passos, horário e fim de semana, a régua de cada cliente e o histórico de lembretes. Espelha `prisma/migrations/20261026180000_regua_cobranca`.
 11. `011_cliente_bloqueado.sql` — acrescenta o status Bloqueado ao cliente. Espelha `prisma/migrations/20261026230000_cliente_bloqueado`.
 12. `012_redefinicao_senha.sql` — versão da sessão no usuário e a tabela do link de redefinição de senha (só o hash do token). Espelha `prisma/migrations/20261028150000_redefinicao_senha`.
+13. `013_cliente_ativado_em.sql` — data de ativação do cliente, opcional. Onde o campo ainda está vazio, copia a data do texto `1ª ativação OEM DD/MM/YYYY` nas observações, sem alterar as observações. A UAI CAFE CARREFOUR (CNPJ 50783953000141) recebe 24/06/2026. Espelha `prisma/migrations/20261029140000_cliente_ativado_em`.
 
 A fonte da verdade é a pasta `prisma/migrations`. Se uma migration nova entrar, estes scripts precisam ser atualizados para continuar iguais a ela. Não rode os dois jeitos no mesmo banco: ou o Prisma Migrate, ou estes arquivos, nunca os dois em sequência no mesmo esquema vazio.
 

@@ -46,6 +46,7 @@ function dadosPersistidos(entrada: EntradaCliente) {
     cidade: entrada.cidade,
     uf: entrada.uf.toUpperCase(),
     status: entrada.status,
+    ativadoEm: entrada.ativadoEm ? new Date(`${entrada.ativadoEm}T00:00:00.000Z`) : null,
     observacoes: entrada.observacoes?.trim() ? entrada.observacoes.trim() : null,
   };
 }

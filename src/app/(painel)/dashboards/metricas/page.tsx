@@ -17,7 +17,7 @@ export default async function PaginaMetricas() {
       <CabecalhoPagina
         olho={acesso.nomeEmpresa}
         titulo="Métricas"
-        descricao="Receita recorrente, saída de clientes e valor ao longo do tempo. Cada empresa vê só as próprias mensalidades. Serviço avulso fica de fora. Não há plano semanal nem anual neste cadastro: o valor mensal já é o MRR."
+        descricao="Receita recorrente, saída de clientes e valor ao longo do tempo. O churn e o LTV usam a data de ativação do cliente. Cada empresa vê só as próprias mensalidades. Serviço avulso fica de fora."
       />
       <PainelMetricas metricas={metricas} />
     </>

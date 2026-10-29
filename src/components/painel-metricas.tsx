@@ -5,11 +5,11 @@ const DICAS = {
   mrr: "Soma do valor mensal das mensalidades que ainda estão valendo hoje. Serviço avulso não entra. Pausa, cancelamento, cliente inativo ou bloqueado também não entram.",
   variacao: "Compara o MRR de hoje com o MRR do fim do mês passado. Se o mês passado era zero, a variação percentual não aparece.",
   churnClientes:
-    "Dos clientes que tinham mensalidade no fim do mês passado, a parte que não tem mais no fechamento deste mês. Cancelou no meio do mês conta neste mês.",
+    "Quem já era cliente no fim do mês passado, pela data de ativação, e deixou de ser até o fechamento deste mês. Sem a data, usamos o início da mensalidade mais antiga.",
   churnReceita:
     "O MRR que saiu, dividido pelo MRR do começo do mês. É a receita recorrente perdida, não o que entrou de cliente novo.",
   ticket: "MRR de hoje dividido pelo número de clientes que ainda têm pelo menos uma mensalidade ativa.",
-  ltv: "Ticket médio dividido pelo churn médio dos últimos doze meses. Precisa de pelo menos seis meses com base e de algum cancelamento. Sem isso, o número iria ao infinito.",
+  ltv: "Ticket médio vezes o tempo médio desde a data de ativação. Sem essa data, o tempo conta a partir da mensalidade mais antiga. Se não houver base, aparece dados insuficientes.",
 };
 
 export function PainelMetricas({ metricas }: { metricas: MetricasSaas }) {
@@ -23,6 +23,14 @@ export function PainelMetricas({ metricas }: { metricas: MetricasSaas }) {
       {metricas.semMensalidades ? (
         <p className="rounded-2xl border border-line bg-card px-4 py-3 text-sm text-muted">
           Ainda não há mensalidade nesta empresa. Quando um serviço vendido for mensal e estiver ativo, o MRR aparece aqui.
+        </p>
+      ) : null}
+      {metricas.clientesSemAtivacao > 0 ? (
+        <p className="rounded-2xl border border-gold/40 bg-gold-soft px-4 py-3 text-sm text-ink">
+          {metricas.clientesSemAtivacao === 1
+            ? "1 cliente com mensalidade ainda não tem data de ativação."
+            : `${metricas.clientesSemAtivacao} clientes com mensalidade ainda não têm data de ativação.`}{" "}
+          Para esses, a entrada na base do churn e do LTV usa o início da mensalidade mais antiga.
         </p>
       ) : null}
 
@@ -73,7 +81,7 @@ export function PainelMetricas({ metricas }: { metricas: MetricasSaas }) {
         <article className="rounded-3xl border border-line bg-card p-5">
           <h2 className="font-display text-2xl">Como o churn é calculado</h2>
           <p className="mt-3 text-sm leading-6 text-muted">
-            Um cliente entra na conta do mês se, no fim do mês anterior, tinha ao menos uma mensalidade valendo. Sai da conta se, no fechamento, essa mensalidade acabou, foi pausada ou cancelada, ou se o cliente ficou inativo ou bloqueado. Quem cancela no dia 15 conta naquele mês, não no seguinte. O churn de receita usa o mesmo recorte, em reais em vez de pessoas.
+            O cliente entra na base no dia da data de ativação. Sem essa data, entra no início da mensalidade mais antiga. Sai se a mensalidade acabou, foi pausada ou cancelada, ou se o cliente ficou inativo ou bloqueado. Quem cancela no dia 15 conta naquele mês, não no seguinte. O churn de receita olha o dinheiro das mensalidades que deixaram de valer.
           </p>
           <p className="mt-3 text-sm leading-6 text-muted">
             Não há histórico separado de cada mudança. A data de saída é a última atualização da mensalidade ou do cliente. Por isso, editar um cadastro antigo pode mudar o mês em que o churn aparece.

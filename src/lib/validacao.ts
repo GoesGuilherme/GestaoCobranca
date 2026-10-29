@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { MODELO_ASSUNTO_PADRAO, MODELO_MENSAGEM_PADRAO } from "./cobranca";
-import { dataIsoValida } from "./data";
+import { dataHojeIso, dataIsoValida } from "./data";
 import { normalizarAliquota, normalizarDinheiro } from "./dinheiro";
 import { cnpjValido, identificarDocumento, whatsappValido } from "./documento";
 import { ufValida } from "./ufs";
@@ -72,6 +72,12 @@ export const esquemaCliente = z.object({
     .min(1, "Escolha a UF.")
     .refine((valor) => ufValida(valor), "Escolha uma UF válida."),
   status: z.enum(["ATIVO", "INATIVO", "EM_IMPLANTACAO", "BLOQUEADO"], "Escolha o status."),
+  ativadoEm: z
+    .string()
+    .trim()
+    .default("")
+    .refine((valor) => valor === "" || dataIsoValida(valor), "Informe uma data de ativação válida.")
+    .refine((valor) => valor === "" || valor <= dataHojeIso(), "A data de ativação não pode ser futura."),
   observacoes: z
     .string()
     .trim()
