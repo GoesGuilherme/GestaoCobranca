@@ -52,6 +52,11 @@ export class AsaasMemoria implements ClienteHttpAsaas {
   cobrancas = new Map<string, CobrancaGuardada>();
   assinaturas = new Map<string, AssinaturaGuardada>();
   falharConexao = false;
+  segurarCriacao: Promise<void> | null = null;
+  lancarDepoisDeCriarCobranca = false;
+  lancarDepoisDeCriarAssinatura = false;
+  cancelarCobrancaLanca = false;
+  cancelarAssinaturaLanca = false;
   private sequencia = 0;
 
   constructor(private prefixo = "mem") {}
@@ -90,21 +95,36 @@ export class AsaasMemoria implements ClienteHttpAsaas {
   }
 
   async criarCobranca(dados: NovaCobrancaAsaas) {
+    if (this.segurarCriacao) await this.segurarCriacao;
     if (!this.clientes.some((cliente) => cliente.id === dados.customer)) {
       throw new ErroAsaas("Cliente não encontrado.", 404);
     }
-    return this.guardarCobranca({
+    const cobranca = this.guardarCobranca({
       customer: dados.customer,
       subscription: null,
       valor: dados.valor,
       vencimento: dados.vencimento,
       formaCobranca: dados.formaCobranca,
       descricao: dados.descricao ?? null,
+      referencia: dados.referencia ?? "",
       encargos: lerEncargos(dados.encargos),
     });
+    if (this.lancarDepoisDeCriarCobranca) {
+      throw new ErroAsaas("Não foi possível falar com o Asaas.", 504);
+    }
+    return cobranca;
+  }
+
+  async buscarCobrancaPorReferencia(referencia: string) {
+    return (
+      [...this.cobrancas.values()].find((cobranca) => cobranca.referencia === referencia && !cobranca.excluida) ?? null
+    );
   }
 
   async cancelarCobranca(id: string) {
+    if (this.cancelarCobrancaLanca) {
+      throw new ErroAsaas("Não foi possível falar com o Asaas.", 504);
+    }
     const cobranca = this.cobrancas.get(id);
     if (!cobranca) throw new ErroAsaas("Cobrança não encontrada.", 404);
     cobranca.excluida = true;
@@ -123,6 +143,7 @@ export class AsaasMemoria implements ClienteHttpAsaas {
   }
 
   async criarAssinatura(dados: NovaAssinaturaAsaas) {
+    if (this.segurarCriacao) await this.segurarCriacao;
     if (!this.clientes.some((cliente) => cliente.id === dados.customer)) {
       throw new ErroAsaas("Cliente não encontrado.", 404);
     }
@@ -149,9 +170,21 @@ export class AsaasMemoria implements ClienteHttpAsaas {
       vencimento: dados.proximoVencimento,
       formaCobranca: dados.formaCobranca,
       descricao: dados.descricao ?? null,
+      referencia: "",
       encargos: assinatura.encargos,
     });
+    if (this.lancarDepoisDeCriarAssinatura) {
+      throw new ErroAsaas("Não foi possível falar com o Asaas.", 504);
+    }
     return assinatura;
+  }
+
+  async buscarAssinaturaPorReferencia(referencia: string) {
+    return (
+      [...this.assinaturas.values()].find(
+        (assinatura) => assinatura.referencia === referencia && !assinatura.excluida && assinatura.status === "ACTIVE",
+      ) ?? null
+    );
   }
 
   async atualizarAssinatura(id: string, dados: AtualizacaoAssinaturaAsaas) {
@@ -175,6 +208,9 @@ export class AsaasMemoria implements ClienteHttpAsaas {
   }
 
   async cancelarAssinatura(id: string) {
+    if (this.cancelarAssinaturaLanca) {
+      throw new ErroAsaas("Não foi possível falar com o Asaas.", 504);
+    }
     const assinatura = this.assinaturas.get(id);
     if (!assinatura || assinatura.excluida) throw new ErroAsaas("Assinatura não encontrada.", 404);
     assinatura.excluida = true;
@@ -208,6 +244,7 @@ export class AsaasMemoria implements ClienteHttpAsaas {
     vencimento: string;
     formaCobranca: string;
     descricao: string | null;
+    referencia: string;
     encargos: EncargosGuardados;
   }) {
     this.sequencia += 1;
@@ -227,6 +264,7 @@ export class AsaasMemoria implements ClienteHttpAsaas {
       faturaUrl: `https://sandbox.asaas.com/i/${id}`,
       descricao: dados.descricao,
       excluida: false,
+      referencia: dados.referencia,
       encargos: dados.encargos,
     };
     this.cobrancas.set(id, cobranca);

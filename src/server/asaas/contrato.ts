@@ -25,6 +25,7 @@ export type CobrancaAsaas = {
   faturaUrl: string | null;
   descricao: string | null;
   excluida: boolean;
+  referencia: string | null;
   cartao?: { bandeira: string | null; final: string | null } | null;
 };
 
@@ -95,10 +96,12 @@ export interface ClienteHttpAsaas {
   obterCliente(id: string): Promise<ClienteAsaas | null>;
   criarCliente(dados: NovoClienteAsaas): Promise<ClienteAsaas>;
   criarCobranca(dados: NovaCobrancaAsaas): Promise<CobrancaAsaas>;
+  buscarCobrancaPorReferencia(referencia: string): Promise<CobrancaAsaas | null>;
   cancelarCobranca(id: string): Promise<void>;
   obterLinhaDigitavel(id: string): Promise<string | null>;
   obterPix(id: string): Promise<string | null>;
   criarAssinatura(dados: NovaAssinaturaAsaas): Promise<AssinaturaAsaas>;
+  buscarAssinaturaPorReferencia(referencia: string): Promise<AssinaturaAsaas | null>;
   atualizarAssinatura(id: string, dados: AtualizacaoAssinaturaAsaas): Promise<AssinaturaAsaas>;
   cancelarAssinatura(id: string): Promise<void>;
   listarCobrancasDoCliente(customer: string, offset: number, limit: number): Promise<PaginaCobrancasAsaas>;

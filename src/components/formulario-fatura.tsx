@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { enviarJson } from "@/lib/api-cliente";
 import { PREFERENCIAS_COBRANCA_PADRAO } from "@/lib/cobranca";
 import { dataHojeIso } from "@/lib/data";
@@ -31,16 +31,21 @@ export function FormularioFatura({
   const [campos, setCampos] = useState<Record<string, string>>({});
   const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const chaveEmissao = useRef("");
 
   async function enviar(evento: React.FormEvent) {
     evento.preventDefault();
+    if (enviando) return;
     setErro("");
+    if (!chaveEmissao.current) chaveEmissao.current = globalThis.crypto.randomUUID();
+    const chave = chaveEmissao.current;
     const entrada = {
       valor,
       vencimento,
       formaCobranca,
       descricao,
       clienteServicoId: clienteServicoId || undefined,
+      chaveIdempotencia: chave,
     };
     const validado = esquemaFatura.safeParse(entrada);
     if (!validado.success) {
@@ -62,6 +67,7 @@ export function FormularioFatura({
     }
     setValor("");
     setDescricao("");
+    chaveEmissao.current = "";
     if (resposta.dados.fatura) onEmitida?.(resposta.dados.fatura);
     router.refresh();
   }

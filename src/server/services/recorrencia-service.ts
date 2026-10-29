@@ -25,6 +25,8 @@ import {
 } from "./fatura-service";
 
 const PODE_SUBSTITUIR = new Set(["CANCELADA", "EXPIRED"]);
+const STATUS_CRIANDO = "CRIANDO";
+const TRAVA_EMISSAO_MS = 2 * 60 * 1000;
 
 function camposDoCartao(forma: string, statusAtual: string | null) {
   if (forma !== "CREDIT_CARD") {
@@ -104,9 +106,47 @@ function exigirMensalAtivo(vinculo: { recorrencia: string; status: string }) {
   }
 }
 
-function podeCriar(vinculo: { asaasSubscriptionId: string | null; asaasAssinaturaStatus: string | null }) {
-  if (!vinculo.asaasSubscriptionId) return true;
-  return vinculo.asaasAssinaturaStatus !== null && PODE_SUBSTITUIR.has(vinculo.asaasAssinaturaStatus);
+async function reivindicarEmissao(empresaId: string, vinculoId: string) {
+  const corte = new Date(Date.now() - TRAVA_EMISSAO_MS);
+  const gravado = await prisma.clienteServico.updateMany({
+    where: {
+      id: vinculoId,
+      empresaId,
+      OR: [
+        {
+          asaasSubscriptionId: null,
+          OR: [{ asaasAssinaturaStatus: null }, { asaasAssinaturaStatus: { not: STATUS_CRIANDO } }],
+        },
+        { asaasAssinaturaStatus: { in: [...PODE_SUBSTITUIR] } },
+        { asaasAssinaturaStatus: STATUS_CRIANDO, atualizadoEm: { lt: corte } },
+      ],
+    },
+    data: { asaasAssinaturaStatus: STATUS_CRIANDO },
+  });
+  return gravado.count === 1;
+}
+
+async function cancelarAssinaturaDeVerdade(http: ClienteHttpAsaas, empresaId: string, vinculoId: string, assinaturaId: string) {
+  try {
+    await http.cancelarAssinatura(assinaturaId);
+  } catch (erro) {
+    if (asaasRespondeu(erro, 404)) return;
+    logAsaasErro("falha ao cancelar assinatura órfã", {
+      empresaId,
+      clienteServicoId: vinculoId,
+      asaasSubscriptionId: assinaturaId,
+      mensagem: mensagemLogAsaas(erro),
+    });
+    await prisma.clienteServico.updateMany({
+      where: { id: vinculoId, empresaId },
+      data: { asaasSubscriptionId: assinaturaId, asaasAssinaturaStatus: "ACTIVE" },
+    });
+    throw new ErroAplicacao(
+      `A assinatura ${assinaturaId} foi criada no Asaas e não pôde ser cancelada. Ela ficou registrada para não gerar outra.`,
+      502,
+      "emissao_registrada",
+    );
+  }
 }
 
 async function sincronizarAssinatura(empresaId: string, assinaturaId: string, http: ClienteHttpAsaas) {
@@ -131,7 +171,7 @@ export async function ativarRecorrencia(
   const dados = lerEsquema(esquemaAtivarRecorrencia, entrada);
   const vinculo = await buscarVinculo(autor.empresaId, clienteServicoId);
   exigirMensalAtivo(vinculo);
-  if (!podeCriar(vinculo)) {
+  if (vinculo.asaasSubscriptionId && !PODE_SUBSTITUIR.has(vinculo.asaasAssinaturaStatus ?? "")) {
     throw new ErroAplicacao("Esta venda já tem cobrança recorrente.", 409, "assinatura_existente");
   }
 
@@ -149,35 +189,90 @@ export async function ativarRecorrencia(
   try {
     const { http } = await abrirClienteAsaas(autor.empresaId, clienteHttp);
     const customer = await garantirClienteAsaas(autor.empresaId, vinculo.cliente, http);
-    const assinatura = await http.criarAssinatura({
-      customer,
-      formaCobranca: forma,
-      valor,
-      proximoVencimento: vencimento,
-      descricao,
-      referencia: vinculo.id,
-      encargos: encargosInformados(dados, prefs),
-    });
+    const dono = await reivindicarEmissao(autor.empresaId, vinculo.id);
+    let assinatura = await http.buscarAssinaturaPorReferencia(vinculo.id);
+    if (!assinatura && !dono) {
+      throw new ErroAplicacao(
+        "Já existe uma cobrança recorrente sendo criada para esta venda. Espere ela terminar antes de gerar outra.",
+        409,
+        "emissao_em_andamento",
+      );
+    }
+    if (!assinatura) {
+      try {
+        assinatura = await http.criarAssinatura({
+          customer,
+          formaCobranca: forma,
+          valor,
+          proximoVencimento: vencimento,
+          descricao,
+          referencia: vinculo.id,
+          encargos: encargosInformados(dados, prefs),
+        });
+      } catch (erro) {
+        assinatura = await http.buscarAssinaturaPorReferencia(vinculo.id).catch(() => null);
+        if (!assinatura) {
+          const incerto = asaasRespondeu(erro, 502) || asaasRespondeu(erro, 504);
+          if (!incerto) {
+            await prisma.clienteServico.updateMany({
+              where: { id: vinculo.id, empresaId: autor.empresaId, asaasAssinaturaStatus: STATUS_CRIANDO },
+              data: { asaasAssinaturaStatus: null },
+            });
+          }
+          if (incerto) {
+            throw new ErroAplicacao(
+              "Não confirmamos a cobrança recorrente no Asaas. Nenhuma cobrança nova foi gerada. Espere um instante e tente de novo.",
+              502,
+              "emissao_incerta",
+            );
+          }
+          throw erro;
+        }
+      }
+    }
+    const dadosGravados = {
+      valor: assinatura.valor,
+      asaasSubscriptionId: assinatura.id,
+      asaasAssinaturaStatus: assinatura.status,
+      formaCobrancaRecorrente: formaCobrancaDe(assinatura.formaCobranca),
+      diaVencimento: dia,
+      proximoVencimento: new Date(`${assinatura.proximoVencimento}T00:00:00.000Z`),
+      descricaoRecorrente: assinatura.descricao ?? descricao,
+      ...camposDoCartao(formaCobrancaDe(assinatura.formaCobranca), vinculo.cartaoStatus),
+    };
     const gravado = await prisma.clienteServico.updateMany({
-      where: {
-        id: vinculo.id,
-        empresaId: autor.empresaId,
-        OR: [{ asaasSubscriptionId: null }, { asaasAssinaturaStatus: { in: [...PODE_SUBSTITUIR] } }],
-      },
-      data: {
-        valor: assinatura.valor,
-        asaasSubscriptionId: assinatura.id,
-        asaasAssinaturaStatus: assinatura.status,
-        formaCobrancaRecorrente: formaCobrancaDe(assinatura.formaCobranca),
-        diaVencimento: dia,
-        proximoVencimento: new Date(`${assinatura.proximoVencimento}T00:00:00.000Z`),
-        descricaoRecorrente: assinatura.descricao ?? descricao,
-        ...camposDoCartao(formaCobrancaDe(assinatura.formaCobranca), vinculo.cartaoStatus),
-      },
+      where: { id: vinculo.id, empresaId: autor.empresaId, asaasAssinaturaStatus: STATUS_CRIANDO },
+      data: dadosGravados,
     });
     if (gravado.count !== 1) {
-      await http.cancelarAssinatura(assinatura.id).catch(() => undefined);
-      throw new ErroAplicacao("Esta venda já tem cobrança recorrente.", 409, "assinatura_existente");
+      const atual = await prisma.clienteServico.findFirst({
+        where: { id: vinculo.id, empresaId: autor.empresaId },
+        select: { asaasSubscriptionId: true },
+      });
+      if (atual?.asaasSubscriptionId === assinatura.id) {
+        // A outra requisição já gravou a mesma assinatura.
+      } else if (atual?.asaasSubscriptionId) {
+        await cancelarAssinaturaDeVerdade(http, autor.empresaId, vinculo.id, assinatura.id);
+        throw new ErroAplicacao("Esta venda já tem cobrança recorrente.", 409, "assinatura_existente");
+      } else {
+        const forcado = await prisma.clienteServico.updateMany({
+          where: { id: vinculo.id, empresaId: autor.empresaId },
+          data: dadosGravados,
+        });
+        if (forcado.count !== 1) {
+          await cancelarAssinaturaDeVerdade(http, autor.empresaId, vinculo.id, assinatura.id);
+          throw new ErroAplicacao(
+            "A cobrança recorrente foi criada no Asaas e o Taguaro não conseguiu gravá-la. O cancelamento foi pedido. Confira no Asaas antes de ativar de novo.",
+            502,
+            "emissao_cancelada",
+          );
+        }
+        throw new ErroAplicacao(
+          `A assinatura ${assinatura.id} foi criada no Asaas e ficou registrada para não gerar outra.`,
+          502,
+          "emissao_registrada",
+        );
+      }
     }
     logAsaas("assinatura criada", {
       empresaId: autor.empresaId,
@@ -406,7 +501,10 @@ export async function listarPreviaRecorrencia(
       recorrencia: "MENSAL",
       status: "ATIVO",
       ...(filtro.clienteId ? { clienteId: filtro.clienteId } : {}),
-      OR: [{ asaasSubscriptionId: null }, { asaasAssinaturaStatus: { in: [...PODE_SUBSTITUIR] } }],
+      AND: [
+        { OR: [{ asaasSubscriptionId: null }, { asaasAssinaturaStatus: { in: [...PODE_SUBSTITUIR] } }] },
+        { OR: [{ asaasAssinaturaStatus: null }, { asaasAssinaturaStatus: { not: STATUS_CRIANDO } }] },
+      ],
     },
     include: {
       cliente: { select: { nomeFantasia: true } },

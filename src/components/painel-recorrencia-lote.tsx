@@ -69,7 +69,7 @@ export function PainelRecorrenciaLote({
   }
 
   async function confirmar() {
-    if (!previa || escolhidos.length === 0) return;
+    if (enviando || !previa || escolhidos.length === 0) return;
     setEnviando(true);
     setErro("");
     const resposta = await enviarJson<ResultadoLoteRecorrencia>("/api/recorrencias/lote", "POST", {

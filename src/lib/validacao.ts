@@ -345,6 +345,11 @@ export const esquemaFatura = z.object({
     .trim()
     .max(64, "Escolha um serviço deste cliente.")
     .optional(),
+  chaveIdempotencia: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z0-9-]{8,64}$/, "A tentativa de emissão é inválida.")
+    .optional(),
 });
 
 export type EntradaCliente = z.infer<typeof esquemaCliente>;
