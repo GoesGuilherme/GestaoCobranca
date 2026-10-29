@@ -11,7 +11,7 @@ import { PainelRecorrenciaLote } from "@/components/painel-recorrencia-lote";
 import { Selo } from "@/components/selo";
 import { dataHojeIso } from "@/lib/data";
 import { formatarReais } from "@/lib/dinheiro";
-import { formatarData } from "@/lib/formatacao";
+import { formatarData, formatarDataIso } from "@/lib/formatacao";
 import { somenteDigitos } from "@/lib/documento";
 import { podeAlterarServicos, podeEmitirCobranca, podeVerCustoServico, podeVerFaturas, podeVerRegua } from "@/lib/permissoes";
 import { opcoesDaReguaAplicavel, passosDaAtribuicao } from "@/lib/regua";
@@ -122,6 +122,7 @@ export default async function PaginaCliente({ params }: { params: Promise<{ id: 
         <Item rotulo="Cidade">
           {cliente.cidade}/{cliente.uf}
         </Item>
+        <Item rotulo="Data de ativação">{cliente.ativadoEm ? formatarDataIso(cliente.ativadoEm) : "Não informada"}</Item>
         <Item rotulo="Filiais">{cliente.quantidadeFiliais}</Item>
         <Item rotulo="Mensal ativo">{formatarReais(cliente.valorMensalAtivo)}</Item>
       </dl>

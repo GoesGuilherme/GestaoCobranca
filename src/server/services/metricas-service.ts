@@ -14,7 +14,7 @@ export async function obterMetricas(autor: AutorEmpresa, agora = new Date()): Pr
       status: true,
       asaasAssinaturaStatus: true,
       atualizadoEm: true,
-      cliente: { select: { status: true, atualizadoEm: true } },
+      cliente: { select: { status: true, atualizadoEm: true, ativadoEm: true } },
     },
   });
 
@@ -28,6 +28,7 @@ export async function obterMetricas(autor: AutorEmpresa, agora = new Date()): Pr
         inicio: isoDeData(linha.inicioEm),
         fim: fimDaAssinatura(linha.status, linha.asaasAssinaturaStatus, atualizado),
         clienteFim: fimDoCliente(linha.cliente.status, dataHojeIso(linha.cliente.atualizadoEm)),
+        ativacao: linha.cliente.ativadoEm ? isoDeData(linha.cliente.ativadoEm) : null,
       };
     }),
   );

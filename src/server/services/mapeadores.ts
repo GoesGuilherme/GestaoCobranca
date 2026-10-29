@@ -49,6 +49,7 @@ export function paraCliente(cliente: ClienteComContagem): ClienteResumo {
     cidade: cliente.cidade,
     uf: cliente.uf,
     status: cliente.status,
+    ativadoEm: cliente.ativadoEm ? isoDeData(cliente.ativadoEm) : null,
     observacoes: cliente.observacoes,
     quantidadeFiliais: cliente._count?.filiais ?? 0,
     valorMensalAtivo: somarDinheiro((cliente.servicos ?? []).map((item) => item.valor.toFixed(2))),

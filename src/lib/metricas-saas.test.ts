@@ -17,6 +17,7 @@ function vinculo(parcial: Partial<VinculoMetrica> & Pick<VinculoMetrica, "client
     inicio: "2026-01-01",
     fim: null,
     clienteFim: null,
+    ativacao: null,
     ...parcial,
   };
 }
@@ -34,14 +35,15 @@ describe("métricas de assinatura", () => {
     expect(metricas.meses).toHaveLength(12);
   });
 
-  it("com churn zero por doze meses avisa que o LTV não dá para calcular", () => {
+  it("com churn zero o LTV usa o tempo desde a entrada, sem ir ao infinito", () => {
     const metricas = calcularMetricas(HOJE, [vinculo({ clienteId: "a", valor: "100.00", inicio: "2025-01-01" })]);
     expect(metricas.mrr).toBe("100.00");
     expect(metricas.churnClientes).toBe(BigInt(0));
     expect(metricas.variacao).toBe(BigInt(0));
-    expect(metricas.ltvDisponivel).toBe(false);
-    expect(metricas.vidaMeses).toBeNull();
-    expect(metricas.mesesNaMedia).toBe(12);
+    expect(metricas.ltvDisponivel).toBe(true);
+    expect(metricas.vidaMeses).toBe("22,1");
+    expect(metricas.ltv).toBe("2210.00");
+    expect(metricas.clientesSemAtivacao).toBe(1);
   });
 
   it("conta o cancelamento no meio do mês só no mês em que a mensalidade acaba", () => {
@@ -69,7 +71,7 @@ describe("métricas de assinatura", () => {
     expect(setembro?.churnReceita).toBeNull();
     expect(metricas.mrr).toBe("80.00");
     expect(metricas.variacao).toBeNull();
-    expect(metricas.ltvDisponivel).toBe(false);
+    expect(metricas.churnClientes).toBeNull();
   });
 
   it("perde metade dos clientes e a receita correspondente", () => {
@@ -120,6 +122,35 @@ describe("métricas de assinatura", () => {
     expect(metricas.ltvDisponivel).toBe(true);
     expect(metricas.ltv).not.toBeNull();
     expect(metricas.vidaMeses).not.toBeNull();
+  });
+
+  it("entra no churn pela data de ativação mesmo com o início da mensalidade errado", () => {
+    const metricas = calcularMetricas(HOJE, [
+      vinculo({
+        clienteId: "lulu",
+        valor: "100.00",
+        inicio: "2026-10-01",
+        fim: "2026-10-15",
+        ativacao: "2023-10-27",
+      }),
+    ]);
+    const setembro = metricas.meses.find((mes) => mes.mes === "2026-09");
+    const outubro = metricas.meses.find((mes) => mes.mes === "2026-10");
+    expect(setembro?.mrr).toBe("0.00");
+    expect(setembro?.churnClientes).toBe(BigInt(0));
+    expect(outubro?.perdidos).toBe(1);
+    expect(outubro?.churnClientes).toBe(BigInt(1000000));
+    expect(metricas.clientesSemAtivacao).toBe(0);
+  });
+
+  it("sem data de ativação usa o início da mensalidade mais antiga", () => {
+    const metricas = calcularMetricas(HOJE, [
+      vinculo({ clienteId: "a", valor: "10.00", inicio: "2026-08-20" }),
+      vinculo({ clienteId: "a", valor: "20.00", inicio: "2026-10-01" }),
+    ]);
+    expect(metricas.clientesSemAtivacao).toBe(1);
+    expect(metricas.meses.find((mes) => mes.mes === "2026-08")?.churnClientes).toBeNull();
+    expect(metricas.meses.find((mes) => mes.mes === "2026-09")?.churnClientes).toBe(BigInt(0));
   });
 
   it("marca o fim da mensalidade pausada, cancelada ou do cliente bloqueado", () => {

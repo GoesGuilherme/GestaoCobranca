@@ -170,6 +170,7 @@ model Cliente {
   cidade        String
   uf            String
   status          StatusCliente
+  ativadoEm       DateTime?        @map("ativado_em") @db.Date
   observacoes     String?          @db.Text
   asaasCustomerId String?          @map("asaas_customer_id")
   reguaId         String?          @map("regua_id")

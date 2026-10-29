@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { enviarJson } from "@/lib/api-cliente";
+import { dataHojeIso } from "@/lib/data";
 import { SEGMENTOS, STATUS_CLIENTE } from "@/lib/rotulos";
 import type { ClienteResumo } from "@/lib/tipos";
 import { UFS } from "@/lib/ufs";
@@ -22,6 +23,7 @@ type Valores = {
   cidade: string;
   uf: string;
   status: string;
+  ativadoEm: string;
   observacoes: string;
 };
 
@@ -36,6 +38,7 @@ const vazio: Valores = {
   cidade: "",
   uf: "SP",
   status: "ATIVO",
+  ativadoEm: "",
   observacoes: "",
 };
 
@@ -64,6 +67,7 @@ export function FormularioCliente({
           cidade: cliente.cidade,
           uf: cliente.uf,
           status: cliente.status,
+          ativadoEm: cliente.ativadoEm ?? "",
           observacoes: cliente.observacoes ?? "",
         }
       : vazio,
@@ -203,6 +207,21 @@ export function FormularioCliente({
               </option>
             ))}
           </select>
+        </Campo>
+        <Campo
+          label="Data de ativação"
+          htmlFor="ativadoEm"
+          erro={campos.ativadoEm}
+          dica="Quando esta pessoa passou a ser cliente. Pode ficar em branco."
+        >
+          <input
+            id="ativadoEm"
+            type="date"
+            className={classeCampo}
+            value={valores.ativadoEm}
+            max={dataHojeIso()}
+            onChange={(evento) => alterar("ativadoEm", evento.target.value)}
+          />
         </Campo>
         <Campo label="Cidade" htmlFor="cidade" erro={campos.cidade}>
           <input

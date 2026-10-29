@@ -34,6 +34,7 @@ export type ClienteResumo = {
   cidade: string;
   uf: string;
   status: StatusCliente;
+  ativadoEm: string | null;
   observacoes: string | null;
   quantidadeFiliais: number;
   valorMensalAtivo: string;

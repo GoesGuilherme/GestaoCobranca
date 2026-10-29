@@ -2,7 +2,6 @@ import { normalizarDinheiro } from "./dinheiro";
 
 const MICRO = BigInt(1000000);
 const CEM = BigInt(100);
-const MIN_MESES_LTV = 6;
 const MESES_JANELA = 12;
 
 const NOMES_MES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
@@ -15,6 +14,7 @@ export type VinculoMetrica = {
   inicio: string;
   fim: string | null;
   clienteFim: string | null;
+  ativacao: string | null;
 };
 
 export type MesMetrica = {
@@ -44,6 +44,7 @@ export type MetricasSaas = {
   mesesNaMedia: number;
   ltvDisponivel: boolean;
   semMensalidades: boolean;
+  clientesSemAtivacao: number;
 };
 
 export function fimDaAssinatura(
@@ -62,20 +63,18 @@ export function fimDoCliente(status: string, atualizadoIso: string): string | nu
 }
 
 export function calcularMetricas(hoje: string, vinculos: VinculoMetrica[]): MetricasSaas {
-  const meses = mesesAte(hoje, MESES_JANELA).map((mes) => pontoDoMes(mes, hoje, vinculos));
+  const grupos = agrupar(vinculos);
+  const meses = mesesAte(hoje, MESES_JANELA).map((mes) => pontoDoMes(mes, hoje, vinculos, grupos));
   const atual = meses[meses.length - 1];
   const anterior = meses[meses.length - 2];
   const mrrAtual = centavos(atual?.mrr ?? "0.00");
   const mrrAnterior = centavos(anterior?.mrr ?? "0.00");
   const variacaoCentavos = mrrAtual - mrrAnterior;
   const variacao = mrrAnterior > BigInt(0) ? (variacaoCentavos * MICRO) / mrrAnterior : null;
-
   const comChurn = meses.filter((mes) => mes.churnClientes !== null);
-  const mesesNaMedia = comChurn.length;
-  const soma = comChurn.reduce((total, mes) => total + (mes.churnClientes ?? BigInt(0)), BigInt(0));
-  const media = mesesNaMedia > 0 ? soma / BigInt(mesesNaMedia) : BigInt(0);
   const ticketCentavos = atual && atual.clientes > 0 ? mrrAtual / BigInt(atual.clientes) : null;
-  const ltvDisponivel = mesesNaMedia >= MIN_MESES_LTV && media > BigInt(0) && ticketCentavos !== null;
+  const vida = vidaMedia(grupos, hoje);
+  const ltvDisponivel = ticketCentavos !== null && vida !== null && vida > BigInt(0);
 
   return {
     mrr: atual?.mrr ?? "0.00",
@@ -87,11 +86,12 @@ export function calcularMetricas(hoje: string, vinculos: VinculoMetrica[]): Metr
     churnReceita: atual?.churnReceita ?? null,
     clientesAtivos: atual?.clientes ?? 0,
     ticket: ticketCentavos === null ? null : texto(ticketCentavos),
-    ltv: ltvDisponivel && ticketCentavos !== null ? texto((ticketCentavos * MICRO) / media) : null,
-    vidaMeses: ltvDisponivel ? formatarVida(media) : null,
-    mesesNaMedia,
+    ltv: ltvDisponivel && ticketCentavos !== null && vida !== null ? texto((ticketCentavos * vida) / BigInt(10)) : null,
+    vidaMeses: vida !== null && vida > BigInt(0) ? formatarDecimos(vida) : null,
+    mesesNaMedia: comChurn.length,
     ltvDisponivel,
     semMensalidades: vinculos.length === 0,
+    clientesSemAtivacao: [...grupos.values()].filter((grupo) => grupo.semAtivacao).length,
   };
 }
 
@@ -105,12 +105,82 @@ export function formatarMicrosPercentual(micros: bigint | null): string {
   return negativo ? `−${corpo}` : corpo;
 }
 
-function pontoDoMes(mes: string, hoje: string, vinculos: VinculoMetrica[]): MesMetrica {
+type BaseCliente = {
+  entrada: string;
+  saida: string | null;
+  semAtivacao: boolean;
+};
+
+function agrupar(vinculos: VinculoMetrica[]): Map<string, BaseCliente> {
+  const grupos = new Map<string, VinculoMetrica[]>();
+  for (const vinculo of vinculos) {
+    const lista = grupos.get(vinculo.clienteId) ?? [];
+    lista.push(vinculo);
+    grupos.set(vinculo.clienteId, lista);
+  }
+  const bases = new Map<string, BaseCliente>();
+  for (const [id, lista] of grupos) {
+    const ativacao = lista.find((item) => item.ativacao)?.ativacao ?? null;
+    const inicios = lista.map((item) => item.inicio).sort();
+    const entrada = ativacao ?? inicios[0];
+    if (!entrada) continue;
+    const clienteFim = lista.find((item) => item.clienteFim)?.clienteFim ?? null;
+    const fins = lista.map((item) => item.fim);
+    const todasEncerradas = fins.every((fim) => fim !== null);
+    const ultimoFim = todasEncerradas ? [...fins].filter((fim): fim is string => fim !== null).sort().at(-1) ?? null : null;
+    bases.set(id, {
+      entrada,
+      saida: maisCedo(clienteFim, ultimoFim),
+      semAtivacao: ativacao === null,
+    });
+  }
+  return bases;
+}
+
+function maisCedo(primeira: string | null, segunda: string | null): string | null {
+  if (!primeira) return segunda;
+  if (!segunda) return primeira;
+  return primeira < segunda ? primeira : segunda;
+}
+
+function naBase(grupos: Map<string, BaseCliente>, dia: string): Set<string> {
+  const clientes = new Set<string>();
+  for (const [id, base] of grupos) {
+    if (base.entrada <= dia && (base.saida === null || base.saida > dia)) clientes.add(id);
+  }
+  return clientes;
+}
+
+function vidaMedia(grupos: Map<string, BaseCliente>, hoje: string): bigint | null {
+  const tempos: bigint[] = [];
+  for (const base of grupos.values()) {
+    const ate = base.saida !== null && base.saida <= hoje ? base.saida : hoje;
+    if (ate < base.entrada) continue;
+    tempos.push(BigInt(diasEntre(base.entrada, ate)) * BigInt(10) / BigInt(30));
+  }
+  if (tempos.length === 0) return null;
+  return tempos.reduce((total, item) => total + item, BigInt(0)) / BigInt(tempos.length);
+}
+
+function diasEntre(de: string, ate: string): number {
+  const [anoDe, mesDe, diaDe] = de.split("-").map(Number);
+  const [anoAte, mesAte, diaAte] = ate.split("-").map(Number);
+  return Math.round((Date.UTC(anoAte, mesAte - 1, diaAte) - Date.UTC(anoDe, mesDe - 1, diaDe)) / 86400000);
+}
+
+function pontoDoMes(
+  mes: string,
+  hoje: string,
+  vinculos: VinculoMetrica[],
+  grupos: Map<string, BaseCliente>,
+): MesMetrica {
   const fim = diaDoPonto(mes, hoje);
   const inicio = ultimoDia(mesAnterior(mes));
   const agora = retrato(vinculos, fim);
   const antes = retrato(vinculos, inicio);
-  const perdidos = [...antes.clientes].filter((cliente) => !agora.clientes.has(cliente)).length;
+  const baseAgora = naBase(grupos, fim);
+  const baseAntes = naBase(grupos, inicio);
+  const perdidos = [...baseAntes].filter((cliente) => !baseAgora.has(cliente)).length;
   const mantido = mrrMantido(vinculos, inicio, fim);
   const perdido = antes.mrr > mantido ? antes.mrr - mantido : BigInt(0);
   return {
@@ -119,7 +189,7 @@ function pontoDoMes(mes: string, hoje: string, vinculos: VinculoMetrica[]): MesM
     mrr: texto(agora.mrr),
     clientes: agora.clientes.size,
     perdidos,
-    churnClientes: antes.clientes.size > 0 ? (BigInt(perdidos) * MICRO) / BigInt(antes.clientes.size) : null,
+    churnClientes: baseAntes.size > 0 ? (BigInt(perdidos) * MICRO) / BigInt(baseAntes.size) : null,
     mrrInicio: texto(antes.mrr),
     mrrPerdido: texto(perdido),
     churnReceita: antes.mrr > BigInt(0) ? (perdido * MICRO) / antes.mrr : null,
@@ -208,7 +278,6 @@ function texto(centavosValor: bigint): string {
   return `${inteiro}.${frac}`;
 }
 
-function formatarVida(mediaMicros: bigint): string {
-  const decimos = (MICRO * BigInt(10)) / mediaMicros;
+function formatarDecimos(decimos: bigint): string {
   return `${decimos / BigInt(10)},${decimos % BigInt(10)}`;
 }

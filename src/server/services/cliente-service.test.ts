@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it } from "vitest";
 import { completarCnpj, completarCpf, formatarCnpj, formatarCpf } from "@/lib/documento";
 import { prisma } from "@/server/db";
@@ -54,6 +55,28 @@ describe("serviço de clientes", () => {
     expect(cliente.quantidadeFiliais).toBe(0);
     expect(cliente.criadoEm).toBeTruthy();
     expect(cliente.atualizadoEm).toBeTruthy();
+  });
+
+  it("grava a data de ativação e recusa data futura ou inválida", async () => {
+    const cliente = await criarCliente(empresaId, exemplo(completarCnpj("300000000090"), { ativadoEm: "2023-10-27" }));
+    expect(cliente.ativadoEm).toBe("2023-10-27");
+    await expect(
+      criarCliente(empresaId, exemplo(completarCnpj("300000000091"), { ativadoEm: "2099-01-01" })),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      criarCliente(empresaId, exemplo(completarCnpj("300000000092"), { ativadoEm: "31/02/2020" })),
+    ).rejects.toMatchObject({ status: 400 });
+    const semData = await criarCliente(empresaId, exemplo(completarCnpj("300000000093"), { ativadoEm: "" }));
+    expect(semData.ativadoEm).toBeNull();
+  });
+
+  it("o preenchimento automático só usa campo vazio e a data confirmada da UAI", () => {
+    const sql = readFileSync("prisma/migrations/20261029140000_cliente_ativado_em/migration.sql", "utf8");
+    expect(sql).toContain("1ª ativação OEM");
+    expect(sql).toContain("50783953000141");
+    expect(sql).toContain("2026-06-24");
+    expect(sql).toContain('"ativado_em" IS NULL');
+    expect(sql).not.toMatch(/observacoes"\s*=/);
   });
 
   it("aceita CPF de pessoa física", async () => {
