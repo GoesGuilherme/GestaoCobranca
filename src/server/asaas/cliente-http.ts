@@ -80,6 +80,7 @@ function lerCobranca(json: unknown): CobrancaAsaas {
     faturaUrl: textoDe(corpo.invoiceUrl),
     descricao: textoDe(corpo.description),
     excluida: corpo.deleted === true,
+    referencia: textoDe(corpo.externalReference),
     cartao: cartaoSeguro(corpo.creditCard),
   };
 }
@@ -270,6 +271,13 @@ export function criarClienteHttpAsaas(opcoes: {
       return lerCobranca(json);
     },
 
+    async buscarCobrancaPorReferencia(referencia) {
+      const consulta = new URLSearchParams({ externalReference: referencia, limit: "10" });
+      const { json } = await pedir("GET", `/payments?${consulta.toString()}`);
+      const pagina = lerPagina(json);
+      return pagina.cobrancas.find((cobranca) => !cobranca.excluida && cobranca.referencia === referencia) ?? null;
+    },
+
     async cancelarCobranca(id) {
       await pedir("DELETE", `/payments/${idAsaasSeguro(id)}`);
     },
@@ -307,6 +315,24 @@ export function criarClienteHttpAsaas(opcoes: {
       if (dados.referencia) corpo.externalReference = dados.referencia;
       const { json } = await pedir("POST", "/subscriptions", corpoComValor(corpo, dados.valor, dados.encargos));
       return lerAssinatura(json);
+    },
+
+    async buscarAssinaturaPorReferencia(referencia) {
+      const consulta = new URLSearchParams({ externalReference: referencia, limit: "10" });
+      const { json } = await pedir("GET", `/subscriptions?${consulta.toString()}`);
+      if (!json || typeof json !== "object" || !Array.isArray((json as { data?: unknown }).data)) {
+        throw new ErroAsaas("Resposta de assinatura inválida.", 502);
+      }
+      const lista = (json as { data: unknown[] }).data;
+      for (const item of lista) {
+        if (!item || typeof item !== "object") continue;
+        const corpo = item as { externalReference?: unknown; deleted?: unknown };
+        if (corpo.deleted === true) continue;
+        if (textoDe(corpo.externalReference) !== referencia) continue;
+        const assinatura = lerAssinatura(item);
+        if (assinatura.status === "ACTIVE") return assinatura;
+      }
+      return null;
     },
 
     async atualizarAssinatura(id, dados: AtualizacaoAssinaturaAsaas) {

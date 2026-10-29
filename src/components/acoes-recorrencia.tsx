@@ -91,6 +91,7 @@ export function AcoesRecorrencia({
 
   async function ativar(evento: React.FormEvent) {
     evento.preventDefault();
+    if (enviando) return;
     setEnviando(true);
     setErro("");
     const resposta = await enviarJson(`/api/servicos-cliente/${vinculo.id}/recorrencia`, "POST", {

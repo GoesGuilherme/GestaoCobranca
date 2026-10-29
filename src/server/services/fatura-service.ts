@@ -19,7 +19,7 @@ type FaturaComNomes = {
   id: string;
   clienteId: string;
   clienteServicoId: string | null;
-  asaasPaymentId: string;
+  asaasPaymentId: string | null;
   valor: { toFixed(casas: number): string };
   vencimento: Date;
   status: string;
@@ -74,7 +74,7 @@ function paraFatura(fatura: FaturaComNomes): FaturaDTO {
     nomeCliente: fatura.cliente.nomeFantasia,
     clienteServicoId: fatura.clienteServicoId,
     nomeServico: fatura.clienteServico?.servico.nome ?? null,
-    asaasPaymentId: fatura.asaasPaymentId,
+    asaasPaymentId: fatura.asaasPaymentId ?? "",
     valor: fatura.valor.toFixed(2),
     vencimento: isoDeData(fatura.vencimento),
     status: fatura.status,
@@ -106,8 +106,8 @@ function modoRegua(valor: string): ModoReguaCliente {
 }
 
 function filtroSituacao(situacao: SituacaoFatura) {
-  if (situacao === "todas") return {};
-  if (situacao === "canceladas") return { excluida: true };
+  if (situacao === "todas") return { status: { not: "CRIANDO" } };
+  if (situacao === "canceladas") return { excluida: true, status: { not: "CRIANDO" } };
   if (situacao === "vencidas") return { excluida: false, status: { in: [...STATUS_VENCIDAS] } };
   if (situacao === "pagas") return { excluida: false, status: { in: [...STATUS_PAGAS] } };
   return { excluida: false, status: { in: [...STATUS_ABERTAS, ...STATUS_VENCIDAS] } };
@@ -182,6 +182,155 @@ export async function garantirClienteAsaas(
   throw new ErroAplicacao("Não foi possível vincular o cliente ao Asaas.", 409, "asaas_cliente");
 }
 
+const STATUS_CRIANDO = "CRIANDO";
+const TRAVA_EMISSAO_MS = 2 * 60 * 1000;
+
+function conflitoUnico(erro: unknown) {
+  if (typeof erro !== "object" || erro === null || !("code" in erro) || erro.code !== "P2002") return false;
+  const meta = "meta" in erro ? (erro.meta as { target?: unknown } | undefined) : undefined;
+  const alvo = meta?.target;
+  const texto = `${Array.isArray(alvo) ? alvo.join(" ") : typeof alvo === "string" ? alvo : ""} ${
+    "message" in erro && typeof erro.message === "string" ? erro.message : ""
+  }`;
+  return texto.includes("chave_idempotencia") || texto.includes("chaveIdempotencia") || texto.includes("criando");
+}
+
+function travaFresca(atualizadoEm: Date) {
+  return Date.now() - atualizadoEm.getTime() < TRAVA_EMISSAO_MS;
+}
+
+async function completarCobranca(http: ClienteHttpAsaas, cobranca: CobrancaAsaas) {
+  let linhaDigitavel: string | null = null;
+  let pixCopiaCola: string | null = null;
+  const forma = cobranca.formaCobranca;
+  if (forma === "BOLETO" || forma === "UNDEFINED") {
+    try {
+      linhaDigitavel = await http.obterLinhaDigitavel(cobranca.id);
+    } catch {
+      linhaDigitavel = null;
+    }
+  }
+  if (forma === "PIX" || forma === "UNDEFINED") {
+    try {
+      pixCopiaCola = await http.obterPix(cobranca.id);
+    } catch {
+      pixCopiaCola = null;
+    }
+  }
+  return { linhaDigitavel, pixCopiaCola };
+}
+
+async function carregarFatura(empresaId: string, id: string) {
+  const fatura = await prisma.fatura.findFirst({
+    where: { id, empresaId },
+    include: includeNomes,
+  });
+  if (!fatura) throw new ErroAplicacao("Cobrança não encontrada.", 404, "nao_encontrado");
+  return fatura;
+}
+
+async function gravarCobrancaNaFatura(
+  empresaId: string,
+  faturaId: string,
+  cobranca: CobrancaAsaas,
+  extras: { linhaDigitavel: string | null; pixCopiaCola: string | null },
+) {
+  await prisma.fatura.update({
+    where: { id: faturaId },
+    data: {
+      asaasPaymentId: cobranca.id,
+      valor: cobranca.valor,
+      status: cobranca.status,
+      formaCobranca: cobranca.formaCobranca,
+      boletoUrl: cobranca.boletoUrl,
+      linhaDigitavel: extras.linhaDigitavel,
+      pixCopiaCola: extras.pixCopiaCola,
+      faturaUrl: cobranca.faturaUrl,
+      descricao: cobranca.descricao,
+      excluida: cobranca.excluida,
+      erroEmissao: null,
+    },
+  });
+}
+
+async function reservarFatura(dados: {
+  empresaId: string;
+  clienteId: string;
+  clienteServicoId: string | null;
+  chaveIdempotencia: string | undefined;
+  valor: string;
+  vencimento: string;
+  formaCobranca: string;
+  descricao: string | null;
+}) {
+  const base = {
+    clienteServicoId: dados.clienteServicoId,
+    valor: dados.valor,
+    vencimento: new Date(`${dados.vencimento}T00:00:00.000Z`),
+    formaCobranca: dados.formaCobranca,
+    descricao: dados.descricao,
+    status: STATUS_CRIANDO,
+    excluida: false,
+    erroEmissao: null,
+    asaasPaymentId: null as string | null,
+  };
+  if (dados.chaveIdempotencia) {
+    const pelaChave = await prisma.fatura.findFirst({
+      where: { empresaId: dados.empresaId, chaveIdempotencia: dados.chaveIdempotencia },
+    });
+    if (pelaChave) {
+      if (pelaChave.asaasPaymentId && pelaChave.status !== STATUS_CRIANDO && !pelaChave.excluida) {
+        return { fatura: pelaChave, dono: false };
+      }
+      if (pelaChave.status === STATUS_CRIANDO && travaFresca(pelaChave.atualizadoEm)) {
+        return { fatura: pelaChave, dono: false };
+      }
+      const adotada = await prisma.fatura.update({
+        where: { id: pelaChave.id },
+        data: { ...base, chaveIdempotencia: dados.chaveIdempotencia },
+      });
+      return { fatura: adotada, dono: true };
+    }
+  }
+
+  const criando = await prisma.fatura.findFirst({
+    where: { empresaId: dados.empresaId, clienteId: dados.clienteId, status: STATUS_CRIANDO },
+  });
+  if (criando && travaFresca(criando.atualizadoEm)) return { fatura: criando, dono: false };
+  if (criando) {
+    const adotada = await prisma.fatura.update({
+      where: { id: criando.id },
+      data: { ...base, chaveIdempotencia: dados.chaveIdempotencia ?? criando.chaveIdempotencia },
+    });
+    return { fatura: adotada, dono: true };
+  }
+
+  try {
+    const criada = await prisma.fatura.create({
+      data: {
+        empresaId: dados.empresaId,
+        clienteId: dados.clienteId,
+        chaveIdempotencia: dados.chaveIdempotencia,
+        ...base,
+      },
+    });
+    return { fatura: criada, dono: true };
+  } catch (erro) {
+    if (!conflitoUnico(erro)) throw erro;
+    const deNovo =
+      (dados.chaveIdempotencia
+        ? await prisma.fatura.findFirst({
+            where: { empresaId: dados.empresaId, chaveIdempotencia: dados.chaveIdempotencia },
+          })
+        : null) ??
+      (await prisma.fatura.findFirst({
+        where: { empresaId: dados.empresaId, clienteId: dados.clienteId, status: STATUS_CRIANDO },
+      }));
+    if (!deNovo) throw erro;
+    return { fatura: deNovo, dono: false };
+  }
+}
+
 export async function emitirFatura(
   autor: AutorEmpresa,
   clienteId: string,
@@ -209,75 +358,152 @@ export async function emitirFatura(
 
   const prefs = await obterPreferenciasCobranca(autor.empresaId);
   const forma = formaCobrancaDe(dados.formaCobranca ?? prefs.formaCobranca);
-  const descricao = dados.descricao?.trim() ? dados.descricao.trim() : undefined;
+  const descricao = dados.descricao?.trim() ? dados.descricao.trim() : null;
 
   try {
     const { http } = await abrirClienteAsaas(autor.empresaId, clienteHttp);
-    const customer = await garantirClienteAsaas(autor.empresaId, cliente, http);
-    const cobranca = await http.criarCobranca({
-      customer,
-      formaCobranca: forma,
-      valor: dados.valor,
-      vencimento: dados.vencimento,
-      descricao,
-      referencia: cliente.id,
-      encargos: encargosDaPreferencia(prefs),
-    });
-
-    let linhaDigitavel: string | null = null;
-    let pixCopiaCola: string | null = null;
-    if (forma === "BOLETO" || forma === "UNDEFINED") {
-      try {
-        linhaDigitavel = await http.obterLinhaDigitavel(cobranca.id);
-      } catch {
-        linhaDigitavel = null;
-      }
-    }
-    if (forma === "PIX" || forma === "UNDEFINED") {
-      try {
-        pixCopiaCola = await http.obterPix(cobranca.id);
-      } catch {
-        pixCopiaCola = null;
-      }
-    }
-
-    try {
-      const fatura = await prisma.fatura.create({
-        data: {
-          empresaId: autor.empresaId,
-          clienteId: cliente.id,
-          clienteServicoId,
-          asaasPaymentId: cobranca.id,
-          valor: cobranca.valor,
-          vencimento: new Date(`${dados.vencimento}T00:00:00.000Z`),
-          status: cobranca.status,
-          formaCobranca: cobranca.formaCobranca,
-          boletoUrl: cobranca.boletoUrl,
-          linhaDigitavel,
-          pixCopiaCola,
-          faturaUrl: cobranca.faturaUrl,
-          descricao: cobranca.descricao,
-          excluida: cobranca.excluida,
-        },
-        include: includeNomes,
-      });
-      logAsaas("fatura emitida", {
-        empresaId: autor.empresaId,
-        clienteId: cliente.id,
-        asaasPaymentId: cobranca.id,
-        forma,
-      });
-      return paraFatura(fatura);
-    } catch (erro) {
-      await http.cancelarCobranca(cobranca.id).catch(() => undefined);
-      throw erro;
-    }
-  } catch (erro) {
-    logAsaasErro("falha ao emitir fatura", {
+    await garantirClienteAsaas(autor.empresaId, cliente, http);
+    const { fatura: reservada, dono } = await reservarFatura({
       empresaId: autor.empresaId,
       clienteId: cliente.id,
-      mensagem: mensagemLogAsaas(erro),
+      clienteServicoId,
+      chaveIdempotencia: dados.chaveIdempotencia,
+      valor: dados.valor,
+      vencimento: dados.vencimento,
+      formaCobranca: forma,
+      descricao,
     });
+
+    if (reservada.asaasPaymentId && reservada.status !== STATUS_CRIANDO && !reservada.excluida) {
+      return paraFatura(await carregarFatura(autor.empresaId, reservada.id));
+    }
+
+    const customer = await garantirClienteAsaas(autor.empresaId, cliente, http);
+    let cobranca = await http.buscarCobrancaPorReferencia(reservada.id);
+    if (!cobranca && !dono) {
+      throw new ErroAplicacao(
+        "Já existe uma cobrança sendo emitida para este cliente. Espere ela terminar antes de gerar outra.",
+        409,
+        "emissao_em_andamento",
+      );
+    }
+    if (!cobranca) {
+      try {
+        cobranca = await http.criarCobranca({
+          customer,
+          formaCobranca: forma,
+          valor: dados.valor,
+          vencimento: dados.vencimento,
+          descricao: descricao ?? undefined,
+          referencia: reservada.id,
+          encargos: encargosDaPreferencia(prefs),
+        });
+      } catch (erro) {
+        cobranca = await http.buscarCobrancaPorReferencia(reservada.id).catch(() => null);
+        if (!cobranca) {
+          const incerto = asaasRespondeu(erro, 502) || asaasRespondeu(erro, 504);
+          if (!incerto) {
+            await prisma.fatura.update({
+              where: { id: reservada.id },
+              data: {
+                status: "ERRO_EMISSAO",
+                excluida: true,
+                erroEmissao: mensagemLogAsaas(erro).slice(0, 500),
+                chaveIdempotencia: null,
+              },
+            });
+          }
+          if (incerto) {
+            throw new ErroAplicacao(
+              "Não confirmamos a cobrança no Asaas. Nenhuma cobrança nova foi gerada. Espere um instante e tente de novo.",
+              502,
+              "emissao_incerta",
+            );
+          }
+          throw erro;
+        }
+      }
+    }
+
+    const extras = await completarCobranca(http, cobranca);
+    try {
+      await gravarCobrancaNaFatura(autor.empresaId, reservada.id, cobranca, extras);
+    } catch (erroGravacao) {
+      try {
+        await gravarCobrancaNaFatura(autor.empresaId, reservada.id, cobranca, extras);
+      } catch {
+        let cancelou = false;
+        try {
+          await http.cancelarCobranca(cobranca.id);
+          cancelou = true;
+        } catch (erroCancelamento) {
+          logAsaasErro("falha ao cancelar cobrança órfã", {
+            empresaId: autor.empresaId,
+            clienteId: cliente.id,
+            asaasPaymentId: cobranca.id,
+            mensagem: mensagemLogAsaas(erroCancelamento),
+          });
+          try {
+            await prisma.fatura.update({
+              where: { id: reservada.id },
+              data: {
+                asaasPaymentId: cobranca.id,
+                status: cobranca.status,
+                boletoUrl: cobranca.boletoUrl,
+                faturaUrl: cobranca.faturaUrl,
+                erroEmissao: "A cobrança foi criada no Asaas e o cancelamento falhou. Ela ficou registrada para não gerar outra.",
+              },
+            });
+          } catch (erroFinal) {
+            logAsaasErro("falha ao registrar cobrança órfã", {
+              empresaId: autor.empresaId,
+              clienteId: cliente.id,
+              asaasPaymentId: cobranca.id,
+              mensagem: mensagemLogAsaas(erroFinal),
+            });
+          }
+          throw new ErroAplicacao(
+            `A cobrança ${cobranca.id} foi criada no Asaas e não pôde ser cancelada. Ela ficou registrada para não gerar outra. Confira o boleto antes de emitir de novo.`,
+            502,
+            "emissao_registrada",
+          );
+        }
+        if (cancelou) {
+          await prisma.fatura.update({
+            where: { id: reservada.id },
+            data: {
+              asaasPaymentId: cobranca.id,
+              status: "ERRO_EMISSAO",
+              excluida: true,
+              erroEmissao: "A cobrança foi criada no Asaas e o Taguaro não conseguiu gravá-la. O cancelamento foi pedido.",
+              chaveIdempotencia: null,
+            },
+          });
+          throw new ErroAplicacao(
+            "A cobrança chegou a ser criada no Asaas e o Taguaro não conseguiu gravá-la. O cancelamento foi pedido. Confira no Asaas se o boleto foi cancelado antes de emitir de novo.",
+            502,
+            "emissao_cancelada",
+          );
+        }
+        throw erroGravacao;
+      }
+    }
+
+    logAsaas("fatura emitida", {
+      empresaId: autor.empresaId,
+      clienteId: cliente.id,
+      asaasPaymentId: cobranca.id,
+      forma,
+    });
+    return paraFatura(await carregarFatura(autor.empresaId, reservada.id));
+  } catch (erro) {
+    if (!(erro instanceof ErroAplicacao && erro.codigo === "emissao_em_andamento")) {
+      logAsaasErro("falha ao emitir fatura", {
+        empresaId: autor.empresaId,
+        clienteId: cliente.id,
+        mensagem: mensagemLogAsaas(erro),
+      });
+    }
     traduzirErroAsaas(erro);
   }
 }
@@ -294,6 +520,14 @@ export async function cancelarFatura(
   });
   if (!atual) throw new ErroAplicacao("Fatura não encontrada.", 404, "nao_encontrado");
   if (atual.excluida) return paraFatura(atual);
+  if (!atual.asaasPaymentId) {
+    const fatura = await prisma.fatura.update({
+      where: { id: atual.id },
+      data: { excluida: true, status: "ERRO_EMISSAO" },
+      include: includeNomes,
+    });
+    return paraFatura(fatura);
+  }
 
   try {
     const { http } = await abrirClienteAsaas(autor.empresaId, clienteHttp);

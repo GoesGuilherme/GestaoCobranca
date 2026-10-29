@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST } from "@/app/api/webhooks/asaas/route";
 import { completarCnpj } from "@/lib/documento";
 import type { PapelUsuario } from "@/lib/tipos";
@@ -278,5 +278,126 @@ describe("Asaas por empresa", () => {
       payment: { id: fatura.asaasPaymentId, deleted: true },
     });
     expect(await prisma.eventoAsaas.count({ where: { empresaId, asaasEventId: "evt_apagada_0001" } })).toBe(1);
+  });
+});
+
+describe("emissão sem boleto duplicado", () => {
+  async function preparar(documento: string) {
+    await salvarConfiguracaoAsaas(autor("DONO"), { ambiente: "SANDBOX", chaveApi: CHAVE });
+    const cadastro = await criarCliente(empresaId, cliente(completarCnpj(documento)));
+    const memoria = new AsaasMemoria("dup");
+    return { cadastro, memoria };
+  }
+
+  async function esperarCriando(clienteId: string) {
+    for (let tentativa = 0; tentativa < 50; tentativa += 1) {
+      const total = await prisma.fatura.count({ where: { clienteId, status: "CRIANDO" } });
+      if (total === 1) return;
+      await new Promise((resolver) => setTimeout(resolver, 20));
+    }
+    throw new Error("A emissão não reservou a fatura.");
+  }
+
+  it("reaproveita a mesma cobrança no duplo clique", async () => {
+    const { cadastro, memoria } = await preparar("570000000011");
+    const chave = "duplo-clique-fatura-0001";
+    const resultados = await Promise.allSettled([
+      emitirFatura(autor("DONO"), cadastro.id, cobranca({ chaveIdempotencia: chave }), memoria),
+      emitirFatura(autor("DONO"), cadastro.id, cobranca({ chaveIdempotencia: chave }), memoria),
+    ]);
+    const ok = resultados.filter((item) => item.status === "fulfilled");
+    expect(ok.length).toBeGreaterThan(0);
+    expect(memoria.cobrancas.size).toBe(1);
+    const referencia = [...memoria.cobrancas.values()][0]?.referencia;
+    expect(ok.every((item) => item.status === "fulfilled" && item.value.id === referencia)).toBe(true);
+    const rejeitadas = resultados.filter((item) => item.status === "rejected");
+    expect(rejeitadas.every((item) => item.status === "rejected" && item.reason?.codigo === "emissao_em_andamento")).toBe(true);
+  });
+
+  it("não cria outra cobrança quando duas requisições correm juntas", async () => {
+    const { cadastro, memoria } = await preparar("570000000012");
+    let liberar = () => {};
+    memoria.segurarCriacao = new Promise<void>((resolver) => {
+      liberar = resolver;
+    });
+    const primeira = emitirFatura(autor("DONO"), cadastro.id, cobranca({ chaveIdempotencia: "concorrencia-fatura-0001" }), memoria);
+    try {
+      await esperarCriando(cadastro.id);
+      await expect(
+        emitirFatura(autor("DONO"), cadastro.id, cobranca({ chaveIdempotencia: "concorrencia-fatura-0002" }), memoria),
+      ).rejects.toMatchObject({ status: 409, codigo: "emissao_em_andamento" });
+      expect(memoria.cobrancas.size).toBe(0);
+    } finally {
+      liberar();
+    }
+    const fatura = await primeira;
+    expect(memoria.cobrancas.size).toBe(1);
+    expect([...memoria.cobrancas.values()][0]?.referencia).toBe(fatura.id);
+    const linha = await prisma.fatura.findUniqueOrThrow({ where: { id: fatura.id } });
+    expect(linha.empresaId).toBe(empresaId);
+  });
+
+  it("reaproveita a cobrança se o Asaas respondeu com timeout depois de criar", async () => {
+    const { cadastro, memoria } = await preparar("570000000013");
+    memoria.lancarDepoisDeCriarCobranca = true;
+    const chave = "timeout-fatura-0001";
+    const fatura = await emitirFatura(autor("DONO"), cadastro.id, cobranca({ chaveIdempotencia: chave }), memoria);
+    expect(memoria.cobrancas.size).toBe(1);
+    expect([...memoria.cobrancas.values()][0]?.referencia).toBe(fatura.id);
+    memoria.lancarDepoisDeCriarCobranca = false;
+    const deNovo = await emitirFatura(autor("DONO"), cadastro.id, cobranca({ chaveIdempotencia: chave }), memoria);
+    expect(deNovo.id).toBe(fatura.id);
+    expect(memoria.cobrancas.size).toBe(1);
+  });
+
+  it("cancela de verdade quando não consegue gravar e registra o erro", async () => {
+    const { cadastro, memoria } = await preparar("570000000014");
+    const original = prisma.fatura.update.bind(prisma.fatura);
+    const espiao = vi.spyOn(prisma.fatura, "update").mockImplementation((async (args: { data?: { asaasPaymentId?: string | null; status?: string } }) => {
+      const data = args.data;
+      if (data?.asaasPaymentId && data.status !== "ERRO_EMISSAO") throw new Error("falha ao gravar");
+      return original(args as never);
+    }) as never);
+    try {
+      await expect(
+        emitirFatura(autor("DONO"), cadastro.id, cobranca({ chaveIdempotencia: "falha-gravacao-0001" }), memoria),
+      ).rejects.toMatchObject({ status: 502, codigo: "emissao_cancelada" });
+    } finally {
+      espiao.mockRestore();
+    }
+    expect(memoria.cobrancas.size).toBe(1);
+    expect([...memoria.cobrancas.values()][0]?.excluida).toBe(true);
+    const linha = await prisma.fatura.findFirstOrThrow({ where: { clienteId: cadastro.id } });
+    expect(linha.erroEmissao).toMatch(/cancelamento foi pedido/);
+    expect(linha.empresaId).toBe(empresaId);
+  });
+
+  it("guarda a cobrança quando o cancelamento também falha e o retry não cria outra", async () => {
+    const { cadastro, memoria } = await preparar("570000000015");
+    memoria.cancelarCobrancaLanca = true;
+    const original = prisma.fatura.update.bind(prisma.fatura);
+    let falhas = 0;
+    const espiao = vi.spyOn(prisma.fatura, "update").mockImplementation((async (args: { data?: { asaasPaymentId?: string | null } }) => {
+      const data = args.data;
+      if (data?.asaasPaymentId) {
+        falhas += 1;
+        if (falhas <= 2) throw new Error("falha ao gravar");
+      }
+      return original(args as never);
+    }) as never);
+    const chave = "falha-cancelamento-0001";
+    try {
+      await expect(emitirFatura(autor("DONO"), cadastro.id, cobranca({ chaveIdempotencia: chave }), memoria)).rejects.toMatchObject({
+        status: 502,
+        codigo: "emissao_registrada",
+      });
+    } finally {
+      espiao.mockRestore();
+    }
+    expect(memoria.cobrancas.size).toBe(1);
+    expect([...memoria.cobrancas.values()][0]?.excluida).toBe(false);
+    const deNovo = await emitirFatura(autor("DONO"), cadastro.id, cobranca({ chaveIdempotencia: chave }), memoria);
+    expect(memoria.cobrancas.size).toBe(1);
+    expect(deNovo.asaasPaymentId).toBe([...memoria.cobrancas.values()][0]?.id);
   });
 });

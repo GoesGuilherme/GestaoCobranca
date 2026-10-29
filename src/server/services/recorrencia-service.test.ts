@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { descreverCobranca } from "@/lib/cobranca";
 import { dataHojeIso, proximoVencimentoIso } from "@/lib/data";
 import { completarCnpj } from "@/lib/documento";
@@ -493,5 +493,98 @@ describe("recorrência Asaas", () => {
     expect(editada.recorrenciaAsaas?.formaCobranca).toBe("PIX");
     expect(editada.recorrenciaAsaas?.cartaoStatus).toBeNull();
     expect(editada.recorrenciaAsaas?.cartaoFinal).toBeNull();
+  });
+});
+
+describe("recorrência sem boleto duplicado", () => {
+  async function preparar(documento: string) {
+    await salvarConfiguracaoAsaas(autor("DONO"), { ambiente: "SANDBOX", chaveApi: CHAVE });
+    const venda = await vendaMensal("Cantina Trava", "150,00", completarCnpj(documento));
+    const memoria = new AsaasMemoria("trava");
+    return { ...venda, memoria };
+  }
+
+  async function esperarCriando(vinculoId: string) {
+    for (let tentativa = 0; tentativa < 50; tentativa += 1) {
+      const linha = await prisma.clienteServico.findUnique({ where: { id: vinculoId } });
+      if (linha?.asaasAssinaturaStatus === "CRIANDO") return;
+      await new Promise((resolver) => setTimeout(resolver, 20));
+    }
+    throw new Error("A emissão não travou a venda.");
+  }
+
+  it("não cria duas assinaturas no duplo clique", async () => {
+    const { vinculo, memoria } = await preparar("580000000011");
+    const resultados = await Promise.allSettled([
+      ativarRecorrencia(autor("DONO"), vinculo.id, { diaVencimento: 10, valor: "150,00" }, memoria),
+      ativarRecorrencia(autor("DONO"), vinculo.id, { diaVencimento: 10, valor: "150,00" }, memoria),
+    ]);
+    expect(memoria.assinaturas.size).toBe(1);
+    const ok = resultados.filter((item) => item.status === "fulfilled");
+    expect(ok.length).toBeGreaterThan(0);
+    const rejeitadas = resultados.filter((item) => item.status === "rejected");
+    expect(
+      rejeitadas.every(
+        (item) =>
+          item.status === "rejected" &&
+          (item.reason?.codigo === "emissao_em_andamento" || item.reason?.codigo === "assinatura_existente"),
+      ),
+    ).toBe(true);
+    expect([...memoria.assinaturas.values()][0]?.referencia).toBe(vinculo.id);
+  });
+
+  it("segura a segunda requisição enquanto a primeira ainda fala com o Asaas", async () => {
+    const { vinculo, memoria } = await preparar("580000000012");
+    let liberar = () => {};
+    memoria.segurarCriacao = new Promise<void>((resolver) => {
+      liberar = resolver;
+    });
+    const primeira = ativarRecorrencia(autor("DONO"), vinculo.id, { diaVencimento: 10, valor: "150,00" }, memoria);
+    try {
+      await esperarCriando(vinculo.id);
+      await expect(
+        ativarRecorrencia(autor("DONO"), vinculo.id, { diaVencimento: 10, valor: "150,00" }, memoria),
+      ).rejects.toMatchObject({ status: 409, codigo: "emissao_em_andamento" });
+      expect(memoria.assinaturas.size).toBe(0);
+    } finally {
+      liberar();
+    }
+    await primeira;
+    expect(memoria.assinaturas.size).toBe(1);
+    const linha = await prisma.clienteServico.findUniqueOrThrow({ where: { id: vinculo.id } });
+    expect(linha.empresaId).toBe(empresaId);
+    expect(linha.asaasSubscriptionId).toMatch(/^sub_trava_/);
+  });
+
+  it("reaproveita a assinatura se o timeout chegou depois da criação", async () => {
+    const { vinculo, memoria } = await preparar("580000000013");
+    memoria.lancarDepoisDeCriarAssinatura = true;
+    const ativada = await ativarRecorrencia(autor("DONO"), vinculo.id, { diaVencimento: 10, valor: "150,00" }, memoria);
+    expect(memoria.assinaturas.size).toBe(1);
+    expect(ativada.recorrenciaAsaas?.status).toBe("ACTIVE");
+    memoria.lancarDepoisDeCriarAssinatura = false;
+    await expect(
+      ativarRecorrencia(autor("DONO"), vinculo.id, { diaVencimento: 10, valor: "150,00" }, memoria),
+    ).rejects.toMatchObject({ status: 409, codigo: "assinatura_existente" });
+    expect(memoria.assinaturas.size).toBe(1);
+  });
+
+  it("pede o cancelamento de verdade quando a gravação local falha", async () => {
+    const { vinculo, memoria } = await preparar("580000000014");
+    const original = prisma.clienteServico.updateMany.bind(prisma.clienteServico);
+    const espiao = vi.spyOn(prisma.clienteServico, "updateMany").mockImplementation((async (args: { data?: { asaasSubscriptionId?: string | null } }) => {
+      const data = args.data;
+      if (data?.asaasSubscriptionId) return { count: 0 };
+      return original(args as never);
+    }) as never);
+    try {
+      await expect(
+        ativarRecorrencia(autor("DONO"), vinculo.id, { diaVencimento: 10, valor: "150,00" }, memoria),
+      ).rejects.toMatchObject({ status: 502, codigo: "emissao_cancelada" });
+    } finally {
+      espiao.mockRestore();
+    }
+    expect(memoria.assinaturas.size).toBe(1);
+    expect([...memoria.assinaturas.values()][0]?.excluida).toBe(true);
   });
 });
