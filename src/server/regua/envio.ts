@@ -4,7 +4,7 @@ import { ErroAplicacao } from "@/server/erros";
 import { redigirSegredoResend, type ClienteResend } from "./resend";
 
 function statusDe(valor: string): StatusLembrete {
-  if (valor === "ENVIADO" || valor === "FALHOU" || valor === "IGNORADO") return valor;
+  if (valor === "ENVIADO" || valor === "FALHOU" || valor === "IGNORADO" || valor === "NA_FILA") return valor;
   return "FALHOU";
 }
 

@@ -18,6 +18,9 @@ import {
 import { prisma } from "@/server/db";
 import { dispararLembrete, registrarIgnorado, textoErroEnvio } from "@/server/regua/envio";
 import { clienteResendPadrao, remetenteResend, type ClienteResend } from "@/server/regua/resend";
+import type { ClienteTwilio } from "@/server/twilio/contrato";
+import { clienteTwilioPadrao } from "@/server/twilio/fabrica";
+import { enfileirarWhatsappDoPasso, processarFilaWhatsapp } from "@/server/services/whatsapp-fila";
 
 const ABERTAS = ["PENDING", "OVERDUE"];
 
@@ -25,6 +28,10 @@ export type ResultadoRegua = {
   enviados: number;
   ignorados: number;
   falhas: number;
+  whatsappEnfileirados: number;
+  whatsappIgnorados: number;
+  whatsappEnviados: number;
+  whatsappFalhas: number;
 };
 
 function chaveOuNula(cifra: string | null): { chave: string | null; motivo: string | null } {
@@ -38,14 +45,23 @@ function chaveOuNula(cifra: string | null): { chave: string | null; motivo: stri
 }
 
 export async function executarRegua(
-  opcoes: { agora?: Date; empresaId?: string; resend?: ClienteResend } = {},
+  opcoes: { agora?: Date; empresaId?: string; resend?: ClienteResend; twilio?: ClienteTwilio } = {},
 ): Promise<ResultadoRegua> {
   const agora = opcoes.agora ?? new Date();
   const hoje = dataSaoPaulo(agora);
   const hora = horaSaoPaulo(agora);
   const dia = diaSemanaIso(hoje);
   const resend = opcoes.resend ?? clienteResendPadrao();
-  const resultado: ResultadoRegua = { enviados: 0, ignorados: 0, falhas: 0 };
+  const twilio = opcoes.twilio ?? clienteTwilioPadrao();
+  const resultado: ResultadoRegua = {
+    enviados: 0,
+    ignorados: 0,
+    falhas: 0,
+    whatsappEnfileirados: 0,
+    whatsappIgnorados: 0,
+    whatsappEnviados: 0,
+    whatsappFalhas: 0,
+  };
 
   const configs = await prisma.configuracaoRegua.findMany({
     where: { ativa: true, ...(opcoes.empresaId ? { empresaId: opcoes.empresaId } : {}) },
@@ -118,38 +134,34 @@ export async function executarRegua(
       const emissao = dataSaoPaulo(fatura.criadoEm);
 
       for (const passo of regua.passos) {
-        if (passo.canal !== "EMAIL") continue;
+        if (passo.canal !== "EMAIL" && !passo.enviarWhatsapp) continue;
         const alvo = passo.naEmissao ? emissao : somarDias(vencimento, passo.dias ?? 0);
         if (!passoCombina(hoje, alvo, regua.enviarFimDeSemana)) continue;
 
         const rotulo = rotuloPasso(passo);
-        if (cliente.status === "BLOQUEADO") {
-          if (await registrarIgnorado({
-            empresaId: config.empresaId,
-            faturaId: fatura.id,
-            clienteId: cliente.id,
-            passoId: passo.id,
-            modoTeste: config.modoTeste,
-            rotulo,
-            motivo: "cliente bloqueado",
-          })) resultado.ignorados += 1;
-          continue;
-        }
-        if (cliente.reguaPausada) {
-          if (await registrarIgnorado({
-            empresaId: config.empresaId,
-            faturaId: fatura.id,
-            clienteId: cliente.id,
-            passoId: passo.id,
-            modoTeste: config.modoTeste,
-            rotulo,
-            motivo: "régua pausada",
-          })) resultado.ignorados += 1;
+        if (cliente.status === "BLOQUEADO" || cliente.reguaPausada) {
+          const motivo = cliente.status === "BLOQUEADO" ? "cliente bloqueado" : "régua pausada";
+          if (passo.canal === "EMAIL") {
+            if (await registrarIgnorado({
+              empresaId: config.empresaId,
+              faturaId: fatura.id,
+              clienteId: cliente.id,
+              passoId: passo.id,
+              modoTeste: config.modoTeste,
+              rotulo,
+              motivo,
+            })) resultado.ignorados += 1;
+          }
+          if (passo.enviarWhatsapp) {
+            const fila = await enfileirarWhatsappDoPasso(fatura, passo, config.modoTeste, agora);
+            if (fila === "ignorado") resultado.whatsappIgnorados += 1;
+          }
           continue;
         }
 
         const emailCliente = cliente.email.trim();
-        if (!config.modoTeste && !emailCliente) {
+        const emailPronto = passo.canal === "EMAIL" && (config.modoTeste ? Boolean(dono?.email) : Boolean(emailCliente)) && remetentePronto && Boolean(segredo.chave);
+        if (passo.canal === "EMAIL" && !config.modoTeste && !emailCliente) {
           if (await registrarIgnorado({
             empresaId: config.empresaId,
             faturaId: fatura.id,
@@ -159,9 +171,7 @@ export async function executarRegua(
             rotulo,
             motivo: "cliente sem e-mail",
           })) resultado.ignorados += 1;
-          continue;
-        }
-        if (config.modoTeste && !dono?.email) {
+        } else if (passo.canal === "EMAIL" && config.modoTeste && !dono?.email) {
           if (await registrarIgnorado({
             empresaId: config.empresaId,
             faturaId: fatura.id,
@@ -171,9 +181,7 @@ export async function executarRegua(
             rotulo,
             motivo: "modo teste sem dono",
           })) resultado.ignorados += 1;
-          continue;
-        }
-        if (!remetentePronto || !segredo.chave) {
+        } else if (passo.canal === "EMAIL" && (!remetentePronto || !segredo.chave)) {
           if (await registrarIgnorado({
             empresaId: config.empresaId,
             faturaId: fatura.id,
@@ -183,43 +191,54 @@ export async function executarRegua(
             rotulo,
             motivo: segredo.motivo ?? "remetente não configurado",
           })) resultado.ignorados += 1;
-          continue;
+        } else if (emailPronto && segredo.chave) {
+          const corpo = textoRegua(passo.corpo, {
+            cliente: cliente.nomeFantasia,
+            servico: fatura.clienteServico?.servico.nome ?? fatura.descricao ?? "cobrança",
+            valor: formatarReais(fatura.valor.toFixed(2)),
+            vencimento: formatarDataIso(vencimento),
+            link: fatura.boletoUrl ?? fatura.faturaUrl ?? "",
+            diasAtraso: String(diasAtraso(hoje, vencimento)),
+            empresa: nomeEmpresa,
+          });
+          const texto = config.modoTeste
+            ? `Modo teste: este e-mail foi enviado para você, não para o cliente.\n\n${corpo}`
+            : corpo;
+          const envio = await dispararLembrete({
+            empresaId: config.empresaId,
+            faturaId: fatura.id,
+            clienteId: cliente.id,
+            passoId: passo.id,
+            rotulo,
+            automatico: true,
+            modoTeste: config.modoTeste,
+            destino: config.modoTeste ? dono!.email : emailCliente,
+            assunto: assuntoRegua(passo.assunto, config.modoTeste),
+            texto,
+            de: remetenteResend(config.remetenteNome ?? "", remetente),
+            replyTo: config.replyTo,
+            chave: segredo.chave,
+            resend,
+          });
+          if (!envio.repetido) {
+            if (envio.lembrete.status === "ENVIADO") resultado.enviados += 1;
+            else resultado.falhas += 1;
+          }
         }
 
-        const corpo = textoRegua(passo.corpo, {
-          cliente: cliente.nomeFantasia,
-          servico: fatura.clienteServico?.servico.nome ?? fatura.descricao ?? "cobrança",
-          valor: formatarReais(fatura.valor.toFixed(2)),
-          vencimento: formatarDataIso(vencimento),
-          link: fatura.boletoUrl ?? fatura.faturaUrl ?? "",
-          diasAtraso: String(diasAtraso(hoje, vencimento)),
-          empresa: nomeEmpresa,
-        });
-        const texto = config.modoTeste
-          ? `Modo teste: este e-mail foi enviado para você, não para o cliente.\n\n${corpo}`
-          : corpo;
-        const envio = await dispararLembrete({
-          empresaId: config.empresaId,
-          faturaId: fatura.id,
-          clienteId: cliente.id,
-          passoId: passo.id,
-          rotulo,
-          automatico: true,
-          modoTeste: config.modoTeste,
-          destino: config.modoTeste ? dono!.email : emailCliente,
-          assunto: assuntoRegua(passo.assunto, config.modoTeste),
-          texto,
-          de: remetenteResend(config.remetenteNome ?? "", remetente),
-          replyTo: config.replyTo,
-          chave: segredo.chave,
-          resend,
-        });
-        if (envio.repetido) continue;
-        if (envio.lembrete.status === "ENVIADO") resultado.enviados += 1;
-        else resultado.falhas += 1;
+        if (passo.enviarWhatsapp) {
+          const fila = await enfileirarWhatsappDoPasso(fatura, passo, config.modoTeste, agora);
+          if (fila === "enfileirado") resultado.whatsappEnfileirados += 1;
+          if (fila === "ignorado") resultado.whatsappIgnorados += 1;
+        }
       }
     }
   }
+
+  const fila = await processarFilaWhatsapp({ agora, empresaId: opcoes.empresaId, twilio });
+  resultado.whatsappEnviados = fila.enviados;
+  resultado.whatsappFalhas = fila.falhas;
+  resultado.whatsappIgnorados += fila.ignorados;
 
   return resultado;
 }

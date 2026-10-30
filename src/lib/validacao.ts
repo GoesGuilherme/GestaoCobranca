@@ -503,7 +503,8 @@ export const esquemaPassoRegua = z
     ),
     naEmissao: z.boolean("Informe se o passo é na emissão."),
     dias: z.number().int().min(-365).max(365).nullable(),
-    canal: z.enum(["EMAIL"], "O canal disponível agora é o e-mail. WhatsApp entra depois."),
+    canal: z.enum(["EMAIL"], "O e-mail continua na régua. O WhatsApp sai junto, no mesmo passo, se estiver marcado."),
+    enviarWhatsapp: z.boolean().optional().default(false),
     assunto: z.string().trim().min(1, "Informe o assunto.").max(200, "O assunto pode ter no máximo 200 caracteres."),
     corpo: z.string().trim().min(1, "Informe o texto.").max(2000, "O texto pode ter no máximo 2000 caracteres."),
   })
@@ -539,6 +540,34 @@ export const esquemaConfiguracaoRegua = z.object({
       .refine((valor) => !/\s/.test(valor), "A chave da Resend não pode ter espaço.")
       .optional(),
   ),
+});
+
+export const esquemaConexaoTwilio = z.object({
+  telefone: z
+    .string()
+    .trim()
+    .min(8, "Informe o WhatsApp do remetente.")
+    .max(20, "O WhatsApp do remetente está longo demais."),
+  nomeExibicao: z
+    .string()
+    .trim()
+    .min(2, "Informe o nome que aparece no WhatsApp.")
+    .max(120, "O nome pode ter no máximo 120 caracteres."),
+  wabaId: z
+    .string()
+    .trim()
+    .max(32, "O WABA ID está longo demais.")
+    .refine((valor) => valor === "" || /^\d{5,20}$/.test(valor), "O WABA ID é numérico, se a Twilio já tiver informado.")
+    .optional()
+    .default(""),
+  coexistencia: z.boolean("Informe se quer pedir coexistência com o app WhatsApp Business."),
+});
+
+export const esquemaCodigoTwilio = z.object({
+  codigo: z
+    .string()
+    .trim()
+    .regex(/^\d{4,10}$/, "Informe o código numérico que chegou no telefone."),
 });
 
 export const esquemaAtribuicaoRegua = z

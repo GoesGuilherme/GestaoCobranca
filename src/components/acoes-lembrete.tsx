@@ -11,11 +11,14 @@ import { classeBotaoPrimario, classeBotaoSecundario } from "./estilos";
 function rotuloStatus(status: StatusLembrete) {
   if (status === "ENVIADO") return "Enviado";
   if (status === "FALHOU") return "Falhou";
+  if (status === "NA_FILA") return "Na fila";
   return "Ignorado";
 }
 
 function rotuloCanal(canal: string) {
-  return canal === "EMAIL" ? "E-mail" : canal;
+  if (canal === "EMAIL") return "E-mail";
+  if (canal === "WHATSAPP") return "WhatsApp";
+  return canal;
 }
 
 export function AcoesLembrete({

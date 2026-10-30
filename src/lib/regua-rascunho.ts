@@ -17,6 +17,7 @@ export type PassoRascunho = {
   dias: string;
   assunto: string;
   corpo: string;
+  enviarWhatsapp: boolean;
 };
 
 export type ReguaRascunho = {
@@ -35,6 +36,7 @@ export type PassoParaSalvar = {
   canal: "EMAIL";
   assunto: string;
   corpo: string;
+  enviarWhatsapp: boolean;
 };
 
 export type ReguaParaSalvar = {
@@ -86,6 +88,7 @@ export function montarReguaParaSalvar(
         canal: "EMAIL",
         assunto: passo.assunto,
         corpo: passo.corpo,
+        enviarWhatsapp: passo.enviarWhatsapp,
       });
       continue;
     }
@@ -100,6 +103,7 @@ export function montarReguaParaSalvar(
       canal: "EMAIL",
       assunto: passo.assunto,
       corpo: passo.corpo,
+      enviarWhatsapp: passo.enviarWhatsapp,
     });
   }
 
