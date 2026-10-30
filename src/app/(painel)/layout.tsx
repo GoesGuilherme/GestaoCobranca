@@ -1,5 +1,5 @@
 import { BarraLateral } from "@/components/barra-lateral";
-import { podeVerFaturas, podeVerRegua } from "@/lib/permissoes";
+import { podeVerAssessor, podeVerFaturas, podeVerRegua } from "@/lib/permissoes";
 import { acessoDaPagina } from "@/server/auth/pagina";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +16,7 @@ export default async function LayoutPainel({ children }: { children: React.React
         mostrarUsuarios={acesso.papel === "DONO"}
         mostrarFaturas={podeVerFaturas(acesso.papel)}
         mostrarRegua={podeVerRegua(acesso.papel)}
+        mostrarAssessor={podeVerAssessor(acesso.papel)}
         mostrarAsaas={acesso.papel === "DONO"}
         mostrarAdmin={acesso.superadministrador}
       />

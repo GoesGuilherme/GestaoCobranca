@@ -77,6 +77,7 @@ export function PainelFiliais({
                   <p className="mt-1 text-sm text-muted">{filial.endereco}</p>
                   <p className="mt-1 text-sm text-muted">
                     {filial.cnpj} · {filial.cidade}/{filial.uf}
+                    {filial.whatsapp ? ` · ${filial.whatsapp}` : ""}
                   </p>
                   {filial.observacoes ? (
                     <p className="mt-1 text-sm text-ink/80">{filial.observacoes}</p>

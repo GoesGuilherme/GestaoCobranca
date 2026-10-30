@@ -107,7 +107,14 @@ Os testes apagam empresas, usuários, clientes, filiais, serviços, vínculos, f
 | `TWILIO_AUTH_TOKEN` | Auth token da conta pai. Só no servidor. A subconta de cada empresa é criada pela API e o token dela fica cifrado. |
 | `TWILIO_WEBHOOK_URL` | URL pública exata de `/api/webhooks/twilio`. Em produção, `https`. A Twilio assina esse endereço. |
 | `TWILIO_WHATSAPP_TESTE` | Número que recebe o WhatsApp enquanto o modo teste da régua está ligado. Sem ele, o modo teste não envia. |
-| `TWILIO_MOCK` | Só fora de produção. `true` em produção é recusado. Fora de produção o envio já fica no mock e não chama a Twilio. |
+| `TWILIO_MOCK` | Só fora de produção. `true` em produção é recusado. Fora de produção o envio já fica no mock e não chama a Twilio. Não defina na Vercel. |
+| `AI_GATEWAY_MODEL` | Modelo do assessor no AI Gateway, no formato `provider/modelo` listado em `https://ai-gateway.vercel.sh/v1/models`. Sem ele, em produção o assessor responde o texto de fallback. |
+| `AI_GATEWAY_API_KEY` | Chave do AI Gateway para fora da Vercel. Na Vercel o OIDC (`VERCEL_OIDC_TOKEN`) autentica sozinho. Não grave a chave no código. |
+| `ASSESSOR_TETO_TOKENS` | Teto de tokens de saída de cada resposta. Vazio usa 600. |
+| `ASSESSOR_TETO_TOKENS_DIA` | Teto de tokens do dia, somando as respostas da empresa. Vazio usa 100000. |
+| `ASSESSOR_TIMEOUT_MS` | Tempo máximo da consulta ao modelo, em milissegundos. Vazio usa 12000. Estourar o tempo manda o texto de fallback. |
+| `ASSESSOR_LIMITE_TELEFONE` | Mensagens por telefone a cada 10 minutos. Vazio usa 8. |
+| `ASSESSOR_LIMITE_EMPRESA` | Mensagens da empresa a cada 10 minutos. Vazio usa 60. |
 | `CRON_SECRET` | Segredo da rota diária `/api/cron/regua`. A Vercel Cron envia `Authorization: Bearer`. Sem ele a rota responde 500 e não envia. Não é a chave da Resend. |
 | `ASAAS_MOCK` | Só no computador de desenvolvimento. `true` usa um Asaas em memória, sem rede e sem chave real, para a tela funcionar antes de existir a chave. Se `NODE_ENV` for `production`, a aplicação recusa esse modo. Não defina na Vercel. |
 
@@ -157,10 +164,12 @@ Em **Project Settings → Environment Variables**, no ambiente Production (e no 
 | `TWILIO_ACCOUNT_SID` | Account SID da conta pai. |
 | `TWILIO_AUTH_TOKEN` | Auth token da conta pai. |
 | `TWILIO_WEBHOOK_URL` | `https://<seu-dominio>/api/webhooks/twilio` |
-| `TWILIO_WHATSAPP_TESTE` | Número de teste do dono, em formato nacional ou E.164. |
+| `TWILIO_WHATSAPP_TESTE` | Número de teste do dono, em formato nacional ou E.164. Com o modo teste do assessor ligado, só esse número recebe resposta. |
+| `AI_GATEWAY_MODEL` | Id `provider/modelo` do catálogo do AI Gateway. |
+| `AI_GATEWAY_API_KEY` | Opcional na Vercel se o OIDC estiver ativo. Obrigatória fora dela. |
 | `CRON_SECRET` | Saída de `openssl rand -base64 32`. A Vercel Cron envia esse valor em `Authorization: Bearer` para `/api/cron/regua`. |
 
-Não defina `ASAAS_MOCK` nem `TWILIO_MOCK` na Vercel. Em produção a integração chama `https://api.asaas.com/v3` ou `https://api-sandbox.asaas.com/v3`, conforme o ambiente salvo pelo dono, e envia a chave no cabeçalho `access_token`. A chave real ainda não entra neste repositório.
+Não defina `ASAAS_MOCK` nem `TWILIO_MOCK` na Vercel. O assessor, fora de produção, não chama o AI Gateway nem a Twilio. Em produção ele usa o AI Gateway (chave ou OIDC) e a subconta Twilio da empresa. O modelo não fica fixo no código. Em produção a integração chama `https://api.asaas.com/v3` ou `https://api-sandbox.asaas.com/v3`, conforme o ambiente salvo pelo dono, e envia a chave no cabeçalho `access_token`. A chave real ainda não entra neste repositório.
 
 Essas variáveis precisam existir no build e em runtime. O `postinstall` e o script `build` rodam `prisma generate`, e o arquivo `prisma.config.ts` lê `DIRECT_URL` ao carregar. A aplicação lê `DATABASE_URL` e `AUTH_SECRET` quando atende um pedido. O cookie de sessão sai com `secure` quando `NODE_ENV` é `production`.
 
@@ -199,6 +208,8 @@ Um servidor MCP futuro (`buscar cliente`, `listar filiais`, e as ações de escr
 Dono e financeiro ativam a cobrança recorrente nas vendas `MENSAL` ativas. Forma, dia de vencimento, texto da descrição, multa, juros, desconto e a opção de atualizar cobranças em aberto começam pelas preferências da empresa, gravadas pelo dono em Asaas. Cada venda e o lote podem trocar esses valores. Sem percentual informado, a cobrança não envia multa, juros nem desconto, e o Asaas conserva o padrão da conta. O prazo de gerar a cobrança antes do vencimento não vai na assinatura: o Asaas usa 7, 14 ou 40 dias na configuração da conta, e o número escolhido fica só na preferência. A assinatura usa ciclo mensal. Dá para editar, pausar ou cancelar. O lote mostra a prévia antes de criar. As cobranças da assinatura entram em Faturas pelo webhook (o pagamento traz o campo `subscription`) e pelo botão Importar faturas, sem duplicar. Suporte não vê faturas nem recorrência. A chave da API continua só com o dono.
 
 A régua de cobrança fica em Régua, só para o dono alterar e para o financeiro consultar. A empresa liga a régua, monta várias réguas nomeadas (uma é a padrão) e define, em cada uma, os passos, o horário e se o envio sai no fim de semana. O cliente usa a padrão, outra régua, nenhuma, ou fica pausado. O passo pode ser na emissão ou em dias antes, no vencimento ou em atraso, com assunto e texto usando `{cliente}`, `{servico}`, `{valor}`, `{vencimento}`, `{link}`, `{dias_atraso}` e `{empresa}`. O e-mail sai pela Resend da própria empresa; a chave fica cifrada com `ASAAS_ENCRYPTION_KEY` e a tela só diz se ela está configurada. O mesmo passo pode marcar WhatsApp. Aí a mensagem usa um template UTILITY da Twilio (boleto gerado, vence em X dias, venceu ou pago), com nome, valor, vencimento e link do Asaas. A empresa tem uma subconta e um Sender. O webhook `POST /api/webhooks/twilio` valida `X-Twilio-Signature`. Régua pausada, opt-out e o modo teste seguram o envio: no modo teste o WhatsApp só vai para `TWILIO_WHATSAPP_TESTE`. A rota `/api/cron/regua` roda todo dia, exige `CRON_SECRET` e também esvazia a fila. Fora de produção o envio não chama a Resend nem a Twilio.
+
+O assessor fica em Assessor, para qualquer empresa. O dono liga ou desliga, escolhe nome, tom, horário e um texto próprio. As regras fixas continuam por baixo: só cobrança e atendimento daquela empresa, nada de assistente geral, e cada consulta leva o `empresa_id` da sessão ou da subconta Twilio. O cliente final fala com o WhatsApp da empresa. O telefone é comparado ao cadastro do cliente ou da filial; se não bater, o assessor pede o CNPJ ou o CPF e só então mostra fatura. As ferramentas listam o que está em aberto ou vencido, devolvem o link do Asaas que já existe e dizem se a cobrança foi paga. Não criam boleto novo. Assunto técnico ou pedido de pessoa vai para a fila de atendimento, a IA daquela conversa pausa e a equipe vê o histórico. Dá para assumir e devolver. Texto livre só dentro de 24 horas depois da mensagem do cliente. Opt-out, modo teste, limite por telefone e por empresa, teto de tokens e timeout com resposta curta seguram o envio. O mesmo MessageSid não gera duas respostas.
 
 A forma também pode ser cartão de crédito. A assinatura nasce no Asaas com `billingType` `CREDIT_CARD` e sem dados de cartão: o cliente informa o cartão na página da primeira cobrança, e o Asaas passa a cobrar sozinho. A venda mostra “Aguardando cadastro do cartão” até o webhook confirmar o pagamento, “Cartão cadastrado” (só bandeira e quatro últimos dígitos, quando o Asaas os devolve) ou “Cartão recusado”. O número completo e o CVV não entram no banco nem no log. Qualquer cobrança com link pode ser copiada, aberta no WhatsApp de quem está usando o sistema ou no e-mail, com o texto gravado nas preferências da empresa (`{cliente}`, `{servico}`, `{valor}`, `{vencimento}`, `{link}`). Nada disso envia a mensagem sozinho.
 

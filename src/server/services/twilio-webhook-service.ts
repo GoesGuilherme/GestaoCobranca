@@ -3,6 +3,7 @@ import { assinaturaTwilioValida } from "@/lib/twilio-assinatura";
 import { decisaoOptOut, digitosWhatsapp } from "@/lib/whatsapp-cobranca";
 import { prisma } from "@/server/db";
 import { ErroAplicacao } from "@/server/erros";
+import { processarEntradaAssessor } from "@/server/services/assessor-service";
 
 function texto(valor: string | undefined, limite: number) {
   const limpo = valor?.trim() ?? "";
@@ -106,6 +107,16 @@ export async function processarWebhookTwilio(dados: {
   } catch (erro) {
     if (conflito(erro)) return { recebido: true, duplicado: true };
     throw erro;
+  }
+  try {
+    await processarEntradaAssessor({
+      empresaId: config.empresaId,
+      messageSid,
+      de: de ?? "",
+      corpo: corpo ?? "",
+    });
+  } catch (erro) {
+    console.error("assessor_webhook", erro instanceof Error ? erro.name : "falha");
   }
   return { recebido: true, duplicado: false };
 }

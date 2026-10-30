@@ -17,6 +17,7 @@ type Valores = {
   cidade: string;
   uf: string;
   status: string;
+  whatsapp: string;
   observacoes: string;
 };
 
@@ -43,6 +44,7 @@ export function FormularioFilial({
     cidade: filial?.cidade ?? cidadeInicial ?? "",
     uf: filial?.uf ?? ufInicial ?? "SP",
     status: filial?.status ?? "ATIVA",
+    whatsapp: filial?.whatsapp ?? "",
     observacoes: filial?.observacoes ?? "",
   });
   const [campos, setCampos] = useState<Record<string, string>>({});
@@ -145,6 +147,15 @@ export function FormularioFilial({
               </option>
             ))}
           </select>
+        </Campo>
+        <Campo label="WhatsApp da unidade" htmlFor="filial-whatsapp" erro={campos.whatsapp}>
+          <input
+            id="filial-whatsapp"
+            className={classeCampo}
+            value={valores.whatsapp}
+            placeholder="Opcional. O assessor reconhece este número."
+            onChange={(evento) => alterar("whatsapp", evento.target.value)}
+          />
         </Campo>
         <Campo label="Status" htmlFor="filial-status" erro={campos.status}>
           <select

@@ -56,6 +56,13 @@ export type MensagemTemplate = {
   statusCallback: string;
 };
 
+export type MensagemTexto = {
+  de: string;
+  para: string;
+  corpo: string;
+  statusCallback: string;
+};
+
 export type ClienteTwilio = {
   criarSubconta(pai: CredencialTwilio, nome: string): Promise<{ sid: string; authToken: string }>;
   criarSender(conta: CredencialTwilio, pedido: PedidoSender): Promise<SenderTwilio>;
@@ -64,6 +71,7 @@ export type ClienteTwilio = {
   publicarTemplate(conta: CredencialTwilio, template: TemplateConteudo): Promise<ConteudoTwilio>;
   consultarTemplate(conta: CredencialTwilio, contentSid: string): Promise<ConteudoTwilio>;
   enviarMensagem(conta: CredencialTwilio, mensagem: MensagemTemplate): Promise<{ sid: string }>;
+  enviarTexto(conta: CredencialTwilio, mensagem: MensagemTexto): Promise<{ sid: string }>;
 };
 
 const CHAVES_COEXISTENCIA = ["coexistence", "coexistence_status", "whatsapp_business_app", "coexistencia"];

@@ -115,6 +115,11 @@ model Empresa {
   filaWhatsapp       FilaWhatsapp[]
   eventosWhatsapp    EventoWhatsapp[]
   optoutsWhatsapp    OptOutWhatsapp[]
+  configuracaoAssessor ConfiguracaoAssessor?
+  conversasAssessor    ConversaAssessor[]
+  mensagensAssessor    MensagemAssessor[]
+  pedidosAtendimento   PedidoAtendimento[]
+  limitesAssessor      LimiteAssessor[]
 
   @@map("empresas")
 }
@@ -190,6 +195,8 @@ model Cliente {
   faturas         Fatura[]
   lembretesRegua  LembreteRegua[]
   filaWhatsapp    FilaWhatsapp[]
+  conversasAssessor ConversaAssessor[]
+  pedidosAtendimento PedidoAtendimento[]
 
   @@index([asaasCustomerId])
   @@index([reguaId])
@@ -212,6 +219,7 @@ model Filial {
   cidade       String
   uf           String
   status       StatusFilial
+  whatsapp     String?
   observacoes  String?      @db.Text
   criadoEm     DateTime     @default(now()) @map("criado_em") @db.Timestamptz(3)
   atualizadoEm DateTime     @updatedAt @map("atualizado_em") @db.Timestamptz(3)
@@ -221,6 +229,7 @@ model Filial {
   // e mais de uma pode compartilhar o mesmo CNPJ.
   @@index([clienteId])
   @@index([nome])
+  @@index([whatsapp])
   @@map("filiais")
 }
 
@@ -584,4 +593,102 @@ model OptOutWhatsapp {
   @@unique([empresaId, telefone])
   @@index([empresaId])
   @@map("optouts_whatsapp")
+}
+
+// Liga ou desliga o assessor de uma empresa. O texto livre da empresa não
+// substitui as regras fixas de escopo, isolamento e janela de 24 horas.
+model ConfiguracaoAssessor {
+  id                  String   @id @default(cuid())
+  empresaId           String   @unique @map("empresa_id")
+  ativo               Boolean  @default(false)
+  modoTeste           Boolean  @default(true) @map("modo_teste")
+  nome                String   @default("Assessor")
+  tom                 String   @default("cordial, claro e breve")
+  promptExtra         String?  @map("prompt_extra") @db.Text
+  horaInicio          Int      @default(8) @map("hora_inicio")
+  horaFim             Int      @default(18) @map("hora_fim")
+  atendeFimDeSemana   Boolean  @default(false) @map("atende_fim_de_semana")
+  criadoEm            DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm        DateTime @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  empresa             Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+
+  @@map("configuracoes_assessor")
+}
+
+// Uma conversa por telefone dentro da empresa. A janela de 24h começa na
+// mensagem do cliente. iaPausada significa que a empresa assumiu o atendimento.
+model ConversaAssessor {
+  id                   String   @id @default(cuid())
+  empresaId            String   @map("empresa_id")
+  telefone             String
+  clienteId            String?  @map("cliente_id")
+  iaPausada            Boolean  @default(false) @map("ia_pausada")
+  aguardandoDocumento  Boolean  @default(false) @map("aguardando_documento")
+  janelaAte            DateTime @map("janela_ate") @db.Timestamptz(3)
+  ultimaEntradaEm      DateTime @map("ultima_entrada_em") @db.Timestamptz(3)
+  criadoEm             DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm         DateTime @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  empresa              Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  cliente              Cliente? @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+  mensagens            MensagemAssessor[]
+  pedidos              PedidoAtendimento[]
+
+  @@unique([empresaId, telefone])
+  @@index([empresaId, atualizadoEm])
+  @@index([clienteId])
+  @@map("conversas_assessor")
+}
+
+// Histórico da conversa. O MessageSid da Twilio torna a entrada idempotente.
+model MensagemAssessor {
+  id         String   @id @default(cuid())
+  empresaId  String   @map("empresa_id")
+  conversaId String   @map("conversa_id")
+  papel      String
+  corpo      String   @db.Text
+  messageSid String?  @map("message_sid")
+  tokens     Int      @default(0)
+  criadoEm   DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
+  empresa    Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  conversa   ConversaAssessor @relation(fields: [conversaId], references: [id], onDelete: Cascade)
+
+  @@unique([empresaId, messageSid])
+  @@index([conversaId, criadoEm])
+  @@index([empresaId, criadoEm])
+  @@map("mensagens_assessor")
+}
+
+// Fila de atendimento humano da empresa. Técnico e assunto fora de cobrança
+// entram aqui. A IA da conversa fica pausada até alguém devolver.
+model PedidoAtendimento {
+  id         String   @id @default(cuid())
+  empresaId  String   @map("empresa_id")
+  conversaId String   @map("conversa_id")
+  clienteId  String?  @map("cliente_id")
+  motivo     String
+  resumo     String   @db.Text
+  status     String   @default("ABERTO")
+  criadoEm   DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm DateTime @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  empresa    Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  conversa   ConversaAssessor @relation(fields: [conversaId], references: [id], onDelete: Cascade)
+  cliente    Cliente? @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+
+  @@index([empresaId, status])
+  @@index([conversaId])
+  @@map("pedidos_atendimento")
+}
+
+// Contagem de mensagens por telefone e por empresa, em janelas de 10 minutos.
+model LimiteAssessor {
+  id           String   @id @default(cuid())
+  empresaId    String   @map("empresa_id")
+  chave        String
+  janelaInicio DateTime @map("janela_inicio") @db.Timestamptz(3)
+  quantidade   Int      @default(0)
+  empresa      Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+
+  @@unique([empresaId, chave, janelaInicio])
+  @@index([empresaId])
+  @@map("limites_assessor")
 }
