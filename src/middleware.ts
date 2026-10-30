@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { NOME_PRODUTO } from "@/lib/marca";
-import { podeConfigurarAsaas, podeVerFaturas, podeVerMetricas, podeVerRegua, podeVerResultado } from "@/lib/permissoes";
+import { podeConfigurarAsaas, podeVerAssessor, podeVerFaturas, podeVerMetricas, podeVerRegua, podeVerResultado } from "@/lib/permissoes";
 import { COOKIE_SESSAO } from "@/server/auth/constantes";
 import { verificarToken } from "@/server/auth/token";
 
@@ -133,6 +133,19 @@ export async function middleware(request: NextRequest) {
       pathname,
       "A régua fica com o dono e o financeiro",
       "Só o dono ou o financeiro pode ver a régua de cobrança.",
+    );
+  }
+
+  const rotaAssessor =
+    pathname === "/assessor" ||
+    pathname.startsWith("/assessor/") ||
+    pathname === "/api/assessor" ||
+    pathname.startsWith("/api/assessor/");
+  if (rotaAssessor && !podeVerAssessor(sessao.papel)) {
+    return paginaProibida(
+      pathname,
+      "O assessor fica com o dono e o financeiro",
+      "Só o dono ou o financeiro pode ver o assessor de cobrança.",
     );
   }
 

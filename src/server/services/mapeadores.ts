@@ -29,6 +29,7 @@ export function paraFilial(filial: Filial): FilialDTO {
     cidade: filial.cidade,
     uf: filial.uf,
     status: filial.status,
+    whatsapp: filial.whatsapp ? formatarWhatsapp(filial.whatsapp) : null,
     observacoes: filial.observacoes,
     criadoEm: filial.criadoEm.toISOString(),
     atualizadoEm: filial.atualizadoEm.toISOString(),

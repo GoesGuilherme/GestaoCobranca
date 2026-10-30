@@ -76,4 +76,26 @@ describe("cliente HTTP da Twilio", () => {
     expect(chamadas.some((item) => item.body.includes('"category":"UTILITY"'))).toBe(true);
     expect(chamadas.some((item) => item.url.includes("graph.facebook.com"))).toBe(false);
   });
+
+  it("envia texto de sessão pela API oficial da Twilio, sem chamar a Meta", async () => {
+    const chamadas: { url: string; body: string }[] = [];
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      const bruto = init?.body;
+      const body = typeof bruto === "string" ? bruto : bruto instanceof URLSearchParams ? bruto.toString() : "";
+      chamadas.push({ url, body });
+      return new Response(JSON.stringify({ sid: "SMaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }), { status: 201 });
+    });
+    const cliente = criarClienteTwilioHttp({ fetchImpl, env: { NODE_ENV: "production" } });
+    const enviada = await cliente.enviarTexto(CONTA, {
+      de: "whatsapp:+5511999990000",
+      para: "whatsapp:+5513988881001",
+      corpo: "Sua fatura está em aberto.",
+      statusCallback: "https://taguaro.test/api/webhooks/twilio",
+    });
+    expect(enviada.sid.startsWith("SM")).toBe(true);
+    expect(chamadas[0]?.url.startsWith("https://api.twilio.com/2010-04-01/Accounts/")).toBe(true);
+    expect(chamadas[0]?.url.includes("graph.facebook.com")).toBe(false);
+    expect(chamadas[0]?.body.includes("Body=")).toBe(true);
+    expect(chamadas[0]?.body.includes("ContentSid")).toBe(false);
+  });
 });

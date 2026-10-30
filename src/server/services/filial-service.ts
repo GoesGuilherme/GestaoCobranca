@@ -1,4 +1,4 @@
-import { somenteDocumento } from "@/lib/documento";
+import { somenteDigitos, somenteDocumento } from "@/lib/documento";
 import type { FilialDTO } from "@/lib/tipos";
 import { esquemaFilial, type EntradaFilial } from "@/lib/validacao";
 import { prisma } from "@/server/db";
@@ -14,6 +14,7 @@ function dadosPersistidos(entrada: EntradaFilial) {
     cidade: entrada.cidade,
     uf: entrada.uf.toUpperCase(),
     status: entrada.status,
+    whatsapp: entrada.whatsapp?.trim() ? somenteDigitos(entrada.whatsapp) : null,
     observacoes: entrada.observacoes?.trim() ? entrada.observacoes.trim() : null,
   };
 }
