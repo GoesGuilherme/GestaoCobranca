@@ -8,6 +8,11 @@ export function usarBancoDeTeste() {
     if (!url.includes("gestaocobranca_test")) {
       throw new Error("Os testes só podem apagar dados do banco gestaocobranca_test.");
     }
+    await prisma.eventoWhatsapp.deleteMany();
+    await prisma.filaWhatsapp.deleteMany();
+    await prisma.optOutWhatsapp.deleteMany();
+    await prisma.templateWhatsapp.deleteMany();
+    await prisma.configuracaoTwilio.deleteMany();
     await prisma.lembreteRegua.deleteMany();
     await prisma.passoRegua.deleteMany();
     await prisma.cliente.updateMany({ data: { reguaId: null, reguaModo: "PADRAO" } });

@@ -13,7 +13,8 @@ import {
   rotuloPassoRascunho,
   textoDiasDe,
 } from "@/lib/regua-rascunho";
-import type { ConfiguracaoReguaDTO, ReguaDTO } from "@/lib/tipos";
+import type { ConfiguracaoReguaDTO, ConfiguracaoTwilioDTO, ReguaDTO } from "@/lib/tipos";
+import { PainelWhatsapp } from "./painel-whatsapp";
 import { AvisoModoTeste } from "./aviso-modo-teste";
 import { Campo, classeCampo } from "./campo";
 import { classeBotaoPerigo, classeBotaoPrimario, classeBotaoSecundario } from "./estilos";
@@ -24,6 +25,7 @@ type PassoEditavel = {
   dias: string;
   assunto: string;
   corpo: string;
+  enviarWhatsapp: boolean;
 };
 
 type Rascunho = {
@@ -50,6 +52,7 @@ function rascunhoDe(regua: ReguaDTO): Rascunho {
       dias: textoDiasDe(passo.dias, passo.naEmissao),
       assunto: passo.assunto,
       corpo: passo.corpo,
+      enviarWhatsapp: passo.enviarWhatsapp,
     })),
   };
 }
@@ -60,6 +63,7 @@ function passoNovo(): PassoEditavel {
     dias: "0",
     assunto: "Sua cobrança vence hoje",
     corpo: "Olá, {cliente}. A cobrança de {servico}, no valor de {valor}, vence em {vencimento}: {link}",
+    enviarWhatsapp: false,
   };
 }
 
@@ -68,11 +72,13 @@ export function PainelRegua({
   nomeEmpresa,
   config,
   reguas,
+  whatsapp,
 }: {
   podeEditar: boolean;
   nomeEmpresa: string;
   config: ConfiguracaoReguaDTO;
   reguas: ReguaDTO[];
+  whatsapp: ConfiguracaoTwilioDTO;
 }) {
   const router = useRouter();
   const [ativa, setAtiva] = useState(config.ativa);
@@ -325,6 +331,8 @@ export function PainelRegua({
         ) : null}
       </form>
 
+      <PainelWhatsapp podeEditar={podeEditar} nomeEmpresa={nomeEmpresa} inicial={whatsapp} />
+
       <section className="mt-8 rounded-3xl border border-line bg-card p-6">
         <h2 className="font-display text-3xl">Réguas</h2>
         <p className="mt-2 max-w-2xl text-sm text-muted">
@@ -504,9 +512,17 @@ export function PainelRegua({
                 <Campo label="Canal" htmlFor="passo-canal">
                   <select id="passo-canal" className={classeCampo} value="EMAIL" disabled={!podeEditar} onChange={() => undefined}>
                     <option value="EMAIL">E-mail</option>
-                    <option value="WHATSAPP" disabled>WhatsApp (em breve)</option>
                   </select>
                 </Campo>
+                <label className="flex items-center gap-2 text-sm md:col-span-2">
+                  <input
+                    type="checkbox"
+                    checked={passo.enviarWhatsapp}
+                    disabled={!podeEditar}
+                    onChange={(evento) => atualizarPasso(passoAberto, { enviarWhatsapp: evento.target.checked })}
+                  />
+                  Também enviar por WhatsApp, no mesmo dia deste passo
+                </label>
                 <Campo label="Assunto" htmlFor="passo-assunto">
                   <input id="passo-assunto" className={classeCampo} disabled={!podeEditar} value={passo.assunto} onChange={(evento) => atualizarPasso(passoAberto, { assunto: evento.target.value })} />
                 </Campo>

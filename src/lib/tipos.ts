@@ -127,7 +127,7 @@ export type PreferenciasCobrancaDTO = {
 };
 
 export type ModoReguaCliente = "PADRAO" | "ESPECIFICA" | "NENHUMA";
-export type StatusLembrete = "ENVIADO" | "FALHOU" | "IGNORADO";
+export type StatusLembrete = "ENVIADO" | "FALHOU" | "IGNORADO" | "NA_FILA";
 
 export type ClienteDetalhe = ClienteResumo & {
   filiais: FilialDTO[];
@@ -237,6 +237,29 @@ export type PassoReguaDTO = {
   assunto: string;
   corpo: string;
   rotulo: string;
+  enviarWhatsapp: boolean;
+};
+
+export type CoexistenciaTwilioDTO = "NAO_SOLICITADA" | "SOLICITADA" | "ATIVA" | "INDISPONIVEL";
+
+export type TemplateWhatsappDTO = {
+  tipo: "BOLETO_GERADO" | "VENCE_EM_DIAS" | "VENCEU" | "PAGO";
+  nome: string;
+  status: string;
+  motivo: string | null;
+};
+
+export type ConfiguracaoTwilioDTO = {
+  conectada: boolean;
+  subaccountSid: string | null;
+  senderTelefone: string | null;
+  senderStatus: string | null;
+  coexistencia: CoexistenciaTwilioDTO;
+  nomeExibicao: string;
+  wabaId: string | null;
+  erro: string | null;
+  tokenMascarado: string | null;
+  templates: TemplateWhatsappDTO[];
 };
 
 export type ReguaDTO = {

@@ -110,6 +110,11 @@ model Empresa {
   reguasCobranca   ReguaCobranca[]
   passosRegua      PassoRegua[]
   lembretesRegua   LembreteRegua[]
+  configuracaoTwilio ConfiguracaoTwilio?
+  templatesWhatsapp  TemplateWhatsapp[]
+  filaWhatsapp       FilaWhatsapp[]
+  eventosWhatsapp    EventoWhatsapp[]
+  optoutsWhatsapp    OptOutWhatsapp[]
 
   @@map("empresas")
 }
@@ -184,6 +189,7 @@ model Cliente {
   servicos        ClienteServico[]
   faturas         Fatura[]
   lembretesRegua  LembreteRegua[]
+  filaWhatsapp    FilaWhatsapp[]
 
   @@index([asaasCustomerId])
   @@index([reguaId])
@@ -350,6 +356,7 @@ model Fatura {
   cliente          Cliente   @relation(fields: [clienteId], references: [id], onDelete: Cascade)
   clienteServico   ClienteServico? @relation(fields: [clienteServicoId], references: [id], onDelete: SetNull)
   lembretes        LembreteRegua[]
+  filaWhatsapp     FilaWhatsapp[]
 
   @@unique([empresaId, asaasPaymentId])
   @@unique([empresaId, chaveIdempotencia])
@@ -423,11 +430,13 @@ model PassoRegua {
   canal      String   @default("EMAIL")
   assunto    String
   corpo      String   @db.Text
+  enviarWhatsapp Boolean @default(false) @map("enviar_whatsapp")
   criadoEm   DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
   atualizadoEm DateTime @updatedAt @map("atualizado_em") @db.Timestamptz(3)
   regua      ReguaCobranca @relation(fields: [reguaId], references: [id], onDelete: Cascade)
   empresa    Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   lembretes  LembreteRegua[]
+  filaWhatsapp FilaWhatsapp[]
 
   @@index([reguaId, ordem])
   @@index([empresaId])
@@ -458,4 +467,121 @@ model LembreteRegua {
   @@index([faturaId, criadoEm])
   @@index([empresaId])
   @@map("lembretes_regua")
+}
+
+// Uma subconta e um Sender de WhatsApp por empresa. O auth token da subconta
+// fica cifrado com ASAAS_ENCRYPTION_KEY. O SID da conta pai e o token pai
+// não entram aqui: só existem em TWILIO_ACCOUNT_SID e TWILIO_AUTH_TOKEN.
+model ConfiguracaoTwilio {
+  id                 String   @id @default(cuid())
+  empresaId          String   @unique @map("empresa_id")
+  subaccountSid      String   @unique @map("subaccount_sid")
+  authTokenCifrado   String   @map("auth_token_cifrado") @db.Text
+  authTokenUltimos4  String   @map("auth_token_ultimos4")
+  senderSid          String?  @map("sender_sid")
+  senderTelefone     String?  @map("sender_telefone")
+  senderStatus       String   @default("AUSENTE") @map("sender_status")
+  wabaId             String?  @map("waba_id")
+  nomeExibicao       String   @map("nome_exibicao")
+  coexistencia       String   @default("NAO_SOLICITADA")
+  webhookUrl         String   @map("webhook_url") @db.Text
+  erro               String?  @db.Text
+  criadoEm           DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm       DateTime @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  empresa            Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+
+  @@map("configuracoes_twilio")
+}
+
+// Template UTILITY criado na Content API da subconta. Um de cada tipo por empresa.
+model TemplateWhatsapp {
+  id          String   @id @default(cuid())
+  empresaId   String   @map("empresa_id")
+  tipo        String
+  contentSid  String?  @map("content_sid")
+  nome        String
+  idioma      String   @default("pt_BR")
+  categoria   String   @default("UTILITY")
+  status      String   @default("RASCUNHO")
+  corpo       String   @db.Text
+  motivo      String?  @db.Text
+  criadoEm    DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm DateTime @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  empresa     Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+
+  @@unique([empresaId, tipo])
+  @@index([empresaId])
+  @@map("templates_whatsapp")
+}
+
+// Fila do WhatsApp da régua. A chave impede o mesmo passo (ou o aviso de pago)
+// de entrar duas vezes. O envio em si só sai daqui, depois da checagem de
+// pausa, opt-out e modo teste.
+model FilaWhatsapp {
+  id                String   @id @default(cuid())
+  empresaId         String   @map("empresa_id")
+  faturaId          String   @map("fatura_id")
+  clienteId         String   @map("cliente_id")
+  passoId           String?  @map("passo_id")
+  tipo              String
+  chaveIdempotencia String   @unique @map("chave_idempotencia")
+  status            String
+  destino           String?
+  messageSid        String?  @map("message_sid")
+  tentativas        Int      @default(0)
+  disponivelEm      DateTime @map("disponivel_em") @db.Timestamptz(3)
+  motivo            String?
+  modoTeste         Boolean  @map("modo_teste")
+  rotulo            String
+  variaveis         String   @db.Text
+  criadoEm          DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm      DateTime @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  empresa           Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  fatura            Fatura   @relation(fields: [faturaId], references: [id], onDelete: Cascade)
+  cliente           Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  passo             PassoRegua? @relation(fields: [passoId], references: [id], onDelete: SetNull)
+  eventos           EventoWhatsapp[]
+
+  @@index([status, disponivelEm])
+  @@index([faturaId, criadoEm])
+  @@index([empresaId])
+  @@index([messageSid])
+  @@map("fila_whatsapp")
+}
+
+// Histórico de status e de mensagens recebidas. O índice único torna o webhook idempotente.
+model EventoWhatsapp {
+  id         String   @id @default(cuid())
+  empresaId  String   @map("empresa_id")
+  filaId     String?  @map("fila_id")
+  messageSid String   @map("message_sid")
+  tipo       String
+  status     String
+  de         String?
+  para       String?
+  corpo      String?  @db.Text
+  recebidoEm DateTime @default(now()) @map("recebido_em") @db.Timestamptz(3)
+  empresa    Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  fila       FilaWhatsapp? @relation(fields: [filaId], references: [id], onDelete: SetNull)
+
+  @@unique([empresaId, messageSid, tipo, status])
+  @@index([empresaId])
+  @@index([filaId])
+  @@map("eventos_whatsapp")
+}
+
+// Opt-out por telefone da empresa. STOP/PARAR grava; START/RETOMAR desliga.
+model OptOutWhatsapp {
+  id           String   @id @default(cuid())
+  empresaId    String   @map("empresa_id")
+  telefone     String
+  ativo        Boolean  @default(true)
+  origem       String
+  atualizadoEm DateTime @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  criadoEm     DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
+  empresa      Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+
+  @@unique([empresaId, telefone])
+  @@index([empresaId])
+  @@map("optouts_whatsapp")
 }

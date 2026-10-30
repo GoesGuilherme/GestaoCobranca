@@ -2,6 +2,7 @@ import { hashTokenWebhook, tokensWebhookIguais } from "@/lib/asaas-cripto";
 import { prisma } from "@/server/db";
 import { ErroAplicacao } from "@/server/erros";
 import { espelharPagamentoAsaas } from "./asaas-pagamento";
+import { enfileirarPagoWhatsapp, eventoConfirmaPagamento } from "./whatsapp-fila";
 
 function conflitoDeEvento(erro: unknown) {
   if (typeof erro !== "object" || erro === null || !("code" in erro) || erro.code !== "P2002") return false;
@@ -53,6 +54,19 @@ export async function processarWebhookAsaas(token: string | null, corpo: unknown
       if (!pagamento || !tipo.startsWith("PAYMENT_")) return;
 
       await espelharPagamentoAsaas(tx, config.empresaId, pagamento, tipo);
+      if (eventoConfirmaPagamento(tipo, pagamento)) {
+        const asaasPaymentId = texto(pagamento.id, 80);
+        if (asaasPaymentId) {
+          const fatura = await tx.fatura.findFirst({
+            where: { empresaId: config.empresaId, asaasPaymentId, excluida: false },
+            include: { cliente: true },
+          });
+          if (fatura) {
+            const regua = await tx.configuracaoRegua.findUnique({ where: { empresaId: config.empresaId } });
+            await enfileirarPagoWhatsapp(tx, fatura, regua?.modoTeste ?? true);
+          }
+        }
+      }
     });
     return { duplicado: false as const };
   } catch (erro) {

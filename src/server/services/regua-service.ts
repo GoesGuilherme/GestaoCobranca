@@ -27,6 +27,7 @@ import { ErroAplicacao } from "@/server/erros";
 import { dispararLembrete } from "@/server/regua/envio";
 import { clienteResendPadrao, remetenteResend, type ClienteResend } from "@/server/regua/resend";
 import { lerEsquema } from "@/server/validar";
+import { obterWhatsappDaEmpresa } from "./twilio-service";
 
 type LinhaPasso = {
   id: string;
@@ -36,6 +37,7 @@ type LinhaPasso = {
   canal: string;
   assunto: string;
   corpo: string;
+  enviarWhatsapp: boolean;
 };
 
 type LinhaRegua = {
@@ -68,6 +70,7 @@ function paraPasso(passo: LinhaPasso): PassoReguaDTO {
     assunto: passo.assunto,
     corpo: passo.corpo,
     rotulo: rotuloPasso(passo),
+    enviarWhatsapp: passo.enviarWhatsapp,
   };
 }
 
@@ -143,7 +146,11 @@ async function listarReguas(empresaId: string): Promise<ReguaDTO[]> {
 export async function obterPainelRegua(autor: AutorEmpresa) {
   exigirVerRegua(autor);
   const config = await prisma.configuracaoRegua.findUnique({ where: { empresaId: autor.empresaId } });
-  return { config: paraConfig(config), reguas: await listarReguas(autor.empresaId) };
+  const [reguas, whatsapp] = await Promise.all([
+    listarReguas(autor.empresaId),
+    obterWhatsappDaEmpresa(autor.empresaId),
+  ]);
+  return { config: paraConfig(config), reguas, whatsapp };
 }
 
 function ehNomeDuplicado(erro: unknown): boolean {
@@ -218,7 +225,7 @@ async function gravarPassos(
   },
   empresaId: string,
   reguaId: string,
-  passos: { id?: string; naEmissao: boolean; dias: number | null; assunto: string; corpo: string }[],
+  passos: { id?: string; naEmissao: boolean; dias: number | null; assunto: string; corpo: string; enviarWhatsapp?: boolean }[],
 ) {
   const ids = passos.flatMap((passo) => (passo.id ? [passo.id] : []));
   await tx.passoRegua.deleteMany({
@@ -233,6 +240,7 @@ async function gravarPassos(
       canal: "EMAIL",
       assunto: passo.assunto,
       corpo: passo.corpo,
+      enviarWhatsapp: passo.enviarWhatsapp === true,
     };
     if (passo.id) {
       const atualizado = await tx.passoRegua.updateMany({

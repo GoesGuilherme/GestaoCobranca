@@ -45,10 +45,20 @@ type FaturaComNomes = {
     rotulo: string;
     criadoEm: Date;
   }[];
+  filaWhatsapp?: {
+    id: string;
+    passoId: string | null;
+    status: string;
+    motivo: string | null;
+    destino: string | null;
+    modoTeste: boolean;
+    rotulo: string;
+    criadoEm: Date;
+  }[];
 };
 
 function statusLembrete(valor: string): StatusLembrete {
-  if (valor === "ENVIADO" || valor === "FALHOU" || valor === "IGNORADO") return valor;
+  if (valor === "ENVIADO" || valor === "FALHOU" || valor === "IGNORADO" || valor === "NA_FILA") return valor;
   return "FALHOU";
 }
 
@@ -90,7 +100,25 @@ function paraFatura(fatura: FaturaComNomes): FaturaDTO {
     email: fatura.cliente.email,
     reguaModo: modoRegua(fatura.cliente.reguaModo),
     reguaId: fatura.cliente.reguaId,
-    lembretes: (fatura.lembretes ?? []).map(paraLembrete),
+    lembretes: [...(fatura.lembretes ?? []).map(paraLembrete), ...(fatura.filaWhatsapp ?? []).map(paraFilaWhatsapp)]
+      .sort((a, b) => b.criadoEm.localeCompare(a.criadoEm))
+      .slice(0, 20),
+  };
+}
+
+function paraFilaWhatsapp(item: NonNullable<FaturaComNomes["filaWhatsapp"]>[number]): LembreteReguaDTO {
+  const status = item.status === "ENVIADO" || item.status === "FALHOU" || item.status === "IGNORADO" ? item.status : "NA_FILA";
+  return {
+    id: item.id,
+    passoId: item.passoId,
+    canal: "WHATSAPP",
+    status,
+    motivo: item.motivo,
+    destino: item.destino,
+    automatico: true,
+    modoTeste: item.modoTeste,
+    rotulo: item.rotulo,
+    criadoEm: item.criadoEm.toISOString(),
   };
 }
 
@@ -98,6 +126,7 @@ const includeNomes = {
   cliente: { select: { nomeFantasia: true, whatsapp: true, email: true, reguaModo: true, reguaId: true } },
   clienteServico: { select: { servico: { select: { nome: true } } } },
   lembretes: { orderBy: { criadoEm: "desc" as const }, take: 20 },
+  filaWhatsapp: { orderBy: { criadoEm: "desc" as const }, take: 20 },
 } as const;
 
 function modoRegua(valor: string): ModoReguaCliente {
