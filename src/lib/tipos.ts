@@ -16,6 +16,7 @@ export type FilialDTO = {
   cidade: string;
   uf: string;
   status: StatusFilial;
+  whatsapp: string | null;
   observacoes: string | null;
   criadoEm: string;
   atualizadoEm: string;
@@ -301,6 +302,35 @@ export type ConfiguracaoAsaasDTO = {
   tokenWebhook: string | null;
   simulado: boolean;
   aviso: string | null;
+};
+
+export type ConfiguracaoAssessorDTO = {
+  gravada: boolean;
+  ativo: boolean;
+  modoTeste: boolean;
+  nome: string;
+  tom: string;
+  promptExtra: string;
+  horaInicio: number;
+  horaFim: number;
+  atendeFimDeSemana: boolean;
+};
+
+export type ConversaAssessorDTO = {
+  id: string;
+  telefone: string;
+  nomeCliente: string | null;
+  iaPausada: boolean;
+  aguardandoDocumento: boolean;
+  janelaAberta: boolean;
+  janelaAte: string;
+  atualizadoEm: string;
+  pedidosAbertos: number;
+};
+
+export type ConversaAssessorDetalhe = ConversaAssessorDTO & {
+  mensagens: { id: string; papel: "CLIENTE" | "ASSESSOR" | "HUMANO" | "SISTEMA"; corpo: string; criadoEm: string }[];
+  pedidos: { id: string; motivo: string; resumo: string; status: string; criadoEm: string }[];
 };
 
 export type Painel = {

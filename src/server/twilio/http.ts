@@ -262,5 +262,25 @@ export function criarClienteTwilioHttp(
       if (!sid) throw new ErroTwilio("A Twilio não devolveu a mensagem.", 502, null);
       return { sid };
     },
+    async enviarTexto(conta, mensagem) {
+      const { resposta, json } = await pedir(
+        conta,
+        `https://api.twilio.com/2010-04-01/Accounts/${conta.accountSid}/Messages.json`,
+        "POST",
+        new URLSearchParams({
+          From: mensagem.de,
+          To: mensagem.para,
+          Body: mensagem.corpo,
+          StatusCallback: mensagem.statusCallback,
+        }),
+        "application/x-www-form-urlencoded",
+      );
+      if (!resposta.ok) {
+        throw new ErroTwilio(mensagemDe(json, resposta.status, [conta.authToken]), resposta.status, codigoDe(json));
+      }
+      const sid = typeof json.sid === "string" ? json.sid : "";
+      if (!sid) throw new ErroTwilio("A Twilio não devolveu a mensagem.", 502, null);
+      return { sid };
+    },
   };
 }

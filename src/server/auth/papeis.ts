@@ -1,8 +1,10 @@
 import {
   podeAlterarServicos,
   podeConfigurarAsaas,
+  podeConfigurarAssessor,
   podeConfigurarRegua,
   podeEmitirCobranca,
+  podeVerAssessor,
   podeVerFaturas,
   podeVerMetricas,
   podeVerRegua,
@@ -86,6 +88,26 @@ export function exigirRegua(autor: AutorEmpresa) {
   if (!podeConfigurarRegua(autor.papel)) {
     throw new ErroAplicacao(
       "Só o dono da empresa pode configurar a régua.",
+      403,
+      "sem_permissao",
+    );
+  }
+}
+
+export function exigirVerAssessor(autor: AutorEmpresa) {
+  if (!podeVerAssessor(autor.papel)) {
+    throw new ErroAplicacao(
+      "Só o dono ou o financeiro pode ver o assessor.",
+      403,
+      "sem_permissao",
+    );
+  }
+}
+
+export function exigirAssessor(autor: AutorEmpresa) {
+  if (!podeConfigurarAssessor(autor.papel)) {
+    throw new ErroAplicacao(
+      "Só o dono da empresa pode configurar o assessor.",
       403,
       "sem_permissao",
     );

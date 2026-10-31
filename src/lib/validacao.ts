@@ -112,6 +112,12 @@ export const esquemaFilial = z.object({
     .min(1, "Escolha a UF.")
     .refine((valor) => ufValida(valor), "Escolha uma UF válida."),
   status: z.enum(["ATIVA", "INATIVA", "EM_IMPLANTACAO"], "Escolha o status."),
+  whatsapp: z
+    .string()
+    .trim()
+    .max(20, "O WhatsApp da filial está longo demais.")
+    .optional()
+    .refine((valor) => !valor || whatsappValido(valor), "Informe um WhatsApp válido com DDD, ou deixe em branco."),
   observacoes: z
     .string()
     .trim()
@@ -580,6 +586,23 @@ export const esquemaAtribuicaoRegua = z
 
 export const esquemaLembreteManual = z.object({
   passoId: z.string().trim().min(1, "Escolha o passo.").max(64),
+});
+
+export const esquemaAssessor = z
+  .object({
+    ativo: z.boolean("Informe se o assessor está ligado."),
+    modoTeste: z.boolean("Informe se o modo teste está ligado."),
+    nome: z.string().trim().min(2, "Informe o nome do assessor.").max(40, "O nome pode ter no máximo 40 caracteres."),
+    tom: z.string().trim().min(2, "Informe o tom.").max(160, "O tom pode ter no máximo 160 caracteres."),
+    promptExtra: z.string().trim().max(1500, "O texto da empresa pode ter no máximo 1500 caracteres.").optional().default(""),
+    horaInicio: z.number().int().min(0).max(23),
+    horaFim: z.number().int().min(0).max(23),
+    atendeFimDeSemana: z.boolean("Informe se o assessor responde no fim de semana."),
+  })
+  .refine((dados) => dados.horaInicio < dados.horaFim, "A hora final precisa ser depois da hora inicial.");
+
+export const esquemaRespostaAssessor = z.object({
+  texto: z.string().trim().min(1, "Escreva a mensagem.").max(1000, "A mensagem pode ter no máximo 1000 caracteres."),
 });
 
 export type EntradaFatura = z.infer<typeof esquemaFatura>;

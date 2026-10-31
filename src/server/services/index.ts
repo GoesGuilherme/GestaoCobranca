@@ -61,6 +61,15 @@ export { executarRegua } from "./regua-job";
 export { processarWebhookAsaas } from "./asaas-webhook-service";
 export { atualizarTwilio, conectarTwilio, confirmarCodigoTwilio, obterWhatsappDoPainel } from "./twilio-service";
 export { processarWebhookTwilio } from "./twilio-webhook-service";
+export {
+  assumirConversa,
+  devolverConversa,
+  obterAssessorDoPainel,
+  obterConversa,
+  processarEntradaAssessor,
+  responderConversa,
+  salvarAssessor,
+} from "./assessor-service";
 export { processarFilaWhatsapp } from "./whatsapp-fila";
 export {
   ativarRecorrencia,

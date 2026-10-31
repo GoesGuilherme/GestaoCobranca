@@ -39,3 +39,11 @@ export function podeVerRegua(papel: PapelUsuario): boolean {
 export function podeConfigurarRegua(papel: PapelUsuario): boolean {
   return papel === "DONO";
 }
+
+export function podeVerAssessor(papel: PapelUsuario): boolean {
+  return papel === "DONO" || papel === "FINANCEIRO";
+}
+
+export function podeConfigurarAssessor(papel: PapelUsuario): boolean {
+  return papel === "DONO";
+}

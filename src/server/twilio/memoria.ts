@@ -3,6 +3,7 @@ import {
   type ClienteTwilio,
   type ConteudoTwilio,
   type MensagemTemplate,
+  type MensagemTexto,
   type PedidoSender,
   type SenderTwilio,
   ErroTwilio,
@@ -10,9 +11,11 @@ import {
 } from "./contrato";
 
 export type MensagemRegistrada = MensagemTemplate & { sid: string };
+export type TextoRegistrado = MensagemTexto & { sid: string };
 
 export type ClienteTwilioMemoria = ClienteTwilio & {
   enviados: MensagemRegistrada[];
+  textos: TextoRegistrado[];
   aprovacoes: { nome: string; categoria: string; contentSid: string }[];
   subcontas: { sid: string; authToken: string; nome: string }[];
   chamouRede: boolean;
@@ -44,6 +47,7 @@ export function criarClienteTwilioMemoria(
   opcoes: { coexistencia?: "ATIVA" | "INDISPONIVEL" | "DESCONHECIDA" } = {},
 ): ClienteTwilioMemoria {
   const enviados: MensagemRegistrada[] = [];
+  const textos: TextoRegistrado[] = [];
   const aprovacoes: ClienteTwilioMemoria["aprovacoes"] = [];
   const subcontas: ClienteTwilioMemoria["subcontas"] = [];
   const senders = new Map<string, SenderTwilio>();
@@ -52,6 +56,7 @@ export function criarClienteTwilioMemoria(
 
   const cliente: ClienteTwilioMemoria = {
     enviados,
+    textos,
     aprovacoes,
     subcontas,
     chamouRede: false,
@@ -126,6 +131,11 @@ export function criarClienteTwilioMemoria(
     async enviarMensagem(_conta, mensagem) {
       const registrada = { ...mensagem, sid: sid("SM") };
       enviados.push(registrada);
+      return { sid: registrada.sid };
+    },
+    async enviarTexto(_conta, mensagem) {
+      const registrada = { ...mensagem, sid: sid("SM") };
+      textos.push(registrada);
       return { sid: registrada.sid };
     },
   };
