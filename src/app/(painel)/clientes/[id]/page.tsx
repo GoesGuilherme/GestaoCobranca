@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Trilha } from "@/components/trilha";
 import { BotaoExcluir } from "@/components/botao-excluir";
 import { classeBotaoSecundario } from "@/components/estilos";
 import { PainelFiliais } from "@/components/painel-filiais";
@@ -11,8 +12,8 @@ import { PainelRecorrenciaLote } from "@/components/painel-recorrencia-lote";
 import { Selo } from "@/components/selo";
 import { dataHojeIso } from "@/lib/data";
 import { formatarReais } from "@/lib/dinheiro";
+import { formatarDocumento, formatarWhatsapp, somenteDigitos } from "@/lib/documento";
 import { formatarData, formatarDataIso } from "@/lib/formatacao";
-import { somenteDigitos } from "@/lib/documento";
 import { podeAlterarServicos, podeEmitirCobranca, podeVerCustoServico, podeVerFaturas, podeVerRegua } from "@/lib/permissoes";
 import { opcoesDaReguaAplicavel, passosDaAtribuicao } from "@/lib/regua";
 import type { ClienteDetalhe, ClienteServicoDTO, FaturaDTO, ServicoDTO } from "@/lib/tipos";
@@ -82,16 +83,14 @@ export default async function PaginaCliente({ params }: { params: Promise<{ id: 
 
   return (
     <>
-      <Link href="/clientes" className="text-sm font-medium text-canopy">
-        Voltar para clientes
-      </Link>
+      <Trilha itens={[{ href: "/clientes", rotulo: "Clientes" }, { rotulo: cliente.nomeFantasia }]} />
       <div className="mt-4 flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <Selo valor={cliente.segmento} tipo="segmento" />
             <Selo valor={cliente.status} tipo="cliente" />
           </div>
-          <h1 className="mt-3 font-display text-4xl tracking-tight">{cliente.nomeFantasia}</h1>
+          <h1 className="mt-3 font-display text-3xl tracking-tight sm:text-4xl">{cliente.nomeFantasia}</h1>
           <p className="mt-2 text-muted">{cliente.razaoSocial}</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -107,11 +106,11 @@ export default async function PaginaCliente({ params }: { params: Promise<{ id: 
       </div>
 
       <dl className="mt-8 grid gap-5 rounded-3xl border border-line bg-card p-6 sm:grid-cols-2 lg:grid-cols-3">
-        <Item rotulo={cliente.tipoDocumento}>{cliente.documento}</Item>
+        <Item rotulo={cliente.tipoDocumento}>{formatarDocumento(cliente.documento, cliente.tipoDocumento)}</Item>
         <Item rotulo="Contato">{cliente.contatoNome}</Item>
         <Item rotulo="WhatsApp">
           <a className="text-canopy hover:underline" href={`https://wa.me/55${whatsapp}`}>
-            {cliente.whatsapp}
+            {formatarWhatsapp(cliente.whatsapp)}
           </a>
         </Item>
         <Item rotulo="E-mail">

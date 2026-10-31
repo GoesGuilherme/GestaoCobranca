@@ -2,9 +2,8 @@ import Link from "next/link";
 import { CabecalhoPagina } from "@/components/cabecalho";
 import { classeBotaoPrimario, classeBotaoSecundario } from "@/components/estilos";
 import { classeCampo } from "@/components/campo";
-import { Selo } from "@/components/selo";
-import { formatarReais } from "@/lib/dinheiro";
-import { formatarDataIso } from "@/lib/formatacao";
+import { EstadoVazio } from "@/components/estado-vazio";
+import { TabelaClientes } from "@/components/tabela-clientes";
 import { SEGMENTOS, STATUS_CLIENTE } from "@/lib/rotulos";
 import { acessoDaPagina } from "@/server/auth/pagina";
 import { listarClientes } from "@/server/services/cliente-service";
@@ -43,14 +42,19 @@ export default async function PaginaClientes({
         }
       />
 
-      <form method="get" className="mb-6 grid gap-3 rounded-3xl border border-line bg-card p-4 md:grid-cols-[1fr_180px_180px_auto]">
-        <input
-          name="q"
-          defaultValue={q}
-          placeholder="Nome, CNPJ ou cidade"
-          aria-label="Buscar por nome, CNPJ ou cidade"
-          className={classeCampo}
-        />
+      <form method="get" className="mb-6 grid gap-3 rounded-3xl border border-line bg-card p-4 md:grid-cols-[1fr_180px_180px_auto] md:items-end">
+        <label className="grid gap-1 text-sm">
+          <span className="font-medium">Busca</span>
+          <input
+            name="q"
+            defaultValue={q}
+            placeholder="Nome, CNPJ ou cidade"
+            aria-label="Buscar por nome, CNPJ ou cidade"
+            className={classeCampo}
+          />
+        </label>
+        <label className="grid gap-1 text-sm">
+          <span className="font-medium">Segmento</span>
         <select name="segmento" defaultValue={segmento} aria-label="Segmento" className={classeCampo}>
           <option value="">Todos os segmentos</option>
           {SEGMENTOS.map((item) => (
@@ -59,6 +63,9 @@ export default async function PaginaClientes({
             </option>
           ))}
         </select>
+        </label>
+        <label className="grid gap-1 text-sm">
+          <span className="font-medium">Status</span>
         <select name="status" defaultValue={status} aria-label="Status" className={classeCampo}>
           <option value="">Todos os status</option>
           {STATUS_CLIENTE.map((item) => (
@@ -67,6 +74,7 @@ export default async function PaginaClientes({
             </option>
           ))}
         </select>
+        </label>
         <div className="flex gap-2">
           <button type="submit" className={classeBotaoPrimario}>
             Buscar
@@ -84,58 +92,23 @@ export default async function PaginaClientes({
       </p>
 
       {clientes.length === 0 ? (
-        <div className="rounded-3xl border border-dashed border-line bg-card px-6 py-12 text-center">
-          <p className="font-display text-2xl">
-            {filtrando ? "Nenhum cliente encontrado" : "Nenhum cliente cadastrado"}
-          </p>
-          <p className="mt-2 text-muted">
-            {filtrando
+        <EstadoVazio
+          titulo={filtrando ? "Nenhum cliente encontrado" : "Nenhum cliente cadastrado"}
+          descricao={
+            filtrando
               ? "Tente outro nome, CNPJ ou cidade, ou limpe os filtros."
-              : "Comece pelo primeiro cliente."}
-          </p>
-        </div>
+              : "Comece pelo primeiro cliente. O cadastro leva nome, documento e um contato."
+          }
+          acao={
+            filtrando ? undefined : (
+              <Link href="/clientes/novo" className={classeBotaoPrimario}>
+                Novo cliente
+              </Link>
+            )
+          }
+        />
       ) : (
-        <div className="overflow-x-auto rounded-3xl border border-line bg-card">
-          <table className="w-full min-w-[860px] text-left text-sm">
-            <thead className="border-b border-line text-xs uppercase tracking-wide text-muted">
-              <tr>
-                <th className="px-5 py-3 font-medium">Cliente</th>
-                <th className="px-5 py-3 font-medium">Documento</th>
-                <th className="px-5 py-3 font-medium">Cidade</th>
-                <th className="px-5 py-3 font-medium">Segmento</th>
-                <th className="px-5 py-3 font-medium">Status</th>
-                <th className="px-5 py-3 font-medium">Ativação</th>
-                <th className="px-5 py-3 font-medium">Filiais</th>
-                <th className="px-5 py-3 font-medium">Mensal</th>
-              </tr>
-            </thead>
-            <tbody>
-              {clientes.map((cliente) => (
-                <tr key={cliente.id} className="border-b border-line last:border-0">
-                  <td className="px-5 py-4">
-                    <Link href={`/clientes/${cliente.id}`} className="font-medium hover:underline">
-                      {cliente.nomeFantasia}
-                    </Link>
-                    <p className="mt-0.5 text-muted">{cliente.razaoSocial}</p>
-                  </td>
-                  <td className="px-5 py-4 tabular-nums">{cliente.documento}</td>
-                  <td className="px-5 py-4">
-                    {cliente.cidade}/{cliente.uf}
-                  </td>
-                  <td className="px-5 py-4">
-                    <Selo valor={cliente.segmento} tipo="segmento" />
-                  </td>
-                  <td className="px-5 py-4">
-                    <Selo valor={cliente.status} tipo="cliente" />
-                  </td>
-                  <td className="px-5 py-4 tabular-nums">{cliente.ativadoEm ? formatarDataIso(cliente.ativadoEm) : "—"}</td>
-                  <td className="px-5 py-4 tabular-nums">{cliente.quantidadeFiliais}</td>
-                  <td className="px-5 py-4 tabular-nums">{formatarReais(cliente.valorMensalAtivo)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <TabelaClientes clientes={clientes} />
       )}
     </>
   );

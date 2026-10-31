@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { enviarJson } from "@/lib/api-cliente";
 import { esquemaRedefinirSenha, mensagensDoZod } from "@/lib/validacao";
-import { Campo, classeCampo } from "./campo";
+import { Aviso } from "./aviso";
+import { Campo } from "./campo";
+import { EntradaSenha } from "./entrada-senha";
 import { classeBotaoPrimario } from "./estilos";
 
 export function FormularioRedefinirSenha({ token }: { token: string }) {
@@ -58,33 +60,31 @@ export function FormularioRedefinirSenha({ token }: { token: string }) {
       <h1 className="font-display text-4xl">Nova senha</h1>
       <p className="mt-2 text-sm text-muted">Escolha uma senha com pelo menos 8 caracteres.</p>
       {erro ? (
-        <p className="mt-5 rounded-2xl bg-clay-soft px-4 py-3 text-sm text-clay" role="alert">
-          {erro}
-        </p>
+        <div className="mt-5">
+          <Aviso tom="erro" titulo={erro} />
+        </div>
       ) : null}
       <div className="mt-5 space-y-4">
-        <Campo label="Nova senha" htmlFor="senha" erro={campos.senha}>
-          <input
+        <Campo label="Nova senha" htmlFor="senha" erro={campos.senha} obrigatorio dica="Pelo menos 8 caracteres.">
+          <EntradaSenha
             id="senha"
-            type="password"
             autoComplete="new-password"
-            className={classeCampo}
             value={senha}
-            onChange={(evento) => setSenha(evento.target.value)}
+            invalido={Boolean(campos.senha)}
+            onChange={setSenha}
           />
         </Campo>
-        <Campo label="Confirmar senha" htmlFor="confirmacao" erro={campos.confirmacao}>
-          <input
+        <Campo label="Confirmar senha" htmlFor="confirmacao" erro={campos.confirmacao} obrigatorio>
+          <EntradaSenha
             id="confirmacao"
-            type="password"
             autoComplete="new-password"
-            className={classeCampo}
             value={confirmacao}
-            onChange={(evento) => setConfirmacao(evento.target.value)}
+            invalido={Boolean(campos.confirmacao)}
+            onChange={setConfirmacao}
           />
         </Campo>
       </div>
-      <button type="submit" className={`${classeBotaoPrimario} mt-6 w-full`} disabled={enviando}>
+      <button type="submit" className={`${classeBotaoPrimario} mt-6 w-full`} disabled={enviando} aria-busy={enviando}>
         {enviando ? "Salvando..." : "Salvar senha"}
       </button>
       <p className="mt-5 text-center text-sm text-muted">

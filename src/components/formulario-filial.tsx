@@ -5,6 +5,7 @@ import { useState } from "react";
 import { enviarJson } from "@/lib/api-cliente";
 import { STATUS_FILIAL } from "@/lib/rotulos";
 import type { FilialDTO } from "@/lib/tipos";
+import { mascararCnpjDigitando } from "@/lib/mascaras";
 import { UFS } from "@/lib/ufs";
 import { esquemaFilial, mensagensDoZod } from "@/lib/validacao";
 import { Campo, classeCampo } from "./campo";
@@ -39,7 +40,7 @@ export function FormularioFilial({
   const router = useRouter();
   const [valores, setValores] = useState<Valores>({
     nome: filial?.nome ?? "",
-    cnpj: filial?.cnpj ?? "",
+    cnpj: filial ? mascararCnpjDigitando(filial.cnpj) : "",
     endereco: filial?.endereco ?? "",
     cidade: filial?.cidade ?? cidadeInicial ?? "",
     uf: filial?.uf ?? ufInicial ?? "SP",
@@ -113,7 +114,7 @@ export function FormularioFilial({
             id="filial-cnpj"
             className={classeCampo}
             value={valores.cnpj}
-            onChange={(evento) => alterar("cnpj", evento.target.value)}
+            onChange={(evento) => alterar("cnpj", mascararCnpjDigitando(evento.target.value))}
           />
         </Campo>
         <div className="md:col-span-2">

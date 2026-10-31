@@ -6,7 +6,9 @@ import { BotaoAtualizarVisualizacoes } from "@/components/botao-atualizar-visual
 import { BotaoImportarFaturas } from "@/components/botao-importar-faturas";
 import { PainelRecorrenciaLote } from "@/components/painel-recorrencia-lote";
 import { AvisoModoTeste } from "@/components/aviso-modo-teste";
-import { TabelaFaturas } from "@/components/tabela-faturas";
+import { FaturasComControles } from "@/components/faturas-com-controles";
+import { LegendaFaturas } from "@/components/legenda-faturas";
+import { EstadoVazio } from "@/components/estado-vazio";
 import { podeAtualizarVisualizacoes, podeEmitirCobranca, podeVerFaturas } from "@/lib/permissoes";
 import { FILTROS_VISUALIZACAO, SITUACOES_FATURA, filtroVisualizacao, situacaoFatura } from "@/lib/rotulos";
 import { acessoDaPagina } from "@/server/auth/pagina";
@@ -54,7 +56,8 @@ export default async function PaginaFaturas({ searchParams }: { searchParams: Pr
         {podeAtualizarVisualizacoes(acesso.papel) ? <BotaoAtualizarVisualizacoes /> : null}
       </div>
       <PainelRecorrenciaLote preferencias={preferencias} />
-      <form className="mb-6 flex flex-wrap items-end gap-3" method="get">
+      <LegendaFaturas />
+      <form className="mb-6 flex flex-wrap items-end gap-3 rounded-3xl border border-line bg-card p-4" method="get">
         <label className="grid gap-1 text-sm">
           <span className="font-medium">Situação</span>
           <select name="situacao" defaultValue={situacao} className={classeCampo}>
@@ -83,16 +86,27 @@ export default async function PaginaFaturas({ searchParams }: { searchParams: Pr
           Filtrar
         </button>
       </form>
-      <TabelaFaturas
-        faturas={faturas}
-        podeCancelar={podeEmitirCobranca(acesso.papel)}
-        mostrarCliente
-        preferencias={preferencias}
-        reguasEnvio={regua.reguas}
-        podeEnviarRegua={podeEmitirCobranca(acesso.papel)}
-        modoTeste={regua.config.gravada && regua.config.modoTeste}
-        emailLogado={acesso.email}
-      />
+      {faturas.length === 0 ? (
+        <EstadoVazio
+          titulo={busca ? "Nenhuma fatura encontrada" : "Nenhuma fatura nesta situação"}
+          descricao={
+            busca
+              ? "Tente o nome fantasia ou a razão social, ou limpe a busca."
+              : "A emissão avulsa fica na ficha do cliente. A recorrência mensal pode ser ativada em lote acima."
+          }
+        />
+      ) : (
+        <FaturasComControles
+          faturas={faturas}
+          podeCancelar={podeEmitirCobranca(acesso.papel)}
+          mostrarCliente
+          preferencias={preferencias}
+          reguasEnvio={regua.reguas}
+          podeEnviarRegua={podeEmitirCobranca(acesso.papel)}
+          modoTeste={regua.config.gravada && regua.config.modoTeste}
+          emailLogado={acesso.email}
+        />
+      )}
       <p className="mt-4 text-sm text-muted">
         Para emitir uma cobrança nova, abra o cliente em <Link href="/clientes" className="text-canopy hover:underline">Clientes</Link>.
       </p>

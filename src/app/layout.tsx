@@ -21,6 +21,9 @@ export default function LayoutRaiz({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="pt-BR">
       <body className={`${outfit.variable} font-sans antialiased`}>
+        <a href="#conteudo" className="pular-conteudo rounded-full bg-forest px-4 py-2 text-sm font-medium text-paper">
+          Pular para o conteúdo
+        </a>
         {children}
       </body>
     </html>

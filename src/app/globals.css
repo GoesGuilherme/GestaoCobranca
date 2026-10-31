@@ -44,9 +44,33 @@ body {
 }
 
 a:focus-visible,
-button:focus-visible {
+button:focus-visible,
+summary:focus-visible,
+[role="tab"]:focus-visible {
   outline: 2px solid var(--color-gold);
   outline-offset: 2px;
+}
+
+.pular-conteudo {
+  position: absolute;
+  left: 1rem;
+  top: 1rem;
+  z-index: 50;
+  transform: translateY(-200%);
+}
+
+.pular-conteudo:focus {
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .animate-pulse {
+    animation: none;
+  }
 }
 
 input,

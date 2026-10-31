@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { classeBotaoPrimario } from "@/components/estilos";
 
 export default function AcessoNegado() {
   return (
@@ -10,7 +11,7 @@ export default function AcessoNegado() {
       </p>
       <Link
         href="/"
-        className="mt-6 inline-flex rounded-full bg-forest px-4 py-2 text-sm font-medium text-paper"
+        className={`${classeBotaoPrimario} mt-6`}
       >
         Voltar ao painel
       </Link>

@@ -10,6 +10,7 @@ import {
   formatarValorCampo,
   normalizarDinheiro,
 } from "@/lib/dinheiro";
+import { mascararMoedaDigitando } from "@/lib/mascaras";
 import { RECORRENCIAS, STATUS_SERVICO_CLIENTE } from "@/lib/rotulos";
 import type { ClienteServicoDTO, ServicoDTO } from "@/lib/tipos";
 import { esquemaClienteServico, mensagensDoZod } from "@/lib/validacao";
@@ -159,7 +160,7 @@ export function FormularioClienteServico({
               className={classeCampo}
               placeholder="189,90"
               value={valores.valor}
-              onChange={(evento) => alterar("valor", evento.target.value)}
+              onChange={(evento) => alterar("valor", mascararMoedaDigitando(evento.target.value))}
             />
           </Campo>
           <Campo
@@ -174,7 +175,7 @@ export function FormularioClienteServico({
               className={classeCampo}
               placeholder="40,00"
               value={valores.custo}
-              onChange={(evento) => alterar("custo", evento.target.value)}
+              onChange={(evento) => alterar("custo", mascararMoedaDigitando(evento.target.value))}
             />
           </Campo>
           {margem ? (

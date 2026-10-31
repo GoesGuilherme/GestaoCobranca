@@ -1,4 +1,5 @@
 import { CabecalhoPagina } from "@/components/cabecalho";
+import { classeCabecalhoTabela, classeTabelaRolavel } from "@/components/estilos";
 import { FormularioUsuario } from "@/components/formulario-usuario";
 import { rotuloPapel } from "@/lib/rotulos";
 import { acessoDaPagina } from "@/server/auth/pagina";
@@ -19,9 +20,9 @@ export default async function PaginaUsuarios() {
         titulo="Usuários"
         descricao="Quem entra nesta empresa. O dono cadastra a equipe. Financeiro altera clientes, serviços, custo e impostos. Suporte altera o cadastro de clientes, consulta o preço e não vê custo, impostos nem margem."
       />
-      <div className="mb-6 overflow-x-auto rounded-3xl border border-line bg-card">
+      <div className={`mb-6 ${classeTabelaRolavel}`}>
         <table className="w-full min-w-[640px] text-left text-sm">
-          <thead className="border-b border-line text-xs uppercase tracking-wide text-muted">
+          <thead className={classeCabecalhoTabela}>
             <tr>
               <th className="px-5 py-3 font-medium">Nome</th>
               <th className="px-5 py-3 font-medium">E-mail</th>

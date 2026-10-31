@@ -4,6 +4,8 @@ import { useState } from "react";
 import { formatarAliquota, formatarReais, formatarReaisAssinado } from "@/lib/dinheiro";
 import type { ServicoDTO } from "@/lib/tipos";
 import { BotaoExcluir } from "./botao-excluir";
+import { classeCampo } from "./campo";
+import { EstadoVazio } from "./estado-vazio";
 import { classeBotaoPrimario, classeBotaoSecundario } from "./estilos";
 import { FormularioServico } from "./formulario-servico";
 import { Selo } from "./selo";
@@ -22,7 +24,14 @@ export function PainelCatalogoServicos({
   podeEditar: boolean;
 }) {
   const [modo, setModo] = useState<"lista" | "novo" | string>("lista");
+  const [busca, setBusca] = useState("");
   const emEdicao = servicos.find((servico) => servico.id === modo);
+  const termo = busca.trim().toLocaleLowerCase("pt-BR");
+  const visiveis = termo
+    ? servicos.filter((servico) =>
+        `${servico.nome} ${servico.descricao ?? ""}`.toLocaleLowerCase("pt-BR").includes(termo),
+      )
+    : servicos;
 
   return (
     <section>
@@ -33,13 +42,18 @@ export function PainelCatalogoServicos({
       ) : null}
 
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-        <p className="text-sm text-muted">
-          {servicos.length === 0
-            ? "Nenhum serviço no catálogo."
-            : servicos.length === 1
-              ? "1 serviço nesta empresa."
-              : `${servicos.length} serviços nesta empresa.`}
-        </p>
+        <div className="grid flex-1 gap-2 sm:max-w-sm">
+          <label htmlFor="busca-servico" className="text-sm font-medium">
+            Buscar serviço
+          </label>
+          <input
+            id="busca-servico"
+            className={classeCampo}
+            value={busca}
+            placeholder="Nome ou descrição"
+            onChange={(evento) => setBusca(evento.target.value)}
+          />
+        </div>
         {podeEditar && modo === "lista" ? (
           <button type="button" className={classeBotaoPrimario} onClick={() => setModo("novo")}>
             Novo serviço
@@ -60,16 +74,31 @@ export function PainelCatalogoServicos({
         />
       ) : null}
 
-      {modo === "lista" && servicos.length === 0 ? (
-        <div className="rounded-3xl border border-dashed border-line bg-card px-6 py-10 text-center text-muted">
-          Cadastre o que esta empresa vende, com o preço que vale na maior parte dos clientes.
-        </div>
+      {modo === "lista" ? (
+        <p className="mb-3 text-sm text-muted">
+          {visiveis.length === servicos.length
+            ? servicos.length === 1
+              ? "1 serviço nesta empresa."
+              : `${servicos.length} serviços nesta empresa.`
+            : `${visiveis.length} de ${servicos.length} serviços.`}
+        </p>
       ) : null}
 
-      {modo === "lista" && servicos.length > 0 ? (
+      {modo === "lista" && visiveis.length === 0 ? (
+        <EstadoVazio
+          titulo={termo ? "Nenhum serviço encontrado" : "Nenhum serviço no catálogo"}
+          descricao={
+            termo
+              ? "Tente outro nome ou limpe a busca."
+              : "Cadastre o que esta empresa vende, com o preço que vale na maior parte dos clientes."
+          }
+        />
+      ) : null}
+
+      {modo === "lista" && visiveis.length > 0 ? (
         <div className="overflow-hidden rounded-3xl border border-line bg-card">
           <ul className="divide-y divide-line">
-            {servicos.map((servico) => (
+            {visiveis.map((servico) => (
               <li
                 key={servico.id}
                 className="flex flex-col gap-3 px-5 py-4 md:flex-row md:items-center md:justify-between"
