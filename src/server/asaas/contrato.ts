@@ -72,6 +72,12 @@ export type PaginaCobrancasAsaas = {
   temMais: boolean;
 };
 
+// GET /v3/payments/{id}/viewingInfo. Datas vazias quando o pagador ainda não abriu.
+export type VisualizacaoCobrancaAsaas = {
+  faturaEm: Date | null;
+  boletoEm: Date | null;
+};
+
 export type NovoClienteAsaas = {
   nome: string;
   cpfCnpj: string;
@@ -100,6 +106,7 @@ export interface ClienteHttpAsaas {
   cancelarCobranca(id: string): Promise<void>;
   obterLinhaDigitavel(id: string): Promise<string | null>;
   obterPix(id: string): Promise<string | null>;
+  obterVisualizacao(id: string): Promise<VisualizacaoCobrancaAsaas>;
   criarAssinatura(dados: NovaAssinaturaAsaas): Promise<AssinaturaAsaas>;
   buscarAssinaturaPorReferencia(referencia: string): Promise<AssinaturaAsaas | null>;
   atualizarAssinatura(id: string, dados: AtualizacaoAssinaturaAsaas): Promise<AssinaturaAsaas>;
@@ -110,11 +117,13 @@ export interface ClienteHttpAsaas {
 
 export class ErroAsaas extends Error {
   status: number;
+  esperaSegundos: number | null;
 
-  constructor(mensagem: string, status: number) {
+  constructor(mensagem: string, status: number, esperaSegundos: number | null = null) {
     super(mensagem);
     this.name = "ErroAsaas";
     this.status = status;
+    this.esperaSegundos = esperaSegundos;
   }
 }
 

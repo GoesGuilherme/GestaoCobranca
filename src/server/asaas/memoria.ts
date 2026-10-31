@@ -11,6 +11,7 @@ import {
   type NovaCobrancaAsaas,
   type NovoClienteAsaas,
   type PaginaCobrancasAsaas,
+  type VisualizacaoCobrancaAsaas,
 } from "./contrato";
 
 type ClienteGuardado = ClienteAsaas & { email: string; telefone: string; referencia: string };
@@ -57,6 +58,7 @@ export class AsaasMemoria implements ClienteHttpAsaas {
   lancarDepoisDeCriarAssinatura = false;
   cancelarCobrancaLanca = false;
   cancelarAssinaturaLanca = false;
+  visualizacoes = new Map<string, VisualizacaoCobrancaAsaas>();
   private sequencia = 0;
 
   constructor(private prefixo = "mem") {}
@@ -140,6 +142,10 @@ export class AsaasMemoria implements ClienteHttpAsaas {
     const cobranca = this.cobrancas.get(id);
     if (!cobranca || cobranca.formaCobranca === "BOLETO") return null;
     return `00020126580014br.gov.bcb.pix${id}`;
+  }
+
+  async obterVisualizacao(id: string) {
+    return this.visualizacoes.get(id) ?? { faturaEm: null, boletoEm: null };
   }
 
   async criarAssinatura(dados: NovaAssinaturaAsaas) {

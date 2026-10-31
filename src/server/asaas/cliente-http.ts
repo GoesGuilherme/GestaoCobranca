@@ -15,6 +15,7 @@ import {
   type NovoClienteAsaas,
   type PaginaCobrancasAsaas,
 } from "./contrato";
+import { lerVisualizacaoAsaas } from "./visualizacao";
 
 const AGENTE = "GestaoCobranca";
 
@@ -158,6 +159,12 @@ function anexarEncargos(json: string, encargos?: EncargosAsaas): string {
   return `${json.slice(0, -1)},${partes.join(",")}}`;
 }
 
+function segundosDeReset(headers: Headers): number | null {
+  const bruto = Number(headers.get("ratelimit-reset"));
+  if (!Number.isFinite(bruto) || bruto < 0) return null;
+  return Math.min(Math.floor(bruto), 86_400);
+}
+
 function corpoComValor(dados: Record<string, unknown>, valor: string, encargos?: EncargosAsaas): string {
   if (!/^\d+\.\d{2}$/.test(valor)) {
     throw new ErroAsaas("Valor inválido para o Asaas.", 400);
@@ -212,7 +219,13 @@ export function criarClienteHttpAsaas(opcoes: {
     }
     if (!resposta.ok) {
       const detalhe = descricoes(json, apiKey);
-      throw new ErroAsaas(detalhe || "O Asaas recusou a operação.", resposta.status);
+      const mensagem =
+        detalhe ||
+        (resposta.status === 429
+          ? "O Asaas limitou as consultas. Tente de novo daqui a pouco."
+          : "O Asaas recusou a operação.");
+      const espera = resposta.status === 429 ? segundosDeReset(resposta.headers) : null;
+      throw new ErroAsaas(mensagem, resposta.status, espera);
     }
     return { status: resposta.status, json };
   }
@@ -300,6 +313,16 @@ export function criarClienteHttpAsaas(opcoes: {
         return textoDe((json as { payload?: unknown }).payload);
       } catch (erro) {
         if (erro instanceof ErroAsaas && erro.status === 404) return null;
+        throw erro;
+      }
+    },
+
+    async obterVisualizacao(id) {
+      try {
+        const { json } = await pedir("GET", `/payments/${idAsaasSeguro(id)}/viewingInfo`);
+        return lerVisualizacaoAsaas(json);
+      } catch (erro) {
+        if (erro instanceof ErroAsaas && erro.status === 404) return { faturaEm: null, boletoEm: null };
         throw erro;
       }
     },

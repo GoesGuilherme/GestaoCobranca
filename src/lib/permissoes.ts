@@ -32,6 +32,11 @@ export function podeEmitirCobranca(papel: PapelUsuario): boolean {
   return podeVerFaturas(papel);
 }
 
+// Recuperar visualizações antigas consulta o Asaas da empresa. Só o dono dispara.
+export function podeAtualizarVisualizacoes(papel: PapelUsuario): boolean {
+  return papel === "DONO";
+}
+
 export function podeVerRegua(papel: PapelUsuario): boolean {
   return papel === "DONO" || papel === "FINANCEIRO";
 }

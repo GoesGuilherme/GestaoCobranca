@@ -236,6 +236,51 @@ describe("cliente HTTP do Asaas", () => {
     expect(corpoCobranca).not.toMatch(/creditCard|cvv|ccv|cardNumber/i);
   });
 
+  it("consulta viewingInfo e lê as duas datas sem vazar a chave", async () => {
+    const pedidos: { url: string; init: RequestInit }[] = [];
+    const fetchImpl: typeof fetch = async (entrada, init) => {
+      pedidos.push({ url: String(entrada), init: init ?? {} });
+      const url = String(entrada);
+      if (url.endsWith("/payments/pay_vista/viewingInfo")) {
+        return resposta(200, {
+          invoiceViewedDate: "2017-06-10 11:00:00",
+          boletoViewedDate: "2017-06-10T15:00:00Z",
+        });
+      }
+      if (url.endsWith("/payments/pay_vazio/viewingInfo")) {
+        return resposta(200, { invoiceViewedDate: "", boletoViewedDate: null });
+      }
+      if (url.endsWith("/payments/pay_sumiu/viewingInfo")) return resposta(404, {});
+      if (url.endsWith("/payments/pay_limite/viewingInfo")) {
+        return new Response(JSON.stringify({ errors: [{ description: `bloqueado ${CHAVE}` }] }), {
+          status: 429,
+          headers: { "content-type": "application/json", "RateLimit-Reset": "12" },
+        });
+      }
+      return resposta(400, { errors: [{ description: "inesperado" }] });
+    };
+    const cliente = criarClienteHttpAsaas({ baseUrl: URL_ASAAS.PRODUCAO, apiKey: CHAVE, fetchImpl });
+
+    const vista = await cliente.obterVisualizacao("pay_vista");
+    expect(vista.faturaEm?.toISOString()).toBe("2017-06-10T14:00:00.000Z");
+    expect(vista.boletoEm?.toISOString()).toBe("2017-06-10T15:00:00.000Z");
+    expect(await cliente.obterVisualizacao("pay_vazio")).toEqual({ faturaEm: null, boletoEm: null });
+    expect(await cliente.obterVisualizacao("pay_sumiu")).toEqual({ faturaEm: null, boletoEm: null });
+    await expect(cliente.obterVisualizacao("pay_limite")).rejects.toMatchObject({ status: 429, esperaSegundos: 12 });
+    try {
+      await cliente.obterVisualizacao("pay_limite");
+    } catch (erro) {
+      expect((erro as Error).message).not.toContain(CHAVE);
+      expect((erro as Error).message).toContain("[redigido]");
+    }
+
+    expect(pedidos.every((pedido) => pedido.url.startsWith("https://api.asaas.com/v3/payments/"))).toBe(true);
+    expect(pedidos.every((pedido) => pedido.url.endsWith("/viewingInfo"))).toBe(true);
+    expect(pedidos.every((pedido) => pedido.init.method === "GET")).toBe(true);
+    expect(pedidos.every((pedido) => pedido.init.body == null)).toBe(true);
+    expect(pedidos.every((pedido) => new Headers(pedido.init.headers).get("access_token") === CHAVE)).toBe(true);
+  });
+
   it("recusa o modo simulado em produção", () => {
     expect(mockAsaasLigado({ ASAAS_MOCK: "true", NODE_ENV: "production" })).toBe(false);
     expect(mockAsaasLigado({ ASAAS_MOCK: "true", NODE_ENV: "development" })).toBe(true);

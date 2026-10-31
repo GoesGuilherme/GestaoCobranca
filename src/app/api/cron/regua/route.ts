@@ -1,25 +1,13 @@
-import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
+import { cronAutorizado } from "@/server/cron/segredo";
 import { jsonErro } from "@/server/http";
 import { executarRegua } from "@/server/services/regua-job";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function autorizado(request: Request): boolean | "ausente" {
-  const esperado = process.env.CRON_SECRET?.trim() ?? "";
-  if (!esperado) return "ausente";
-  const autorizacao = request.headers.get("authorization") ?? "";
-  const bearer = /^Bearer\s+(.+)$/i.exec(autorizacao)?.[1]?.trim() ?? "";
-  const informado = bearer || (request.headers.get("x-cron-secret")?.trim() ?? "");
-  const recebido = Buffer.from(informado);
-  const secreto = Buffer.from(esperado);
-  if (recebido.length === 0 || recebido.length !== secreto.length) return false;
-  return timingSafeEqual(recebido, secreto);
-}
-
 async function executar(request: Request) {
-  const acesso = autorizado(request);
+  const acesso = cronAutorizado(request);
   if (acesso === "ausente") {
     return NextResponse.json({ erro: "CRON_SECRET não definido." }, { status: 500 });
   }

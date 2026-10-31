@@ -1,5 +1,6 @@
 import {
   podeAlterarServicos,
+  podeAtualizarVisualizacoes,
   podeConfigurarAsaas,
   podeConfigurarAssessor,
   podeConfigurarRegua,
@@ -58,6 +59,16 @@ export function exigirVerFaturas(autor: AutorEmpresa) {
   if (!podeVerFaturas(autor.papel)) {
     throw new ErroAplicacao(
       "Só o dono ou o financeiro pode ver as faturas.",
+      403,
+      "sem_permissao",
+    );
+  }
+}
+
+export function exigirAtualizarVisualizacoes(autor: AutorEmpresa) {
+  if (!podeAtualizarVisualizacoes(autor.papel)) {
+    throw new ErroAplicacao(
+      "Só o dono da empresa pode atualizar as visualizações.",
       403,
       "sem_permissao",
     );
