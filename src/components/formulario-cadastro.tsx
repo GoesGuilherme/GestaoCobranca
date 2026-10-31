@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { enviarJson } from "@/lib/api-cliente";
+import { mascararCnpjDigitando, mascararTelefoneDigitando } from "@/lib/mascaras";
 import { esquemaCadastroEmpresa, mensagensDoZod } from "@/lib/validacao";
 import { Campo, classeCampo } from "./campo";
 import { classeBotaoPrimario } from "./estilos";
@@ -73,10 +74,10 @@ export function FormularioCadastro() {
         </Campo>
         <div className="grid gap-4 sm:grid-cols-2">
           <Campo label="CNPJ" htmlFor="cnpj" erro={campos.cnpj}>
-            <input id="cnpj" className={classeCampo} value={valores.cnpj} onChange={(evento) => alterar("cnpj", evento.target.value)} />
+            <input id="cnpj" className={classeCampo} inputMode="text" autoComplete="off" value={valores.cnpj} onChange={(evento) => alterar("cnpj", mascararCnpjDigitando(evento.target.value))} />
           </Campo>
           <Campo label="Telefone" htmlFor="telefone" erro={campos.telefone}>
-            <input id="telefone" className={classeCampo} value={valores.telefone} onChange={(evento) => alterar("telefone", evento.target.value)} />
+            <input id="telefone" className={classeCampo} inputMode="tel" autoComplete="tel" value={valores.telefone} onChange={(evento) => alterar("telefone", mascararTelefoneDigitando(evento.target.value))} />
           </Campo>
         </div>
         <Campo label="E-mail de contato" htmlFor="emailContato" erro={campos.emailContato}>

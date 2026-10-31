@@ -20,7 +20,9 @@ export default async function LayoutPainel({ children }: { children: React.React
         mostrarAdmin={acesso.superadministrador}
       />
       <div className="md:pl-64">
-        <main className="mx-auto w-full max-w-6xl px-4 py-6 md:px-8 md:py-10">{children}</main>
+        <main id="conteudo" className="mx-auto w-full max-w-6xl px-4 py-6 md:px-8 md:py-10">
+          {children}
+        </main>
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { CabecalhoPagina } from "@/components/cabecalho";
 import { FormularioCliente } from "@/components/formulario-cliente";
+import { Trilha } from "@/components/trilha";
 import { PainelServicosCliente } from "@/components/painel-servicos-cliente";
 import { podeAlterarServicos, podeEmitirCobranca, podeVerCustoServico } from "@/lib/permissoes";
 import type { ClienteDetalhe, ClienteServicoDTO, ServicoDTO } from "@/lib/tipos";
@@ -40,6 +41,13 @@ export default async function PaginaEditarCliente({
 
   return (
     <>
+      <Trilha
+        itens={[
+          { href: "/clientes", rotulo: "Clientes" },
+          { href: `/clientes/${cliente.id}`, rotulo: cliente.nomeFantasia },
+          { rotulo: "Editar" },
+        ]}
+      />
       <CabecalhoPagina
         olho="Edição"
         titulo={cliente.nomeFantasia}

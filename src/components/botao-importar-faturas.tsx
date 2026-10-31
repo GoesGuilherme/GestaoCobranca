@@ -3,7 +3,9 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { enviarJson } from "@/lib/api-cliente";
+import { textoImportacaoFaturas } from "@/lib/textos-feedback";
 import type { ResultadoImportacaoFaturas } from "@/lib/tipos";
+import { Aviso } from "./aviso";
 import { classeBotaoSecundario } from "./estilos";
 
 export function BotaoImportarFaturas() {
@@ -26,12 +28,8 @@ export function BotaoImportarFaturas() {
       setErro(resposta.erro);
       return;
     }
-    const { criadas, atualizadas } = resposta.dados;
-    setMensagem(
-      criadas === 0 && atualizadas === 0
-        ? "Nenhuma cobrança nova no Asaas para os clientes já vinculados."
-        : `${criadas} fatura(s) nova(s). ${atualizadas} já estavam aqui e foram atualizadas.`,
-    );
+    const { criadas, atualizadas, ignoradas } = resposta.dados;
+    setMensagem(textoImportacaoFaturas(criadas, atualizadas, ignoradas));
     router.refresh();
   }
 
@@ -40,11 +38,16 @@ export function BotaoImportarFaturas() {
       <button type="button" className={classeBotaoSecundario} disabled={enviando} onClick={() => void importar()}>
         {enviando ? "Importando..." : "Importar faturas"}
       </button>
-      {mensagem ? <p role="status" className="mt-3 text-sm text-ok">{mensagem}</p> : null}
+      {mensagem ? (
+        <div className="mt-3">
+          <Aviso tom="ok" titulo={mensagem} onFechar={() => setMensagem("")} />
+        </div>
+      ) : null}
       {erro ? (
-        <div role="alert" className="mt-3 rounded-2xl border border-clay/40 bg-clay-soft px-4 py-3 text-sm text-clay">
-          <p className="font-medium">O Asaas não devolveu as faturas.</p>
-          <p className="mt-1">{erro}</p>
+        <div className="mt-3">
+          <Aviso tom="erro" titulo="O Asaas não devolveu as faturas.">
+            <p>{erro}</p>
+          </Aviso>
         </div>
       ) : null}
     </div>

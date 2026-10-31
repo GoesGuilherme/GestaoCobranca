@@ -1,5 +1,7 @@
 "use client";
 
+import { classeBotaoPrimario } from "@/components/estilos";
+
 export default function ErroPainel({ reset }: { error: Error; reset: () => void }) {
   return (
     <div className="rounded-3xl border border-line bg-card px-6 py-12">
@@ -8,7 +10,7 @@ export default function ErroPainel({ reset }: { error: Error; reset: () => void 
       <button
         type="button"
         onClick={reset}
-        className="mt-6 cursor-pointer rounded-full bg-forest px-4 py-2 text-sm font-medium text-paper"
+        className={`${classeBotaoPrimario} mt-6`}
       >
         Tentar de novo
       </button>

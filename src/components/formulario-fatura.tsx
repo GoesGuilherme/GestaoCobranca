@@ -5,10 +5,14 @@ import { useRef, useState } from "react";
 import { enviarJson } from "@/lib/api-cliente";
 import { PREFERENCIAS_COBRANCA_PADRAO } from "@/lib/cobranca";
 import { dataHojeIso } from "@/lib/data";
-import { FORMAS_COBRANCA } from "@/lib/rotulos";
+import { formatarReais, normalizarDinheiro } from "@/lib/dinheiro";
+import { formatarDataIso } from "@/lib/formatacao";
+import { mascararMoedaDigitando } from "@/lib/mascaras";
+import { FORMAS_COBRANCA, rotuloFormaCobranca } from "@/lib/rotulos";
 import type { ClienteServicoDTO, FaturaDTO, PreferenciasCobrancaDTO } from "@/lib/tipos";
 import { esquemaFatura, mensagensDoZod } from "@/lib/validacao";
 import { Campo, classeCampo } from "./campo";
+import { DialogoConfirmacao } from "./dialogo-confirmacao";
 import { classeBotaoPrimario } from "./estilos";
 
 export function FormularioFatura({
@@ -31,28 +35,44 @@ export function FormularioFatura({
   const [campos, setCampos] = useState<Record<string, string>>({});
   const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const [confirmar, setConfirmar] = useState(false);
   const chaveEmissao = useRef("");
 
-  async function enviar(evento: React.FormEvent) {
-    evento.preventDefault();
-    if (enviando) return;
-    setErro("");
+  function entradaAtual() {
     if (!chaveEmissao.current) chaveEmissao.current = globalThis.crypto.randomUUID();
-    const chave = chaveEmissao.current;
-    const entrada = {
+    return {
       valor,
       vencimento,
       formaCobranca,
       descricao,
       clienteServicoId: clienteServicoId || undefined,
-      chaveIdempotencia: chave,
+      chaveIdempotencia: chaveEmissao.current,
     };
-    const validado = esquemaFatura.safeParse(entrada);
+  }
+
+  function enviar(evento: React.FormEvent) {
+    evento.preventDefault();
+    if (enviando) return;
+    setErro("");
+    const validado = esquemaFatura.safeParse(entradaAtual());
     if (!validado.success) {
       setCampos(mensagensDoZod(validado.error));
+      setConfirmar(false);
       return;
     }
     setCampos({});
+    setConfirmar(true);
+  }
+
+  async function emitir() {
+    if (enviando) return;
+    const validado = esquemaFatura.safeParse(entradaAtual());
+    if (!validado.success) {
+      setCampos(mensagensDoZod(validado.error));
+      setConfirmar(false);
+      return;
+    }
+    setConfirmar(false);
     setEnviando(true);
     const resposta = await enviarJson<{ fatura: FaturaDTO }>(`/api/clientes/${clienteId}/faturas`, "POST", validado.data);
     setEnviando(false);
@@ -72,15 +92,31 @@ export function FormularioFatura({
     router.refresh();
   }
 
+  const valorNormal = normalizarDinheiro(valor);
+
   return (
     <form onSubmit={enviar} className="mt-4 grid gap-4 rounded-3xl border border-line bg-card p-6">
+      <DialogoConfirmacao
+        aberto={confirmar}
+        titulo="Emitir esta cobrança?"
+        descricao="O Asaas gera a cobrança para o cliente. Confira valor, vencimento e forma antes de continuar."
+        confirmarRotulo="Emitir cobrança"
+        enviando={enviando}
+        onCancelar={() => setConfirmar(false)}
+        onConfirmar={() => void emitir()}
+      >
+        <p>
+          {valorNormal ? formatarReais(valorNormal) : valor} com vencimento em {formatarDataIso(vencimento)}, por{" "}
+          {rotuloFormaCobranca(formaCobranca)}.
+        </p>
+      </DialogoConfirmacao>
       <h3 className="font-display text-2xl">Emitir cobrança avulsa</h3>
       <p className="text-sm text-muted">
         O cliente é criado no Asaas na primeira cobrança, ou reaproveitado se o CPF/CNPJ já existir lá. Multa, juros e desconto seguem as preferências desta empresa.
       </p>
       <div className="grid gap-4 sm:grid-cols-2">
         <Campo label="Valor" htmlFor="valor-fatura" erro={campos.valor}>
-          <input id="valor-fatura" className={classeCampo} inputMode="decimal" value={valor} onChange={(evento) => setValor(evento.target.value)} placeholder="189,90" />
+          <input id="valor-fatura" className={classeCampo} inputMode="decimal" value={valor} onChange={(evento) => setValor(mascararMoedaDigitando(evento.target.value))} placeholder="189,90" />
         </Campo>
         <Campo label="Vencimento" htmlFor="vencimento-fatura" erro={campos.vencimento}>
           <input id="vencimento-fatura" type="date" className={classeCampo} value={vencimento} onChange={(evento) => setVencimento(evento.target.value)} />

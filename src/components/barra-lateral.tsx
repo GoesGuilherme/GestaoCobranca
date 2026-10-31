@@ -56,15 +56,16 @@ export function BarraLateral({
   }
 
   const navegacao = (
-    <nav className="flex flex-wrap gap-2 md:flex-col">
+    <nav aria-label="Menu principal" className="flex flex-wrap gap-2 md:flex-col">
       {itens.map((item) => {
         const ligado = ativo(pathname, item.href);
         return (
           <Link
             key={item.href}
             href={item.href}
-            className={`rounded-full px-3 py-2 text-sm font-medium transition md:rounded-xl ${
-              ligado ? "bg-canopy text-white" : "text-white/75 hover:bg-white/10 hover:text-white"
+            aria-current={ligado ? "page" : undefined}
+            className={`min-h-11 rounded-full px-3 py-2 text-sm font-medium transition md:rounded-xl ${
+              ligado ? "bg-canopy text-white" : "text-white/90 hover:bg-white/10 hover:text-white"
             }`}
           >
             {item.rotulo}
@@ -86,11 +87,11 @@ export function BarraLateral({
         <div className="overflow-y-auto px-4 py-6">{navegacao}</div>
         <div className="border-t border-white/10 px-5 py-4">
           <p className="truncate text-sm font-medium">{nome}</p>
-          <p className="truncate text-xs text-white/60">{email}</p>
+          <p className="truncate text-xs text-white/80">{email}</p>
           <button
             type="button"
             onClick={sair}
-            className="mt-3 w-full cursor-pointer rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-sm font-medium text-white hover:bg-white/15"
+            className="mt-3 min-h-11 w-full cursor-pointer rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-sm font-medium text-white hover:bg-white/15"
           >
             Sair
           </button>
@@ -102,7 +103,7 @@ export function BarraLateral({
           <Link href="/" className="block">
             <LogoTaguaro tom="escuro" compacto />
           </Link>
-          <button type="button" onClick={sair} className="cursor-pointer text-sm text-white/80">
+          <button type="button" onClick={sair} className="min-h-11 cursor-pointer rounded-full px-3 text-sm font-medium text-white">
             Sair
           </button>
         </div>

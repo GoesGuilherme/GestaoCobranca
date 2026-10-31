@@ -11,6 +11,7 @@ import {
   normalizarAliquota,
   normalizarDinheiro,
 } from "@/lib/dinheiro";
+import { mascararMoedaDigitando } from "@/lib/mascaras";
 import type { ServicoDTO } from "@/lib/tipos";
 import { esquemaServico, mensagensDoZod } from "@/lib/validacao";
 import { Campo, classeCampo } from "./campo";
@@ -121,7 +122,7 @@ export function FormularioServico({
             className={classeCampo}
             placeholder="189,90"
             value={valores.precoPadrao}
-            onChange={(evento) => alterar("precoPadrao", evento.target.value)}
+            onChange={(evento) => alterar("precoPadrao", mascararMoedaDigitando(evento.target.value))}
           />
         </Campo>
         <Campo
@@ -136,7 +137,7 @@ export function FormularioServico({
             className={classeCampo}
             placeholder="40,00"
             value={valores.custo}
-            onChange={(evento) => alterar("custo", evento.target.value)}
+            onChange={(evento) => alterar("custo", mascararMoedaDigitando(evento.target.value))}
           />
         </Campo>
         <Campo

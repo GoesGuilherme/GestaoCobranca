@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { MENSAGEM_REDEFINICAO_ENVIADA } from "@/lib/redefinicao-senha";
 import { enviarJson } from "@/lib/api-cliente";
-import { esquemaEsqueciSenha, mensagensDoZod } from "@/lib/validacao";
+import { esquemaEsqueciSenha, mensagemDoCampo, mensagensDoZod } from "@/lib/validacao";
+import { Aviso } from "./aviso";
 import { Campo, classeCampo } from "./campo";
 import { classeBotaoPrimario } from "./estilos";
 
@@ -44,30 +45,36 @@ export function FormularioEsqueciSenha() {
         Informe o e-mail da sua conta. Se ele estiver cadastrado, enviamos um link para criar uma senha nova.
       </p>
       {mensagem ? (
-        <p className="mt-5 rounded-2xl bg-leaf px-4 py-3 text-sm text-ok" role="status">
-          {mensagem}
-        </p>
+        <div className="mt-5">
+          <Aviso tom="ok" titulo={mensagem}>
+            <p>Olhe a caixa de entrada e o spam. O link vale por tempo limitado.</p>
+          </Aviso>
+        </div>
       ) : null}
       {erro ? (
-        <p className="mt-5 rounded-2xl bg-clay-soft px-4 py-3 text-sm text-clay" role="alert">
-          {erro}
-        </p>
+        <div className="mt-5">
+          <Aviso tom="erro" titulo={erro} />
+        </div>
       ) : null}
       {mensagem ? null : (
         <>
           <div className="mt-5">
-            <Campo label="E-mail" htmlFor="email" erro={campos.email}>
+            <Campo label="E-mail" htmlFor="email" erro={campos.email} obrigatorio>
               <input
                 id="email"
                 type="email"
                 autoComplete="email"
+                autoFocus
                 className={classeCampo}
                 value={email}
                 onChange={(evento) => setEmail(evento.target.value)}
+                onBlur={() =>
+                  setCampos((atual) => ({ ...atual, email: mensagemDoCampo(esquemaEsqueciSenha.shape.email, email) }))
+                }
               />
             </Campo>
           </div>
-          <button type="submit" className={`${classeBotaoPrimario} mt-6 w-full`} disabled={enviando}>
+          <button type="submit" className={`${classeBotaoPrimario} mt-6 w-full`} disabled={enviando} aria-busy={enviando}>
             {enviando ? "Enviando..." : "Enviar link"}
           </button>
         </>

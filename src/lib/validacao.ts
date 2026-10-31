@@ -14,6 +14,12 @@ export function mensagensDoZod(erro: z.ZodError): Record<string, string> {
   return campos;
 }
 
+export function mensagemDoCampo(esquema: z.ZodType, valor: unknown): string {
+  const resultado = esquema.safeParse(valor);
+  if (resultado.success) return "";
+  return resultado.error.issues[0]?.message ?? "Revise este campo.";
+}
+
 export const esquemaLogin = z.object({
   email: z.string().trim().min(1, "Informe o e-mail."),
   senha: z.string().min(1, "Informe a senha."),

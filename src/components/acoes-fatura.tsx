@@ -50,7 +50,10 @@ export function AcoesFatura({
 
   return (
     <details className="relative">
-      <summary className={`${classeBotaoSecundario} list-none marker:hidden [&::-webkit-details-marker]:hidden`}>
+      <summary
+        className={`${classeBotaoSecundario} list-none marker:hidden [&::-webkit-details-marker]:hidden`}
+        aria-label={`Ações da fatura de ${fatura.nomeCliente}`}
+      >
         Ações
       </summary>
       <div className="mt-2 grid gap-3 rounded-2xl border border-line bg-paper p-3">

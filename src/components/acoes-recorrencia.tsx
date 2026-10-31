@@ -6,10 +6,12 @@ import { enviarJson } from "@/lib/api-cliente";
 import { descreverCobranca, PREFERENCIAS_COBRANCA_PADRAO } from "@/lib/cobranca";
 import { dataHojeIso, proximoVencimentoIso } from "@/lib/data";
 import { formatarAliquotaCampo, formatarValorCampo } from "@/lib/dinheiro";
+import { mascararMoedaDigitando } from "@/lib/mascaras";
 import { formatarDataIso } from "@/lib/formatacao";
 import { FORMAS_COBRANCA, rotuloAssinatura, rotuloCartao } from "@/lib/rotulos";
 import type { ClienteServicoDTO, PreferenciasCobrancaDTO } from "@/lib/tipos";
 import { AcoesCompartilhar } from "./acoes-compartilhar";
+import { Aviso } from "./aviso";
 import { Campo, classeCampo } from "./campo";
 import { classeBotaoPerigo, classeBotaoPrimario, classeBotaoSecundario } from "./estilos";
 
@@ -46,7 +48,7 @@ export function AcoesRecorrencia({
   const pausada = assinatura?.status === "INACTIVE";
   const emCurso = ativa || pausada;
   const encerrada = !emCurso;
-  const [modo, setModo] = useState<"ver" | "ativar" | "editar" | "pausar" | "cancelar">("ver");
+  const [modo, setModo] = useState<"ver" | "ativar" | "editar" | "pausar" | "cancelar" | "retomar">("ver");
   const [dia, setDia] = useState(String(emCurso ? (assinatura?.diaVencimento ?? preferencias.diaVencimento) : preferencias.diaVencimento));
   const [valor, setValor] = useState(formatarValorCampo(vinculo.valor));
   const [forma, setForma] = useState(emCurso ? (assinatura?.formaCobranca ?? preferencias.formaCobranca) : preferencias.formaCobranca);
@@ -57,6 +59,7 @@ export function AcoesRecorrencia({
   const [diasDesconto, setDiasDesconto] = useState(preferencias.descontoDiasAntes === null ? "" : String(preferencias.descontoDiasAntes));
   const [atualizarPendentes, setAtualizarPendentes] = useState(preferencias.atualizarPendentes);
   const [erro, setErro] = useState("");
+  const [aviso, setAviso] = useState("");
   const [enviando, setEnviando] = useState(false);
 
   const diaNumero = Number(dia);
@@ -74,7 +77,7 @@ export function AcoesRecorrencia({
     descontoDiasAntes: diasDesconto.trim() === "" ? null : Number(diasDesconto),
   };
 
-  async function concluir(resposta: { ok: boolean; status?: number; erro?: string }) {
+  async function concluir(resposta: { ok: boolean; status?: number; erro?: string }, sucesso: string) {
     setEnviando(false);
     if (!resposta.ok) {
       if (resposta.status === 401) {
@@ -86,6 +89,7 @@ export function AcoesRecorrencia({
     }
     setModo("ver");
     setErro("");
+    setAviso(sucesso);
     router.refresh();
   }
 
@@ -102,7 +106,7 @@ export function AcoesRecorrencia({
       descricao,
       ...encargos,
     });
-    await concluir(resposta);
+    await concluir(resposta, "Recorrência ativada. A primeira cobrança aparece pelo webhook ou em Importar faturas.");
   }
 
   async function editar(evento: React.FormEvent) {
@@ -118,21 +122,21 @@ export function AcoesRecorrencia({
       atualizarPendentes,
       ...encargos,
     });
-    await concluir(resposta);
+    await concluir(resposta, "Recorrência salva.");
   }
 
   async function pausar() {
     setEnviando(true);
     setErro("");
     const resposta = await enviarJson(`/api/servicos-cliente/${vinculo.id}/recorrencia/pausa`, "POST");
-    await concluir(resposta);
+    await concluir(resposta, "Recorrência pausada. Cobranças novas param de sair. As que já existem continuam.");
   }
 
   async function cancelar() {
     setEnviando(true);
     setErro("");
     const resposta = await enviarJson(`/api/servicos-cliente/${vinculo.id}/recorrencia`, "DELETE");
-    await concluir(resposta);
+    await concluir(resposta, "Recorrência cancelada.");
   }
 
   async function retomar() {
@@ -142,14 +146,14 @@ export function AcoesRecorrencia({
       diaVencimento: diaNumero,
       ...(vencimento ? { proximoVencimento: vencimento } : {}),
     });
-    await concluir(resposta);
+    await concluir(resposta, "Recorrência retomada. O Asaas volta a gerar as cobranças.");
   }
 
   const campos = (
     <>
       <div className="grid gap-4 sm:grid-cols-2">
         <Campo label="Valor" htmlFor={`valor-recorrencia-${vinculo.id}`}>
-          <input id={`valor-recorrencia-${vinculo.id}`} className={classeCampo} inputMode="decimal" value={valor} onChange={(evento) => setValor(evento.target.value)} />
+          <input id={`valor-recorrencia-${vinculo.id}`} className={classeCampo} inputMode="decimal" value={valor} onChange={(evento) => setValor(mascararMoedaDigitando(evento.target.value))} />
         </Campo>
         <Campo label="Dia de vencimento" htmlFor={`dia-recorrencia-${vinculo.id}`} dica={vencimento ? `Primeiro vencimento em ${formatarDataIso(vencimento)}.` : "Escolha um dia de 1 a 31."}>
           <input id={`dia-recorrencia-${vinculo.id}`} className={classeCampo} inputMode="numeric" min={1} max={31} value={dia} onChange={(evento) => setDia(evento.target.value)} />
@@ -193,6 +197,11 @@ export function AcoesRecorrencia({
 
   return (
     <div className="mt-3 w-full">
+      {aviso ? (
+        <div className="mb-3">
+          <Aviso tom="ok" titulo={aviso} onFechar={() => setAviso("")} />
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-center gap-2">
         {assinatura ? (
           <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${ativa ? "bg-leaf text-ok" : pausada ? "bg-gold-soft text-gold-ink" : "bg-clay-soft text-clay"}`}>
@@ -225,7 +234,7 @@ export function AcoesRecorrencia({
           </button>
         ) : null}
         {pausada ? (
-          <button type="button" className={classeBotaoSecundario} disabled={enviando} onClick={() => void retomar()}>
+          <button type="button" className={classeBotaoSecundario} disabled={enviando} onClick={() => { setErro(""); setModo("retomar"); }}>
             Retomar
           </button>
         ) : null}
@@ -290,6 +299,17 @@ export function AcoesRecorrencia({
           {caixaErro(erro)}
           <div className="mt-3 flex flex-wrap gap-2">
             <button type="button" className={classeBotaoPrimario} disabled={enviando} onClick={() => void pausar()}>{enviando ? "Pausando..." : "Confirmar pausa"}</button>
+            <button type="button" className={classeBotaoSecundario} onClick={() => setModo("ver")}>Voltar</button>
+          </div>
+        </div>
+      ) : null}
+
+      {modo === "retomar" ? (
+        <div className="mt-3 rounded-2xl border border-line bg-paper p-4 text-sm">
+          <p>Retomar volta a gerar cobranças nesta recorrência. As que já existem não são duplicadas por este botão.</p>
+          {caixaErro(erro)}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button type="button" className={classeBotaoPrimario} disabled={enviando} onClick={() => void retomar()}>{enviando ? "Retomando..." : "Confirmar retomada"}</button>
             <button type="button" className={classeBotaoSecundario} onClick={() => setModo("ver")}>Voltar</button>
           </div>
         </div>

@@ -168,8 +168,13 @@ export function PainelFaturasCliente({
         </div>
       ) : null}
       {emitida ? (
-        <div role="status" className="mt-4 rounded-2xl border border-ok/20 bg-leaf px-4 py-3 text-sm text-ok">
-          <p className="font-medium">{tituloEmissao(emitida.formaCobranca)}</p>
+        <div role="status" className="mt-4 rounded-2xl border border-ok/30 bg-leaf px-4 py-3 text-sm text-ok">
+          <div className="flex items-start justify-between gap-3">
+            <p className="font-medium">{tituloEmissao(emitida.formaCobranca)}</p>
+            <button type="button" className="text-xs font-medium underline" aria-label="Fechar aviso da cobrança emitida" onClick={() => setEmitida(null)}>
+              Fechar
+            </button>
+          </div>
           <p className="mt-1">
             {link ? (
               <a href={link} target="_blank" rel="noreferrer" className="font-medium underline">

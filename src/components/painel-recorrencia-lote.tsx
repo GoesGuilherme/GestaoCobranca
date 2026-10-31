@@ -1,14 +1,17 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { enviarJson } from "@/lib/api-cliente";
 import { descreverCobranca, PREFERENCIAS_COBRANCA_PADRAO } from "@/lib/cobranca";
-import { formatarAliquotaCampo, formatarReais } from "@/lib/dinheiro";
+import { formatarAliquotaCampo, formatarReais, somarDinheiro } from "@/lib/dinheiro";
 import { formatarDataIso } from "@/lib/formatacao";
 import { FORMAS_COBRANCA } from "@/lib/rotulos";
+import { textoResultadoLote, tomDoLote, type FalhaLoteVisivel } from "@/lib/textos-feedback";
 import type { PreferenciasCobrancaDTO, PreviaRecorrencia, ResultadoLoteRecorrencia } from "@/lib/tipos";
+import { Aviso } from "./aviso";
 import { Campo, classeCampo } from "./campo";
+import { DialogoConfirmacao } from "./dialogo-confirmacao";
 import { classeBotaoPrimario, classeBotaoSecundario } from "./estilos";
 
 function percentualCampo(valor: string | null) {
@@ -36,12 +39,23 @@ export function PainelRecorrenciaLote({
   const [previa, setPrevia] = useState<PreviaRecorrencia | null>(null);
   const [escolhidos, setEscolhidos] = useState<string[]>([]);
   const [erro, setErro] = useState("");
-  const [resumo, setResumo] = useState("");
+  const chaveResultado = `taguaro-lote-recorrencia-${clienteId ?? "todos"}`;
+  const [resultado, setResultado] = useState<{ vencimento: string; criadas: number; falhas: FalhaLoteVisivel[] } | null>(null);
+
+  useEffect(() => {
+    const salvo = sessionStorage.getItem(chaveResultado);
+    if (!salvo) return;
+    try {
+      setResultado(JSON.parse(salvo) as { vencimento: string; criadas: number; falhas: FalhaLoteVisivel[] });
+    } catch {
+      sessionStorage.removeItem(chaveResultado);
+    }
+  }, [chaveResultado]);
+  const [pedirConfirmacao, setPedirConfirmacao] = useState(false);
   const [enviando, setEnviando] = useState(false);
 
   async function carregar(diaInformado = dia) {
     setErro("");
-    setResumo("");
     const consulta = new URLSearchParams({ dia: diaInformado });
     if (clienteId) consulta.set("clienteId", clienteId);
     const resposta = await fetch(`/api/recorrencias/lote?${consulta.toString()}`);
@@ -70,8 +84,10 @@ export function PainelRecorrenciaLote({
 
   async function confirmar() {
     if (enviando || !previa || escolhidos.length === 0) return;
+    setPedirConfirmacao(false);
     setEnviando(true);
     setErro("");
+    const nomes = new Map(previa.itens.map((item) => [item.id, `${item.nomeCliente} · ${item.nomeServico}`]));
     const resposta = await enviarJson<ResultadoLoteRecorrencia>("/api/recorrencias/lote", "POST", {
       diaVencimento: previa.diaVencimento,
       formaCobranca: forma,
@@ -92,18 +108,65 @@ export function PainelRecorrenciaLote({
       setErro(resposta.erro);
       return;
     }
-    const falhas = resposta.dados.falhas.length;
-    setResumo(
-      falhas
-        ? `${resposta.dados.criadas} recorrência(s) ativada(s). ${falhas} não entrou(ram): ${resposta.dados.falhas.map((item) => item.erro).join(" ")}`
-        : `${resposta.dados.criadas} recorrência(s) ativada(s).`,
-    );
+    const visivel = {
+      criadas: resposta.dados.criadas,
+      vencimento: resposta.dados.vencimento,
+      falhas: resposta.dados.falhas.map((item) => ({
+        id: item.id,
+        nome: nomes.get(item.id) ?? "Venda mensal",
+        erro: item.erro,
+      })),
+    };
+    setResultado(visivel);
+    sessionStorage.setItem(chaveResultado, JSON.stringify(visivel));
     router.refresh();
     await carregar(String(previa.diaVencimento));
   }
 
+  const selecionados = previa?.itens.filter((item) => escolhidos.includes(item.id)) ?? [];
+  const totalSelecionado = selecionados.length > 0 ? somarDinheiro(selecionados.map((item) => item.valor)) : null;
+
   return (
     <section className="mt-8">
+      {resultado ? (
+        <div className="mb-4">
+          <Aviso
+            tom={tomDoLote(resultado.criadas, resultado.falhas.length)}
+            titulo={textoResultadoLote(resultado.criadas, resultado.falhas.length)}
+            onFechar={() => {
+              setResultado(null);
+              sessionStorage.removeItem(chaveResultado);
+            }}
+          >
+            <p>Primeiro vencimento em {formatarDataIso(resultado.vencimento)}. Este resultado fica aqui até você fechar.</p>
+            {resultado.falhas.length > 0 ? (
+              <ul className="list-disc space-y-1 pl-5">
+                {resultado.falhas.map((falha) => (
+                  <li key={falha.id}>
+                    <span className="font-medium">{falha.nome}.</span> {falha.erro}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </Aviso>
+        </div>
+      ) : null}
+      <DialogoConfirmacao
+        aberto={pedirConfirmacao}
+        titulo="Criar estas assinaturas no Asaas?"
+        descricao="Cada venda escolhida passa a gerar cobrança todo mês. Nada é desfeito por este botão."
+        confirmarRotulo={enviando ? "Criando..." : "Criar assinaturas"}
+        enviando={enviando}
+        onCancelar={() => setPedirConfirmacao(false)}
+        onConfirmar={() => void confirmar()}
+      >
+        {previa && totalSelecionado ? (
+          <p>
+            {selecionados.length === 1 ? "1 venda" : `${selecionados.length} vendas`}, no total de{" "}
+            {formatarReais(totalSelecionado)}, com primeiro vencimento em {formatarDataIso(previa.vencimento)}.
+          </p>
+        ) : null}
+      </DialogoConfirmacao>
       {!aberto ? (
         <button type="button" className={classeBotaoSecundario} onClick={abrir}>
           Ativar recorrência em lote
@@ -194,14 +257,19 @@ export function PainelRecorrenciaLote({
             <p className="mt-4 text-sm text-muted">Nenhuma venda mensal ativa sem recorrência.</p>
           )}
           {erro ? (
-            <div role="alert" className="mt-4 rounded-2xl border border-clay/40 bg-clay-soft px-4 py-3 text-sm text-clay">
-              <p className="font-medium">O Asaas não ativou o lote.</p>
-              <p className="mt-1">{erro}</p>
+            <div className="mt-4">
+              <Aviso tom="erro" titulo="O Asaas não ativou o lote.">
+                <p>{erro}</p>
+              </Aviso>
             </div>
           ) : null}
-          {resumo ? <p role="status" className="mt-4 text-sm text-ok">{resumo}</p> : null}
           <div className="mt-4 flex flex-wrap gap-2">
-            <button type="button" className={classeBotaoPrimario} disabled={enviando || escolhidos.length === 0} onClick={() => void confirmar()}>
+            <button
+              type="button"
+              className={classeBotaoPrimario}
+              disabled={enviando || escolhidos.length === 0}
+              onClick={() => setPedirConfirmacao(true)}
+            >
               {enviando ? "Criando..." : "Confirmar e criar as assinaturas"}
             </button>
             <button type="button" className={classeBotaoSecundario} onClick={() => setAberto(false)}>Fechar</button>

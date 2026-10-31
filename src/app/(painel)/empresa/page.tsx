@@ -20,7 +20,7 @@ export default async function PaginaEmpresa() {
         descricao="Estes dados identificam a assinante. Clientes e usuários ficam dentro dela."
       />
       {cnpjCollabPendente(empresa.cnpj) ? (
-        <p className="mb-6 rounded-2xl border border-gold/40 bg-gold/15 px-4 py-3 text-sm">
+        <p className="mb-6 rounded-2xl border border-gold/40 bg-gold-soft px-4 py-3 text-sm text-gold-ink">
           O CNPJ 00000000000000 é um placeholder da migração. Ele não é válido. Substitua pelo CNPJ
           real da Collab Software antes de usar o cadastro em produção.
         </p>
