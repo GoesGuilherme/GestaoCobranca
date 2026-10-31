@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST } from "@/app/api/webhooks/asaas/route";
 import { completarCnpj } from "@/lib/documento";
@@ -399,5 +400,122 @@ describe("emissão sem boleto duplicado", () => {
     const deNovo = await emitirFatura(autor("DONO"), cadastro.id, cobranca({ chaveIdempotencia: chave }), memoria);
     expect(memoria.cobrancas.size).toBe(1);
     expect(deNovo.asaasPaymentId).toBe([...memoria.cobrancas.values()][0]?.id);
+  });
+});
+
+describe("visualização da fatura e do boleto", () => {
+  it("não mexe no índice parcial de fatura em criação", async () => {
+    const sql = readFileSync("prisma/migrations/20261031120000_fatura_visualizada/migration.sql", "utf8");
+    expect(sql.toLowerCase()).not.toMatch(/\bdrop\b/);
+    expect(sql).not.toMatch(/faturas_criando_por_cliente/);
+    expect(sql).toContain('ADD COLUMN "visualizada"');
+    const linhas = await prisma.$queryRaw<{ indexdef: string }[]>`
+      SELECT indexdef FROM pg_indexes WHERE indexname = 'faturas_criando_por_cliente'
+    `;
+    expect(linhas[0]?.indexdef).toContain("(empresa_id, cliente_id)");
+    expect(linhas[0]?.indexdef).toContain("CRIANDO");
+  });
+
+  it("marca a primeira visualização, ignora repetição e não vaza para outra empresa", async () => {
+    const config = await salvarConfiguracaoAsaas(autor("DONO"), { ambiente: "SANDBOX", chaveApi: CHAVE });
+    const outra = await salvarConfiguracaoAsaas(autor("DONO", outraEmpresaId), {
+      ambiente: "SANDBOX",
+      chaveApi: CHAVE,
+    });
+    const cadastro = await criarCliente(empresaId, cliente(completarCnpj("570000000021")));
+    const memoria = new AsaasMemoria("view");
+    const fatura = await emitirFatura(autor("DONO"), cadastro.id, cobranca(), memoria);
+    const segunda = await emitirFatura(
+      autor("DONO"),
+      cadastro.id,
+      cobranca({ formaCobranca: "PIX", valor: "40,00" }),
+      memoria,
+    );
+    expect(fatura.visualizada).toBe(false);
+    expect(segunda.visualizada).toBe(false);
+
+    const outroCliente = await criarCliente(outraEmpresaId, cliente(completarCnpj("570000000022")));
+    await prisma.cliente.update({
+      where: { id: outroCliente.id },
+      data: { asaasCustomerId: "cus_outra_visualizacao" },
+    });
+    await processarWebhookAsaas(outra.tokenWebhook, {
+      id: "evt_view_outra_empresa_0001",
+      event: "PAYMENT_CHECKOUT_VIEWED",
+      dateCreated: "2026-10-31 08:00:00",
+      payment: {
+        id: fatura.asaasPaymentId,
+        customer: "cus_outra_visualizacao",
+        value: 10,
+        dueDate: "2026-11-15",
+        status: "RECEIVED",
+        billingType: "BOLETO",
+      },
+    });
+    const intocada = await prisma.fatura.findUniqueOrThrow({ where: { id: fatura.id } });
+    expect(intocada.visualizada).toBe(false);
+    expect(intocada.status).toBe("PENDING");
+    expect(await prisma.fatura.count({ where: { empresaId: outraEmpresaId } })).toBe(0);
+
+    const token = config.tokenWebhook ?? "";
+    const evento = {
+      id: "evt_checkout_view_0001",
+      event: "PAYMENT_CHECKOUT_VIEWED",
+      dateCreated: "2026-10-31 09:15:00",
+      payment: {
+        id: fatura.asaasPaymentId,
+        status: "RECEIVED",
+        value: 1,
+        billingType: "BOLETO",
+      },
+    };
+    const primeiro = await processarWebhookAsaas(token, evento);
+    expect(primeiro.duplicado).toBe(false);
+    const segundo = await processarWebhookAsaas(token, evento);
+    expect(segundo.duplicado).toBe(true);
+
+    const vista = await prisma.fatura.findUniqueOrThrow({ where: { id: fatura.id } });
+    expect(vista.visualizada).toBe(true);
+    expect(vista.visualizadaEm?.toISOString()).toBe("2026-10-31T12:15:00.000Z");
+    expect(vista.status).toBe("PENDING");
+    expect(vista.valor.toFixed(2)).toBe("189.90");
+    expect(await prisma.eventoAsaas.count({ where: { empresaId, asaasEventId: "evt_checkout_view_0001" } })).toBe(1);
+    expect(await prisma.filaWhatsapp.count({ where: { empresaId } })).toBe(0);
+
+    await processarWebhookAsaas(token, {
+      id: "evt_boleto_view_0001",
+      event: "PAYMENT_BANK_SLIP_VIEWED",
+      dateCreated: "2026-10-31 11:40:00",
+      payment: { id: fatura.asaasPaymentId, status: "RECEIVED" },
+    });
+    const deNovo = await prisma.fatura.findUniqueOrThrow({ where: { id: fatura.id } });
+    expect(deNovo.visualizadaEm?.toISOString()).toBe("2026-10-31T12:15:00.000Z");
+    expect(deNovo.status).toBe("PENDING");
+    expect(await prisma.eventoAsaas.count({ where: { empresaId, tipo: "PAYMENT_BANK_SLIP_VIEWED" } })).toBe(1);
+    expect(await prisma.filaWhatsapp.count({ where: { empresaId } })).toBe(0);
+    expect((await prisma.fatura.findUniqueOrThrow({ where: { id: segunda.id } })).visualizada).toBe(false);
+
+    const abertas = await listarFaturas(autor("FINANCEIRO"), { situacao: "em_aberto" });
+    expect(abertas.find((item) => item.id === fatura.id)?.visualizada).toBe(true);
+    expect(abertas.find((item) => item.id === segunda.id)?.visualizada).toBe(false);
+    expect((await listarFaturas(autor("DONO"), { situacao: "em_aberto", vista: "vistas" })).map((item) => item.id)).toEqual([
+      fatura.id,
+    ]);
+    expect((await listarFaturas(autor("DONO"), { situacao: "em_aberto", vista: "nao_vistas" })).map((item) => item.id)).toEqual([
+      segunda.id,
+    ]);
+    expect(await listarFaturas(autor("DONO", outraEmpresaId), { situacao: "todas", vista: "vistas" })).toEqual([]);
+
+    const http = await POST(
+      new Request("http://localhost/api/webhooks/asaas", {
+        method: "POST",
+        headers: { "content-type": "application/json", "asaas-access-token": token },
+        body: JSON.stringify(evento),
+      }),
+    );
+    expect(http.status).toBe(200);
+    expect(await prisma.eventoAsaas.count({ where: { empresaId, asaasEventId: "evt_checkout_view_0001" } })).toBe(1);
+
+    await expect(processarWebhookAsaas(null, evento)).rejects.toMatchObject({ status: 401 });
   });
 });
