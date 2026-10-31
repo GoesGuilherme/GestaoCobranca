@@ -115,7 +115,7 @@ Os testes apagam empresas, usuários, clientes, filiais, serviços, vínculos, f
 | `ASSESSOR_TIMEOUT_MS` | Tempo máximo da consulta ao modelo, em milissegundos. Vazio usa 12000. Estourar o tempo manda o texto de fallback. |
 | `ASSESSOR_LIMITE_TELEFONE` | Mensagens por telefone a cada 10 minutos. Vazio usa 8. |
 | `ASSESSOR_LIMITE_EMPRESA` | Mensagens da empresa a cada 10 minutos. Vazio usa 60. |
-| `CRON_SECRET` | Segredo da rota diária `/api/cron/regua`. A Vercel Cron envia `Authorization: Bearer`. Sem ele a rota responde 500 e não envia. Não é a chave da Resend. |
+| `CRON_SECRET` | Segredo das rotas diárias `/api/cron/regua` e `/api/cron/visualizacoes`. A Vercel Cron envia `Authorization: Bearer`. Sem ele a rota responde 500. Não é a chave da Resend nem a chave do Asaas. |
 | `ASAAS_MOCK` | Só no computador de desenvolvimento. `true` usa um Asaas em memória, sem rede e sem chave real, para a tela funcionar antes de existir a chave. Se `NODE_ENV` for `production`, a aplicação recusa esse modo. Não defina na Vercel. |
 
 ## Publicar no Supabase e na Vercel
@@ -167,7 +167,7 @@ Em **Project Settings → Environment Variables**, no ambiente Production (e no 
 | `TWILIO_WHATSAPP_TESTE` | Número de teste do dono, em formato nacional ou E.164. Com o modo teste do assessor ligado, só esse número recebe resposta. |
 | `AI_GATEWAY_MODEL` | Id `provider/modelo` do catálogo do AI Gateway. |
 | `AI_GATEWAY_API_KEY` | Opcional na Vercel se o OIDC estiver ativo. Obrigatória fora dela. |
-| `CRON_SECRET` | Saída de `openssl rand -base64 32`. A Vercel Cron envia esse valor em `Authorization: Bearer` para `/api/cron/regua`. |
+| `CRON_SECRET` | Saída de `openssl rand -base64 32`. A Vercel Cron envia esse valor em `Authorization: Bearer` para `/api/cron/regua` e `/api/cron/visualizacoes`. |
 
 Não defina `ASAAS_MOCK` nem `TWILIO_MOCK` na Vercel. O assessor, fora de produção, não chama o AI Gateway nem a Twilio. Em produção ele usa o AI Gateway (chave ou OIDC) e a subconta Twilio da empresa. O modelo não fica fixo no código. Em produção a integração chama `https://api.asaas.com/v3` ou `https://api-sandbox.asaas.com/v3`, conforme o ambiente salvo pelo dono, e envia a chave no cabeçalho `access_token`. A chave real ainda não entra neste repositório.
 
@@ -206,6 +206,8 @@ Um servidor MCP futuro (`buscar cliente`, `listar filiais`, e as ações de escr
 - planos da plataforma para a empresa assinante, separados do catálogo que ela vende aos clientes dela.
 
 Dono e financeiro ativam a cobrança recorrente nas vendas `MENSAL` ativas. Forma, dia de vencimento, texto da descrição, multa, juros, desconto e a opção de atualizar cobranças em aberto começam pelas preferências da empresa, gravadas pelo dono em Asaas. Cada venda e o lote podem trocar esses valores. Sem percentual informado, a cobrança não envia multa, juros nem desconto, e o Asaas conserva o padrão da conta. O prazo de gerar a cobrança antes do vencimento não vai na assinatura: o Asaas usa 7, 14 ou 40 dias na configuração da conta, e o número escolhido fica só na preferência. A assinatura usa ciclo mensal. Dá para editar, pausar ou cancelar. O lote mostra a prévia antes de criar. As cobranças da assinatura entram em Faturas pelo webhook (o pagamento traz o campo `subscription`) e pelo botão Importar faturas, sem duplicar. Suporte não vê faturas nem recorrência. A chave da API continua só com o dono.
+
+O olho na fatura marca quando o pagador abre a página ou o boleto. O webhook grava isso na hora. Quem abriu antes desse aviso entra pelo botão Atualizar visualizações, na tela Faturas, só para o dono. A aplicação pergunta ao Asaas (`GET /v3/payments/{id}/viewingInfo`) com a chave já cifrada da própria empresa. Se a fatura ou o boleto tiver data, grava a mais antiga e não desmarca. Cada clique consulta um lote: faturas em aberto ou vencidas e, também, as criadas nos últimos 120 dias. A rota `/api/cron/visualizacoes` repete isso todo dia, com o mesmo `CRON_SECRET`, sem variável nova. Não defina `ASAAS_MOCK` na Vercel e não troque `ASAAS_ENCRYPTION_KEY`.
 
 A régua de cobrança fica em Régua, só para o dono alterar e para o financeiro consultar. A empresa liga a régua, monta várias réguas nomeadas (uma é a padrão) e define, em cada uma, os passos, o horário e se o envio sai no fim de semana. O cliente usa a padrão, outra régua, nenhuma, ou fica pausado. O passo pode ser na emissão ou em dias antes, no vencimento ou em atraso, com assunto e texto usando `{cliente}`, `{servico}`, `{valor}`, `{vencimento}`, `{link}`, `{dias_atraso}` e `{empresa}`. O e-mail sai pela Resend da própria empresa; a chave fica cifrada com `ASAAS_ENCRYPTION_KEY` e a tela só diz se ela está configurada. O mesmo passo pode marcar WhatsApp. Aí a mensagem usa um template UTILITY da Twilio (boleto gerado, vence em X dias, venceu ou pago), com nome, valor, vencimento e link do Asaas. A empresa tem uma subconta e um Sender. O webhook `POST /api/webhooks/twilio` valida `X-Twilio-Signature`. Régua pausada, opt-out e o modo teste seguram o envio: no modo teste o WhatsApp só vai para `TWILIO_WHATSAPP_TESTE`. A rota `/api/cron/regua` roda todo dia, exige `CRON_SECRET` e também esvazia a fila. Fora de produção o envio não chama a Resend nem a Twilio.
 

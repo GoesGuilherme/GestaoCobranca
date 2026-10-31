@@ -47,6 +47,7 @@ export {
 } from "./asaas-config-service";
 export { obterPreferenciasCobranca, salvarPreferenciasCobranca } from "./preferencia-cobranca-service";
 export { cancelarFatura, emitirFatura, importarFaturas, listarFaturas } from "./fatura-service";
+export { sincronizarVisualizacoesDoAutor } from "./visualizacao-fatura-service";
 export {
   atribuirReguaCliente,
   atualizarRegua,

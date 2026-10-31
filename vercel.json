@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/regua",
       "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/cron/visualizacoes",
+      "schedule": "30 11 * * *"
     }
   ]
 }

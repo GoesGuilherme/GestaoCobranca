@@ -51,7 +51,8 @@ export async function middleware(request: NextRequest) {
     pathname === "/api/cadastro" ||
     pathname === "/api/webhooks/asaas" ||
     pathname === "/api/webhooks/twilio" ||
-    pathname === "/api/cron/regua";
+    pathname === "/api/cron/regua" ||
+    pathname === "/api/cron/visualizacoes";
 
   if (rotaPublica) {
     const empresaSuspensa = request.nextUrl.searchParams.get("motivo") === "suspensa";

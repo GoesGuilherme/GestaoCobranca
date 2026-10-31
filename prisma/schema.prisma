@@ -359,8 +359,9 @@ model Fatura {
   descricao         String?   @db.Text
   erroEmissao       String?   @map("erro_emissao") @db.Text
   excluida          Boolean   @default(false)
-  // Primeiro PAYMENT_CHECKOUT_VIEWED ou PAYMENT_BANK_SLIP_VIEWED desta empresa.
-  // visualizadaEm não muda nas visualizações seguintes.
+  // Primeira visualização: webhook PAYMENT_CHECKOUT_VIEWED / PAYMENT_BANK_SLIP_VIEWED
+  // ou a data mais antiga de GET /payments/{id}/viewingInfo.
+  // Não volta para false. visualizadaEm não muda depois de gravado.
   visualizada       Boolean   @default(false)
   visualizadaEm     DateTime? @map("visualizada_em") @db.Timestamptz(3)
   criadoEm         DateTime  @default(now()) @map("criado_em") @db.Timestamptz(3)

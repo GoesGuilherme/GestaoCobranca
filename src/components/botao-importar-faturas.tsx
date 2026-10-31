@@ -34,7 +34,7 @@ export function BotaoImportarFaturas() {
   }
 
   return (
-    <div className="mb-6">
+    <div>
       <button type="button" className={classeBotaoSecundario} disabled={enviando} onClick={() => void importar()}>
         {enviando ? "Importando..." : "Importar faturas"}
       </button>

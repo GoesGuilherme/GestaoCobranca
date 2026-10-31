@@ -2,13 +2,14 @@ import Link from "next/link";
 import { CabecalhoPagina } from "@/components/cabecalho";
 import { classeCampo } from "@/components/campo";
 import { classeBotaoPrimario } from "@/components/estilos";
+import { BotaoAtualizarVisualizacoes } from "@/components/botao-atualizar-visualizacoes";
 import { BotaoImportarFaturas } from "@/components/botao-importar-faturas";
 import { PainelRecorrenciaLote } from "@/components/painel-recorrencia-lote";
 import { AvisoModoTeste } from "@/components/aviso-modo-teste";
 import { FaturasComControles } from "@/components/faturas-com-controles";
 import { LegendaFaturas } from "@/components/legenda-faturas";
 import { EstadoVazio } from "@/components/estado-vazio";
-import { podeEmitirCobranca, podeVerFaturas } from "@/lib/permissoes";
+import { podeAtualizarVisualizacoes, podeEmitirCobranca, podeVerFaturas } from "@/lib/permissoes";
 import { FILTROS_VISUALIZACAO, SITUACOES_FATURA, filtroVisualizacao, situacaoFatura } from "@/lib/rotulos";
 import { acessoDaPagina } from "@/server/auth/pagina";
 import { listarFaturas } from "@/server/services/fatura-service";
@@ -50,7 +51,10 @@ export default async function PaginaFaturas({ searchParams }: { searchParams: Pr
         descricao="Cobranças espelhadas do Asaas. A emissão avulsa fica na ficha do cliente. A recorrência mensal também sai de lá, ou em lote abaixo."
       />
       <AvisoModoTeste ativo={regua.config.gravada && regua.config.modoTeste} />
-      <BotaoImportarFaturas />
+      <div className="mb-6 flex flex-wrap items-start gap-3">
+        <BotaoImportarFaturas />
+        {podeAtualizarVisualizacoes(acesso.papel) ? <BotaoAtualizarVisualizacoes /> : null}
+      </div>
       <PainelRecorrenciaLote preferencias={preferencias} />
       <LegendaFaturas />
       <form className="mb-6 flex flex-wrap items-end gap-3 rounded-3xl border border-line bg-card p-4" method="get">

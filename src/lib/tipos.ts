@@ -113,6 +113,14 @@ export type ResultadoImportacaoFaturas = {
   ignoradas: number;
 };
 
+export type ResultadoVisualizacoesFaturas = {
+  marcadas: number;
+  consultadas: number;
+  falhas: number;
+  restantes: number;
+  interrompida: boolean;
+};
+
 export type PreferenciasCobrancaDTO = {
   formaCobranca: "BOLETO" | "PIX" | "UNDEFINED" | "CREDIT_CARD";
   diaVencimento: number;
