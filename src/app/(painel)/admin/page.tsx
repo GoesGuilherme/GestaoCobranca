@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import { BotaoStatusEmpresa } from "@/components/botao-status-empresa";
 import { CabecalhoPagina } from "@/components/cabecalho";
+import { classeCabecalhoTabela, classeTabelaRolavel } from "@/components/estilos";
 import { FormularioEmpresaAdmin } from "@/components/formulario-empresa-admin";
+import { formatarCnpj } from "@/lib/documento";
 import { rotuloStatusEmpresa } from "@/lib/rotulos";
 import { acessoDaPagina } from "@/server/auth/pagina";
 import { listarEmpresas } from "@/server/services/empresa-service";
@@ -20,9 +22,9 @@ export default async function PaginaAdmin() {
         titulo="Empresas"
         descricao="Contas assinantes. Suspender impede o login de todo mundo daquela empresa. Os clientes delas continuam invisíveis para as outras."
       />
-      <div className="mb-6 overflow-x-auto rounded-3xl border border-line bg-card">
+      <div className={`mb-6 ${classeTabelaRolavel}`}>
         <table className="w-full min-w-[860px] text-left text-sm">
-          <thead className="border-b border-line text-xs uppercase tracking-wide text-muted">
+          <thead className={classeCabecalhoTabela}>
             <tr>
               <th className="px-5 py-3 font-medium">Empresa</th>
               <th className="px-5 py-3 font-medium">CNPJ</th>
@@ -30,7 +32,9 @@ export default async function PaginaAdmin() {
               <th className="px-5 py-3 font-medium">Status</th>
               <th className="px-5 py-3 font-medium">Usuários</th>
               <th className="px-5 py-3 font-medium">Clientes</th>
-              <th className="px-5 py-3 font-medium"></th>
+              <th className="px-5 py-3 font-medium">
+                <span className="sr-only">Ações</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -40,7 +44,7 @@ export default async function PaginaAdmin() {
                   <p className="font-medium">{empresa.nomeFantasia}</p>
                   <p className="text-muted">{empresa.razaoSocial}</p>
                 </td>
-                <td className="px-5 py-4 tabular-nums">{empresa.cnpj}</td>
+                <td className="px-5 py-4 tabular-nums">{formatarCnpj(empresa.cnpj)}</td>
                 <td className="px-5 py-4">{empresa.plano}</td>
                 <td className="px-5 py-4">{rotuloStatusEmpresa(empresa.status)}</td>
                 <td className="px-5 py-4 tabular-nums">{empresa.quantidadeUsuarios}</td>

@@ -5,10 +5,11 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { enviarJson } from "@/lib/api-cliente";
 import { dataHojeIso } from "@/lib/data";
+import { mascararDocumentoDigitando, mascararTelefoneDigitando } from "@/lib/mascaras";
 import { SEGMENTOS, STATUS_CLIENTE } from "@/lib/rotulos";
 import type { ClienteResumo } from "@/lib/tipos";
 import { UFS } from "@/lib/ufs";
-import { esquemaCliente, mensagensDoZod } from "@/lib/validacao";
+import { esquemaCliente, mensagemDoCampo, mensagensDoZod } from "@/lib/validacao";
 import { Campo, classeCampo } from "./campo";
 import { classeBotaoPrimario, classeBotaoSecundario } from "./estilos";
 
@@ -59,10 +60,10 @@ export function FormularioCliente({
       ? {
           nomeFantasia: cliente.nomeFantasia,
           razaoSocial: cliente.razaoSocial,
-          documento: cliente.documento,
+          documento: mascararDocumentoDigitando(cliente.documento),
           segmento: cliente.segmento,
           contatoNome: cliente.contatoNome,
-          whatsapp: cliente.whatsapp,
+          whatsapp: mascararTelefoneDigitando(cliente.whatsapp),
           email: cliente.email,
           cidade: cliente.cidade,
           uf: cliente.uf,
@@ -148,7 +149,13 @@ export function FormularioCliente({
             id="documento"
             className={classeCampo}
             value={valores.documento}
-            onChange={(evento) => alterar("documento", evento.target.value)}
+            onChange={(evento) => alterar("documento", mascararDocumentoDigitando(evento.target.value))}
+            onBlur={() =>
+              setCampos((atual) => ({
+                ...atual,
+                documento: mensagemDoCampo(esquemaCliente.shape.documento, valores.documento),
+              }))
+            }
             inputMode="text"
             autoComplete="off"
           />
@@ -180,7 +187,14 @@ export function FormularioCliente({
             id="whatsapp"
             className={classeCampo}
             value={valores.whatsapp}
-            onChange={(evento) => alterar("whatsapp", evento.target.value)}
+            autoComplete="tel"
+            onChange={(evento) => alterar("whatsapp", mascararTelefoneDigitando(evento.target.value))}
+            onBlur={() =>
+              setCampos((atual) => ({
+                ...atual,
+                whatsapp: mensagemDoCampo(esquemaCliente.shape.whatsapp, valores.whatsapp),
+              }))
+            }
             inputMode="tel"
           />
         </Campo>

@@ -18,11 +18,11 @@ const cores: Record<string, string> = {
 };
 
 const coresFatura: Record<TomFatura, string> = {
-  aberto: "bg-gold-soft text-gold-ink",
-  vencida: "bg-clay-soft text-clay",
-  paga: "bg-leaf text-ok",
-  cancelada: "bg-sand text-muted",
-  estorno: "bg-[#f8e6d4] text-[#9a3412]",
+  aberto: "bg-gold-soft text-gold-ink ring-1 ring-gold/50",
+  vencida: "bg-clay-soft text-clay ring-1 ring-clay/40",
+  paga: "bg-leaf text-ok ring-1 ring-ok/30",
+  cancelada: "bg-sand text-ink ring-1 ring-line",
+  estorno: "bg-[#f8e6d4] text-[#9a3412] ring-1 ring-[#9a3412]/30",
 };
 
 export function Selo({
@@ -52,10 +52,14 @@ export function Selo({
 
 export function SeloFatura({ status, excluida }: { status: string; excluida: boolean }) {
   const tom = tomFatura(status, excluida);
+  const rotulo = rotuloStatusFatura(status, excluida);
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${coresFatura[tom]}`}>
-      <span className="size-1.5 rounded-full bg-current" />
-      {rotuloStatusFatura(status, excluida)}
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${coresFatura[tom]}`}
+      title={rotulo}
+    >
+      <span className="size-1.5 rounded-full bg-current" aria-hidden="true" />
+      {rotulo}
     </span>
   );
 }

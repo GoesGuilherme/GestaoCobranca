@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { enviarJson } from "@/lib/api-cliente";
 import type { ConfiguracaoTwilioDTO } from "@/lib/tipos";
+import { Aviso } from "./aviso";
 import { Campo, classeCampo } from "./campo";
 import { classeBotaoPrimario, classeBotaoSecundario } from "./estilos";
 
@@ -13,6 +14,20 @@ const ROTULO: Record<string, string> = {
   VENCEU: "Venceu",
   PAGO: "Pago",
 };
+
+function rotuloTemplate(status: string) {
+  const mapa: Record<string, string> = {
+    approved: "aprovado",
+    APPROVED: "aprovado",
+    pending: "pendente",
+    PENDING: "pendente",
+    rejected: "recusado",
+    REJECTED: "recusado",
+    paused: "pausado",
+    PAUSED: "pausado",
+  };
+  return mapa[status] ?? status;
+}
 
 const COEXISTENCIA: Record<ConfiguracaoTwilioDTO["coexistencia"], string> = {
   NAO_SOLICITADA: "Não pedida",
@@ -76,17 +91,18 @@ export function PainelWhatsapp({
       <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
         Cada empresa ganha uma subconta e um Sender na Twilio. O e-mail continua pela Resend. O WhatsApp sai no mesmo passo, se estiver marcado, usando template UTILITY. No modo teste nada vai para o cliente.
       </p>
-      <p className="mt-3 text-sm">
-        Sender: {estado.senderStatus ?? "não conectado"}
-        {estado.tokenMascarado ? ` · token ${estado.tokenMascarado}` : ""}
-        {estado.subaccountSid ? ` · subconta ${estado.subaccountSid}` : ""}
+      <p className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${estado.senderStatus === "ONLINE" ? "bg-leaf text-ok" : estado.senderStatus ? "bg-gold-soft text-gold-ink" : "bg-sand text-ink"}`} title={estado.senderStatus ?? "não conectado"}>
+          {estado.senderStatus === "ONLINE" ? "WhatsApp conectado" : estado.senderStatus === "OFFLINE" ? "WhatsApp desconectado" : estado.senderStatus ? `WhatsApp: ${estado.senderStatus}` : "WhatsApp não conectado"}
+        </span>
+        {estado.tokenMascarado ? <span className="text-muted">Token {estado.tokenMascarado}</span> : null}
       </p>
       <p className="mt-1 text-sm">Coexistência: {COEXISTENCIA[estado.coexistencia]}</p>
       {estado.templates.length > 0 ? (
         <ul className="mt-3 space-y-1 text-sm text-muted">
           {estado.templates.map((template) => (
             <li key={template.tipo}>
-              {ROTULO[template.tipo] ?? template.nome}: {template.status}
+              {ROTULO[template.tipo] ?? template.nome}: {rotuloTemplate(template.status)}
               {template.motivo ? ` · ${template.motivo}` : ""}
             </li>
           ))}
@@ -102,8 +118,8 @@ export function PainelWhatsapp({
             void enviar("/api/regua/whatsapp", { telefone, nomeExibicao: nome, wabaId, coexistencia }, "WhatsApp salvo.");
           }}
         >
-          <Campo label="WhatsApp do remetente" htmlFor="twilio-telefone">
-            <input id="twilio-telefone" className={classeCampo} value={telefone} onChange={(evento) => setTelefone(evento.target.value)} />
+          <Campo label="WhatsApp do remetente" htmlFor="twilio-telefone" dica="O número que a Twilio usa para enviar. Pode incluir o código do país, como +55 11 98888-0000.">
+            <input id="twilio-telefone" className={classeCampo} inputMode="tel" autoComplete="tel" value={telefone} onChange={(evento) => setTelefone(evento.target.value)} />
           </Campo>
           <Campo label="Nome no WhatsApp" htmlFor="twilio-nome">
             <input id="twilio-nome" className={classeCampo} value={nome} onChange={(evento) => setNome(evento.target.value)} />
@@ -146,8 +162,16 @@ export function PainelWhatsapp({
           </button>
         </form>
       ) : null}
-      {erro ? <p className="mt-3 text-sm text-clay">{erro}</p> : null}
-      {aviso && !erro ? <p className="mt-3 text-sm text-canopy">{aviso}</p> : null}
+      {erro ? (
+        <div className="mt-3">
+          <Aviso tom="erro" titulo={erro} onFechar={() => setErro("")} />
+        </div>
+      ) : null}
+      {aviso && !erro ? (
+        <div className="mt-3">
+          <Aviso tom="ok" titulo={aviso} onFechar={() => setAviso("")} />
+        </div>
+      ) : null}
     </section>
   );
 }

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { CabecalhoPagina } from "@/components/cabecalho";
+import { EstadoVazio } from "@/components/estado-vazio";
 import { Selo } from "@/components/selo";
 import { classeBotaoPrimario } from "@/components/estilos";
 import { formatarReais } from "@/lib/dinheiro";
@@ -33,7 +34,7 @@ export default async function PaginaPainel() {
       />
 
       {acesso.papel === "DONO" && cnpjCollabPendente(acesso.cnpjEmpresa) ? (
-        <p className="mb-6 rounded-2xl border border-gold/40 bg-gold/15 px-4 py-3 text-sm">
+        <p className="mb-6 rounded-2xl border border-gold/40 bg-gold-soft px-4 py-3 text-sm text-gold-ink">
           O CNPJ da {acesso.nomeEmpresa} ainda é um placeholder.{" "}
           <Link href="/empresa" className="font-medium text-canopy hover:underline">
             Informe o CNPJ real
@@ -44,9 +45,9 @@ export default async function PaginaPainel() {
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
         <article className="rounded-3xl bg-forest px-5 py-6 text-paper sm:col-span-2">
-          <p className="text-sm text-white/70">Clientes</p>
+          <p className="text-sm text-white/90">Clientes</p>
           <p className="mt-2 font-display text-6xl">{formatarNumero(painel.totalClientes)}</p>
-          <p className="mt-2 text-sm text-white/70">
+          <p className="mt-2 text-sm text-white/90">
             {formatarNumero(painel.totalFiliais)}{" "}
             {painel.totalFiliais === 1 ? "filial cadastrada" : "filiais cadastradas"}
           </p>
@@ -79,7 +80,7 @@ export default async function PaginaPainel() {
                       {valor} · {percentual}%
                     </span>
                   </div>
-                  <div className="h-2 rounded-full bg-sand">
+                  <div className="h-2 rounded-full bg-sand" role="img" aria-label={`${rotuloSegmento(segmento)}: ${valor} clientes, ${percentual}%`}>
                     <div className="h-2 rounded-full bg-canopy" style={{ width: `${percentual}%` }} />
                   </div>
                 </div>
@@ -96,7 +97,17 @@ export default async function PaginaPainel() {
             </Link>
           </div>
           {painel.recentes.length === 0 ? (
-            <p className="mt-6 text-muted">Nenhum cliente cadastrado ainda.</p>
+            <div className="mt-6">
+              <EstadoVazio
+                titulo="Nenhum cliente cadastrado ainda"
+                descricao="Quando você cadastrar o primeiro cliente, ele aparece aqui."
+                acao={
+                  <Link href="/clientes/novo" className={classeBotaoPrimario}>
+                    Novo cliente
+                  </Link>
+                }
+              />
+            </div>
           ) : (
             <ul className="mt-4 divide-y divide-line">
               {painel.recentes.map((cliente) => (

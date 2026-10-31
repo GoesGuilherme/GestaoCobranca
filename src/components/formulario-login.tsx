@@ -4,8 +4,10 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { enviarJson } from "@/lib/api-cliente";
-import { esquemaLogin, mensagensDoZod } from "@/lib/validacao";
+import { esquemaLogin, mensagemDoCampo, mensagensDoZod } from "@/lib/validacao";
+import { Aviso } from "./aviso";
 import { Campo, classeCampo } from "./campo";
+import { EntradaSenha } from "./entrada-senha";
 import { classeBotaoPrimario } from "./estilos";
 
 function destinoSeguro(valor: string | null) {
@@ -54,44 +56,46 @@ export function FormularioLogin({ mostrarExemplo }: { mostrarExemplo: boolean })
       <h1 className="font-display text-4xl">Entrar</h1>
       <p className="mt-2 text-sm text-muted">Entre com o acesso da sua empresa.</p>
       {cadastrado ? (
-        <p className="mt-5 rounded-2xl bg-leaf px-4 py-3 text-sm text-ok">
-          Empresa criada. Entre com o e-mail e a senha do dono.
-        </p>
+        <div className="mt-5">
+          <Aviso tom="ok" titulo="Empresa criada. Entre com o e-mail e a senha do dono." />
+        </div>
       ) : null}
       {senhaRedefinida ? (
-        <p className="mt-5 rounded-2xl bg-leaf px-4 py-3 text-sm text-ok" role="status">
-          Senha redefinida. Entre com a senha nova.
-        </p>
+        <div className="mt-5">
+          <Aviso tom="ok" titulo="Senha redefinida. Entre com a senha nova." />
+        </div>
       ) : null}
       {suspensa ? (
-        <p className="mt-5 rounded-2xl bg-clay-soft px-4 py-3 text-sm text-clay" role="alert">
-          Esta empresa está suspensa. O acesso volta quando a plataforma reativar a conta.
-        </p>
+        <div className="mt-5">
+          <Aviso tom="erro" titulo="Esta empresa está suspensa. O acesso volta quando a plataforma reativar a conta." />
+        </div>
       ) : null}
       {erro ? (
-        <p className="mt-5 rounded-2xl bg-clay-soft px-4 py-3 text-sm text-clay" role="alert">
-          {erro}
-        </p>
+        <div className="mt-5">
+          <Aviso tom="erro" titulo={erro} />
+        </div>
       ) : null}
       <div className="mt-5 space-y-4">
-        <Campo label="E-mail" htmlFor="email" erro={campos.email}>
+        <Campo label="E-mail" htmlFor="email" erro={campos.email} obrigatorio>
           <input
             id="email"
             type="email"
             autoComplete="username"
+            autoFocus
             className={classeCampo}
             value={email}
             onChange={(evento) => setEmail(evento.target.value)}
+            onBlur={() => setCampos((atual) => ({ ...atual, email: mensagemDoCampo(esquemaLogin.shape.email, email) }))}
           />
         </Campo>
-        <Campo label="Senha" htmlFor="senha" erro={campos.senha}>
-          <input
+        <Campo label="Senha" htmlFor="senha" erro={campos.senha} obrigatorio>
+          <EntradaSenha
             id="senha"
-            type="password"
             autoComplete="current-password"
-            className={classeCampo}
             value={senha}
-            onChange={(evento) => setSenha(evento.target.value)}
+            invalido={Boolean(campos.senha)}
+            onChange={setSenha}
+            onBlur={() => setCampos((atual) => ({ ...atual, senha: mensagemDoCampo(esquemaLogin.shape.senha, senha) }))}
           />
         </Campo>
       </div>
@@ -100,7 +104,7 @@ export function FormularioLogin({ mostrarExemplo }: { mostrarExemplo: boolean })
           Esqueci minha senha
         </Link>
       </p>
-      <button type="submit" className={`${classeBotaoPrimario} mt-6 w-full`} disabled={enviando}>
+      <button type="submit" className={`${classeBotaoPrimario} mt-6 w-full`} disabled={enviando} aria-busy={enviando}>
         {enviando ? "Entrando..." : "Entrar"}
       </button>
       <p className="mt-5 text-center text-sm text-muted">

@@ -123,9 +123,9 @@ function Tabela({
   if (linhas.length === 0) return null;
 
   return (
-    <div className="overflow-x-auto rounded-3xl border border-line bg-card">
+    <div className="max-h-[min(70vh,48rem)] overflow-auto rounded-3xl border border-line bg-card">
       <table className="w-full min-w-[760px] text-left text-sm">
-        <thead className="border-b border-line text-xs text-muted">
+        <thead className="sticky top-0 z-10 border-b border-line bg-card text-xs text-muted">
           <tr>
             {cabecalho("nome", rotulo)}
             {colunas.map((item) => cabecalho(item.id, item.rotulo, true))}
