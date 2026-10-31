@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { faturaNaSituacao, faturasNaSituacao, tomFatura } from "./fatura-situacao";
+import { faturaNaSituacao, faturaNaVisualizacao, faturasNaSituacao, faturasNaVisualizacao, tomFatura } from "./fatura-situacao";
+import { filtroVisualizacao } from "./rotulos";
 
 const aberta = { status: "PENDING", excluida: false, vencimento: "2026-11-10", atualizadoEm: "2026-10-01T12:00:00.000Z" };
 const vencida = { status: "OVERDUE", excluida: false, vencimento: "2026-10-20", atualizadoEm: "2026-10-20T12:00:00.000Z" };
@@ -25,6 +26,22 @@ describe("situação da fatura", () => {
       "2026-10-18T12:00:00.000Z",
       "2026-09-02T12:00:00.000Z",
     ]);
+  });
+
+  it("separa faturas visualizadas das que o cliente ainda não abriu", () => {
+    const vista = { visualizada: true, nome: "vista" };
+    const nova = { visualizada: false, nome: "nova" };
+    expect(faturaNaVisualizacao(vista, "vistas")).toBe(true);
+    expect(faturaNaVisualizacao(nova, "vistas")).toBe(false);
+    expect(faturaNaVisualizacao(nova, "nao_vistas")).toBe(true);
+    expect(faturaNaVisualizacao(vista, "nao_vistas")).toBe(false);
+    expect(faturasNaVisualizacao([vista, nova], "todas").map((fatura) => fatura.nome)).toEqual(["vista", "nova"]);
+    expect(faturasNaVisualizacao([vista, nova], "vistas").map((fatura) => fatura.nome)).toEqual(["vista"]);
+    expect(faturasNaVisualizacao([vista, nova], "nao_vistas").map((fatura) => fatura.nome)).toEqual(["nova"]);
+    expect(filtroVisualizacao("vistas")).toBe("vistas");
+    expect(filtroVisualizacao("nao_vistas")).toBe("nao_vistas");
+    expect(filtroVisualizacao(undefined)).toBe("todas");
+    expect(filtroVisualizacao("ontem")).toBe("todas");
   });
 
   it("escolhe a cor do selo", () => {

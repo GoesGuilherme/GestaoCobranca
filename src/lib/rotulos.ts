@@ -4,6 +4,7 @@ import type {
   PapelUsuario,
   RecorrenciaServico,
   Segmento,
+  FiltroVisualizacao,
   SituacaoFatura,
   StatusCliente,
   StatusEmpresa,
@@ -99,6 +100,12 @@ export const SITUACOES_FATURA: { valor: SituacaoFatura; rotulo: string }[] = [
   { valor: "todas", rotulo: "Todas" },
 ];
 
+export const FILTROS_VISUALIZACAO: { valor: FiltroVisualizacao; rotulo: string }[] = [
+  { valor: "todas", rotulo: "Todas" },
+  { valor: "vistas", rotulo: "Visualizadas" },
+  { valor: "nao_vistas", rotulo: "Não visualizadas" },
+];
+
 const STATUS_FATURA: Record<string, string> = {
   PENDING: "Em aberto",
   AWAITING_RISK_ANALYSIS: "Em análise",
@@ -146,4 +153,8 @@ export function rotuloStatusFatura(status: string, excluida: boolean): string {
 
 export function situacaoFatura(valor: string | undefined): SituacaoFatura {
   return SITUACOES_FATURA.some((item) => item.valor === valor) ? (valor as SituacaoFatura) : "em_aberto";
+}
+
+export function filtroVisualizacao(valor: string | undefined): FiltroVisualizacao {
+  return FILTROS_VISUALIZACAO.some((item) => item.valor === valor) ? (valor as FiltroVisualizacao) : "todas";
 }

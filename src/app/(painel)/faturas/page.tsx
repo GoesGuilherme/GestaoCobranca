@@ -7,7 +7,7 @@ import { PainelRecorrenciaLote } from "@/components/painel-recorrencia-lote";
 import { AvisoModoTeste } from "@/components/aviso-modo-teste";
 import { TabelaFaturas } from "@/components/tabela-faturas";
 import { podeEmitirCobranca, podeVerFaturas } from "@/lib/permissoes";
-import { SITUACOES_FATURA, situacaoFatura } from "@/lib/rotulos";
+import { FILTROS_VISUALIZACAO, SITUACOES_FATURA, filtroVisualizacao, situacaoFatura } from "@/lib/rotulos";
 import { acessoDaPagina } from "@/server/auth/pagina";
 import { listarFaturas } from "@/server/services/fatura-service";
 import { obterPreferenciasCobranca } from "@/server/services/preferencia-cobranca-service";
@@ -17,6 +17,7 @@ export const metadata = { title: "Faturas" };
 
 type Busca = {
   situacao?: string;
+  vista?: string;
   busca?: string;
 };
 
@@ -33,8 +34,9 @@ export default async function PaginaFaturas({ searchParams }: { searchParams: Pr
     );
   }
   const situacao = situacaoFatura(params.situacao);
+  const vista = filtroVisualizacao(params.vista);
   const busca = params.busca?.trim() ?? "";
-  const faturas = await listarFaturas(acesso, { situacao, busca });
+  const faturas = await listarFaturas(acesso, { situacao, vista, busca });
   const preferencias = podeEmitirCobranca(acesso.papel) ? await obterPreferenciasCobranca(acesso.empresaId) : undefined;
   const regua = await obterPainelRegua(acesso);
 
@@ -53,6 +55,16 @@ export default async function PaginaFaturas({ searchParams }: { searchParams: Pr
           <span className="font-medium">Situação</span>
           <select name="situacao" defaultValue={situacao} className={classeCampo}>
             {SITUACOES_FATURA.map((item) => (
+              <option key={item.valor} value={item.valor}>
+                {item.rotulo}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="grid gap-1 text-sm">
+          <span className="font-medium">Visualização</span>
+          <select name="vista" defaultValue={vista} className={classeCampo}>
+            {FILTROS_VISUALIZACAO.map((item) => (
               <option key={item.valor} value={item.valor}>
                 {item.rotulo}
               </option>

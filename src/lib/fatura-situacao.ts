@@ -1,4 +1,4 @@
-import type { SituacaoFatura } from "./tipos";
+import type { FiltroVisualizacao, SituacaoFatura } from "./tipos";
 
 export const STATUS_ABERTAS = ["PENDING", "AWAITING_RISK_ANALYSIS"] as const;
 export const STATUS_VENCIDAS = ["OVERDUE", "DUNNING_REQUESTED"] as const;
@@ -44,6 +44,19 @@ export function faturasNaSituacao<T extends FaturaOrdenavel>(faturas: T[], situa
     return comparar(b.vencimento, a.vencimento);
   });
   return lista;
+}
+
+export function faturaNaVisualizacao(fatura: { visualizada: boolean }, filtro: FiltroVisualizacao): boolean {
+  if (filtro === "vistas") return fatura.visualizada;
+  if (filtro === "nao_vistas") return !fatura.visualizada;
+  return true;
+}
+
+export function faturasNaVisualizacao<T extends { visualizada: boolean }>(
+  faturas: T[],
+  filtro: FiltroVisualizacao,
+): T[] {
+  return faturas.filter((fatura) => faturaNaVisualizacao(fatura, filtro));
 }
 
 function inclui(lista: readonly string[], status: string): boolean {

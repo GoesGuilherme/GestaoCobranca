@@ -2,7 +2,7 @@ import { formaCobrancaDe } from "@/lib/cobranca";
 import { isoDeData } from "@/lib/data";
 import { STATUS_ABERTAS, STATUS_PAGAS, STATUS_VENCIDAS } from "@/lib/fatura-situacao";
 import { somenteDocumento } from "@/lib/documento";
-import type { FaturaDTO, LembreteReguaDTO, ModoReguaCliente, SituacaoFatura, StatusLembrete } from "@/lib/tipos";
+import type { FaturaDTO, FiltroVisualizacao, LembreteReguaDTO, ModoReguaCliente, SituacaoFatura, StatusLembrete } from "@/lib/tipos";
 import { esquemaFatura } from "@/lib/validacao";
 import { abrirClienteAsaas, asaasRespondeu, traduzirErroAsaas } from "@/server/asaas/abrir";
 import { type ClienteHttpAsaas, type CobrancaAsaas, type PaginaCobrancasAsaas } from "@/server/asaas/contrato";
@@ -30,6 +30,7 @@ type FaturaComNomes = {
   faturaUrl: string | null;
   descricao: string | null;
   excluida: boolean;
+  visualizada: boolean;
   atualizadoEm: Date;
   cliente: { nomeFantasia: string; whatsapp: string; email: string; reguaModo: string; reguaId: string | null };
   clienteServico: { servico: { nome: string } } | null;
@@ -95,6 +96,7 @@ function paraFatura(fatura: FaturaComNomes): FaturaDTO {
     faturaUrl: fatura.faturaUrl,
     descricao: fatura.descricao,
     excluida: fatura.excluida,
+    visualizada: fatura.visualizada,
     atualizadoEm: fatura.atualizadoEm.toISOString(),
     whatsapp: fatura.cliente.whatsapp,
     email: fatura.cliente.email,
@@ -134,6 +136,12 @@ function modoRegua(valor: string): ModoReguaCliente {
   return "PADRAO";
 }
 
+function filtroVisualizada(vista: FiltroVisualizacao | undefined) {
+  if (vista === "vistas") return { visualizada: true };
+  if (vista === "nao_vistas") return { visualizada: false };
+  return {};
+}
+
 function filtroSituacao(situacao: SituacaoFatura) {
   if (situacao === "todas") return { status: { not: "CRIANDO" } };
   if (situacao === "canceladas") return { excluida: true, status: { not: "CRIANDO" } };
@@ -144,7 +152,13 @@ function filtroSituacao(situacao: SituacaoFatura) {
 
 export async function listarFaturas(
   autor: AutorEmpresa,
-  filtro: { situacao?: SituacaoFatura; busca?: string; clienteId?: string; ordem?: "asc" | "desc" } = {},
+  filtro: {
+    situacao?: SituacaoFatura;
+    vista?: FiltroVisualizacao;
+    busca?: string;
+    clienteId?: string;
+    ordem?: "asc" | "desc";
+  } = {},
 ): Promise<FaturaDTO[]> {
   exigirVerFaturas(autor);
   const busca = filtro.busca?.trim() ?? "";
@@ -152,6 +166,7 @@ export async function listarFaturas(
     where: {
       empresaId: autor.empresaId,
       ...filtroSituacao(filtro.situacao ?? "em_aberto"),
+      ...filtroVisualizada(filtro.vista),
       ...(filtro.clienteId ? { clienteId: filtro.clienteId } : {}),
       ...(busca
         ? {

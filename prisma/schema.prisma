@@ -350,6 +350,10 @@ model Fatura {
   descricao         String?   @db.Text
   erroEmissao       String?   @map("erro_emissao") @db.Text
   excluida          Boolean   @default(false)
+  // Primeiro PAYMENT_CHECKOUT_VIEWED ou PAYMENT_BANK_SLIP_VIEWED desta empresa.
+  // visualizadaEm não muda nas visualizações seguintes.
+  visualizada       Boolean   @default(false)
+  visualizadaEm     DateTime? @map("visualizada_em") @db.Timestamptz(3)
   criadoEm         DateTime  @default(now()) @map("criado_em") @db.Timestamptz(3)
   atualizadoEm     DateTime  @updatedAt @map("atualizado_em") @db.Timestamptz(3)
   empresa          Empresa   @relation(fields: [empresaId], references: [id], onDelete: Restrict)
@@ -361,6 +365,7 @@ model Fatura {
   @@unique([empresaId, asaasPaymentId])
   @@unique([empresaId, chaveIdempotencia])
   @@index([empresaId, excluida, status])
+  @@index([empresaId, visualizada])
   @@index([clienteId])
   @@index([clienteServicoId])
   @@map("faturas")
