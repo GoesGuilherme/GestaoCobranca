@@ -61,9 +61,16 @@ function textoAtraso(quantidade: number, dias: number | null): string {
   return `${faturas} · a mais antiga há ${dias} dias`;
 }
 
-export function FiltrosPainelFinanceiro({ filtros }: { filtros: FiltrosPainel }) {
+export function FiltrosPainelFinanceiro({
+  filtros,
+  boca,
+}: {
+  filtros: FiltrosPainel;
+  boca?: string;
+}) {
   return (
     <form className="mb-6 flex flex-wrap items-end gap-3" method="get">
+      {boca === "6" || boca === "12" ? <input type="hidden" name="boca" value={boca} /> : null}
       <label className="grid gap-1 text-sm">
         <span className="font-medium">Período</span>
         <select name="periodo" defaultValue={filtros.periodo} className={classeCampo}>
