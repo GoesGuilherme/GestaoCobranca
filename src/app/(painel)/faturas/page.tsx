@@ -14,6 +14,7 @@ import { FILTROS_VISUALIZACAO, SITUACOES_FATURA, filtroVisualizacao, situacaoFat
 import { acessoDaPagina } from "@/server/auth/pagina";
 import { listarFaturas } from "@/server/services/fatura-service";
 import { obterPreferenciasCobranca } from "@/server/services/preferencia-cobranca-service";
+import { listarEnviosRegua } from "@/server/services/regua-envios";
 import { obterPainelRegua } from "@/server/services/regua-service";
 
 export const metadata = { title: "Faturas" };
@@ -39,9 +40,15 @@ export default async function PaginaFaturas({ searchParams }: { searchParams: Pr
   const situacao = situacaoFatura(params.situacao);
   const vista = filtroVisualizacao(params.vista);
   const busca = params.busca?.trim() ?? "";
-  const faturas = await listarFaturas(acesso, { situacao, vista, busca });
-  const preferencias = podeEmitirCobranca(acesso.papel) ? await obterPreferenciasCobranca(acesso.empresaId) : undefined;
-  const regua = await obterPainelRegua(acesso);
+  const [faturas, preferencias, regua] = await Promise.all([
+    listarFaturas(acesso, { situacao, vista, busca }),
+    podeEmitirCobranca(acesso.papel) ? obterPreferenciasCobranca(acesso.empresaId) : Promise.resolve(undefined),
+    obterPainelRegua(acesso),
+  ]);
+  const enviosRegua = await listarEnviosRegua(
+    acesso.empresaId,
+    faturas.map((fatura) => fatura.id),
+  );
 
   return (
     <>
@@ -102,6 +109,7 @@ export default async function PaginaFaturas({ searchParams }: { searchParams: Pr
           mostrarCliente
           preferencias={preferencias}
           reguasEnvio={regua.reguas}
+          enviosRegua={enviosRegua}
           podeEnviarRegua={podeEmitirCobranca(acesso.papel)}
           modoTeste={regua.config.gravada && regua.config.modoTeste}
           emailLogado={acesso.email}

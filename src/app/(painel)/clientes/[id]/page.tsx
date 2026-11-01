@@ -23,6 +23,7 @@ import { obterCliente } from "@/server/services/cliente-service";
 import { listarServicosDoCliente } from "@/server/services/cliente-servico-service";
 import { listarFaturas } from "@/server/services/fatura-service";
 import { obterPreferenciasCobranca } from "@/server/services/preferencia-cobranca-service";
+import { listarEnviosRegua } from "@/server/services/regua-envios";
 import { obterPainelRegua } from "@/server/services/regua-service";
 import { listarServicos } from "@/server/services/servico-service";
 
@@ -70,8 +71,11 @@ export default async function PaginaCliente({ params }: { params: Promise<{ id: 
     throw erro;
   }
 
-  const preferencias = podeCobrar ? await obterPreferenciasCobranca(acesso.empresaId) : undefined;
-  const regua = podeVerRegua(acesso.papel) ? await obterPainelRegua(acesso) : null;
+  const [preferencias, regua, enviosRegua] = await Promise.all([
+    podeCobrar ? obterPreferenciasCobranca(acesso.empresaId) : Promise.resolve(undefined),
+    podeVerRegua(acesso.papel) ? obterPainelRegua(acesso) : Promise.resolve(null),
+    verFaturas ? listarEnviosRegua(acesso.empresaId, faturas.map((fatura) => fatura.id)) : Promise.resolve([]),
+  ]);
   const passosRegua = regua
     ? opcoesDaReguaAplicavel({ modo: cliente.reguaModo, reguaId: cliente.reguaId }, regua.reguas)
     : [];
@@ -148,6 +152,8 @@ export default async function PaginaCliente({ params }: { params: Promise<{ id: 
           podeEnviarRegua={podeCobrar}
           passosCliente={passosCliente}
           hoje={hoje}
+          reguasEnvio={regua?.reguas}
+          enviosRegua={enviosRegua}
           modoTeste={Boolean(regua?.config.gravada && regua.config.modoTeste)}
           emailLogado={acesso.email}
         />
