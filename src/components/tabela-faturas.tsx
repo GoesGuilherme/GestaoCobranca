@@ -11,6 +11,8 @@ import { ProgressoRegua } from "./progresso-regua";
 import { SeloFatura } from "./selo";
 import { SemaforoRegua } from "./semaforo-regua";
 
+const COLUNAS = "md:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_auto]";
+
 function OlhoVisualizada() {
   return (
     <span title="Cliente visualizou o boleto" aria-label="Cliente visualizou o boleto" className="inline-flex text-canopy">
@@ -74,7 +76,12 @@ export function TabelaFaturas({
 
   return (
     <ul className="divide-y divide-line rounded-3xl border border-line bg-card">
-      {faturas.map((fatura) => {
+      <li className={`hidden items-center gap-x-6 border-line px-4 py-3 md:grid ${COLUNAS} md:rounded-t-3xl`}>
+        <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Fatura</span>
+        <span className="text-center text-xs font-semibold uppercase tracking-[0.14em] text-muted">Régua</span>
+        <span className="text-right text-xs font-semibold uppercase tracking-[0.14em] text-muted">Situação</span>
+      </li>
+      {faturas.map((fatura, indice) => {
         const passosEnvio = reguasEnvio
           ? opcoesDaReguaAplicavel({ modo: fatura.reguaModo, reguaId: fatura.reguaId }, reguasEnvio)
           : passosRegua;
@@ -97,13 +104,19 @@ export function TabelaFaturas({
               envios: enviosPorFatura.get(fatura.id) ?? [],
             })
           : null;
+        const situacao = (
+          <span className="inline-flex shrink-0 items-center gap-2">
+            {fatura.visualizada ? <OlhoVisualizada /> : null}
+            <SeloFatura status={fatura.status} excluida={fatura.excluida} />
+          </span>
+        );
         return (
           <li
             key={fatura.id}
             id={`fatura-${fatura.id}`}
-            className={`scroll-mt-24 px-4 py-4 first:rounded-t-3xl last:rounded-b-3xl ${fatura.excluida ? "opacity-60" : ""} ${destaqueId === fatura.id ? "bg-gold-soft" : ""}`}
+            className={`scroll-mt-24 grid grid-cols-1 items-center gap-3 px-4 py-4 last:rounded-b-3xl md:gap-x-6 ${COLUNAS} ${indice === 0 ? "rounded-t-3xl md:rounded-t-none" : ""} ${fatura.excluida ? "opacity-60" : ""} ${destaqueId === fatura.id ? "bg-gold-soft" : ""}`}
           >
-            <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex min-w-0 items-start justify-between gap-3 md:block">
               <div className="min-w-0">
                 {mostrarCliente ? (
                   <Link href={`/clientes/${fatura.clienteId}`} className="font-medium text-canopy hover:underline">
@@ -117,17 +130,20 @@ export function TabelaFaturas({
                   {rotuloFormaCobranca(fatura.formaCobranca)}
                   {fatura.nomeServico ? ` · ${fatura.nomeServico}` : ""}
                 </p>
+                {rotulo ? (
+                  <div className="mt-2">
+                    <SemaforoRegua fase={rotulo.fase} texto={rotulo.texto} aria={rotulo.aria} />
+                  </div>
+                ) : null}
               </div>
-              <span className="inline-flex items-center gap-2">
-                {fatura.visualizada ? <OlhoVisualizada /> : null}
-                <SeloFatura status={fatura.status} excluida={fatura.excluida} />
-              </span>
+              <span className="md:hidden">{situacao}</span>
             </div>
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex min-w-0 flex-col items-start gap-2">
-                {rotulo ? <SemaforoRegua fase={rotulo.fase} texto={rotulo.texto} aria={rotulo.aria} /> : null}
-                {progresso ? <ProgressoRegua progresso={progresso} /> : null}
-              </div>
+            <div className="flex min-w-0 flex-col items-center justify-center">
+              <p className="mb-1.5 text-center text-[11px] font-semibold uppercase tracking-[0.14em] text-muted md:hidden">Régua</p>
+              {progresso ? <ProgressoRegua progresso={progresso} /> : <span className="text-sm text-muted">—</span>}
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-3 md:flex-col md:items-end md:justify-center">
+              <span className="hidden md:inline-flex">{situacao}</span>
               <AcoesFatura
                 fatura={fatura}
                 podeCancelar={podeCancelar}

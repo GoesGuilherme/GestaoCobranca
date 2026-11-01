@@ -29,23 +29,23 @@ export function ProgressoRegua({ progresso }: { progresso: ProgressoRegua }) {
       role="group"
       tabIndex={0}
       aria-label={ariaProgressoRegua(progresso)}
-      className="inline-flex max-w-full flex-wrap items-center gap-1 rounded-full bg-sand px-1.5 py-1 outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+      className="mx-auto flex w-max max-w-full flex-nowrap items-center justify-center gap-1.5 overflow-x-auto rounded-full bg-sand px-2.5 py-1.5 outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
     >
       {progresso.etapas.map((etapa) => {
         const Icone = ICONE[etapa.momento];
         const texto = textoEtapa(etapa);
         return (
           <Dica key={etapa.id} texto={texto}>
-            <span className={`inline-flex rounded-full p-0.5 ${classeEtapa(etapa)}`}>
-              <Icone className="size-4" strokeWidth={1.8} aria-hidden />
+            <span className={`inline-flex shrink-0 rounded-full p-1 ${classeEtapa(etapa)}`}>
+              <Icone className="size-[22px]" strokeWidth={1.8} aria-hidden />
             </span>
           </Dica>
         );
       })}
       {progresso.paga ? (
         <Dica texto="Fatura paga">
-          <span className="inline-flex rounded-full p-0.5 text-ok ring-1 ring-current">
-            <CheckCircle2 className="size-4" strokeWidth={1.8} aria-hidden />
+          <span className="inline-flex shrink-0 rounded-full p-1 text-ok ring-1 ring-current">
+            <CheckCircle2 className="size-[22px]" strokeWidth={1.8} aria-hidden />
           </span>
         </Dica>
       ) : null}
