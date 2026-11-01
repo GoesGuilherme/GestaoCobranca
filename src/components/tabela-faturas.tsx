@@ -4,11 +4,12 @@ import { formatarReais } from "@/lib/dinheiro";
 import { dataHojeIso } from "@/lib/data";
 import { formatarDataIso } from "@/lib/formatacao";
 import { opcoesDaReguaAplicavel, rotuloReguaDaFatura, type OpcaoPassoRegua, type PassoParaRotulo } from "@/lib/regua";
-import { progressoDaFatura, type EnvioReguaLista, type ReguaParaProgresso } from "@/lib/regua-progresso";
+import { linhaDoTempoDaFatura } from "@/lib/linha-tempo-fatura";
+import type { EnvioReguaLista, ReguaParaProgresso } from "@/lib/regua-progresso";
 import { rotuloFormaCobranca } from "@/lib/rotulos";
 import type { ClienteServicoDTO, FaturaDTO, PreferenciasCobrancaDTO } from "@/lib/tipos";
 import { AcoesFatura } from "./acoes-fatura";
-import { ProgressoRegua } from "./progresso-regua";
+import { LinhaDoTempoFatura } from "./linha-tempo-fatura";
 import { SeloFatura } from "./selo";
 import { SemaforoRegua } from "./semaforo-regua";
 
@@ -79,7 +80,7 @@ export function TabelaFaturas({
     <ul className="divide-y divide-line rounded-3xl border border-line bg-card">
       <li className={`hidden items-center gap-x-6 border-line px-4 py-3 md:grid ${COLUNAS} md:rounded-t-3xl`}>
         <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Fatura</span>
-        <span className="text-center text-xs font-semibold uppercase tracking-[0.14em] text-muted">Régua</span>
+        <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Régua</span>
         <span className="text-right text-xs font-semibold uppercase tracking-[0.14em] text-muted">Situação</span>
       </li>
       {faturas.map((fatura, indice) => {
@@ -95,7 +96,7 @@ export function TabelaFaturas({
               passos: passosCliente,
             })
           : null;
-        const progresso = progressoDaFatura({
+        const linhaTempo = linhaDoTempoDaFatura({
           status: fatura.status,
           excluida: fatura.excluida,
           vencimento: fatura.vencimento,
@@ -139,9 +140,9 @@ export function TabelaFaturas({
               </div>
               <span className="md:hidden">{situacao}</span>
             </div>
-            <div className="flex min-w-0 flex-col items-center justify-center">
-              <p className="mb-1.5 text-center text-[11px] font-semibold uppercase tracking-[0.14em] text-muted md:hidden">Régua</p>
-              <ProgressoRegua progresso={progresso} />
+            <div className="min-w-0">
+              <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted md:hidden">Régua</p>
+              <LinhaDoTempoFatura linha={linhaTempo} />
             </div>
             <div className="flex flex-wrap items-center justify-end gap-3 md:flex-col md:items-end md:justify-center">
               <span className="hidden md:inline-flex">{situacao}</span>

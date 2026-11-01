@@ -81,7 +81,7 @@ export function textoOffsetMarcador(fase: FaseLinhaTempo, dias: number | null): 
   return absoluto < 100 ? String(absoluto).padStart(2, "0") : String(absoluto);
 }
 
-function quando(fase: FaseLinhaTempo, dias: number | null): string {
+export function textoQuandoMarcador(fase: FaseLinhaTempo, dias: number | null): string {
   if (fase === "emissao") return "Emissão do boleto";
   if (fase === "pago") return "Pago";
   if (dias === 0 || fase === "noDia") return "No dia do vencimento";
@@ -101,7 +101,7 @@ function textoCanais(canais: CanalMarcador[]): string {
 function dicaMarcador(fase: FaseLinhaTempo, dias: number | null, canais: CanalMarcador[], assunto: string): string {
   if (fase === "pago") return "Pago · quando o cliente paga a cobrança";
   const modelo = assunto.trim() || "Sem modelo";
-  return `${quando(fase, dias)} · ${textoCanais(canais)} · ${modelo}`;
+  return `${textoQuandoMarcador(fase, dias)} · ${textoCanais(canais)} · ${modelo}`;
 }
 
 function canaisDoPasso(passo: PassoLinhaTempo): CanalMarcador[] {
