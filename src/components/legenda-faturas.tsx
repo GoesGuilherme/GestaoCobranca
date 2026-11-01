@@ -19,6 +19,10 @@ export function LegendaFaturas() {
           </li>
         ))}
       </ul>
+      <p className="mt-3 text-xs leading-5 text-muted">
+        Régua: sino antes do vencimento, calendário no dia e relógio depois. Cinza ainda não enviado, azul quando o
+        lembrete saiu, dourado no atraso. O check verde aparece quando a fatura está paga.
+      </p>
     </div>
   );
 }

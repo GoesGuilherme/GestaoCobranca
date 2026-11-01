@@ -3,11 +3,15 @@ import { PREFERENCIAS_COBRANCA_PADRAO } from "@/lib/cobranca";
 import { formatarReais } from "@/lib/dinheiro";
 import { formatarDataIso } from "@/lib/formatacao";
 import { opcoesDaReguaAplicavel, rotuloReguaDaFatura, type OpcaoPassoRegua, type PassoParaRotulo } from "@/lib/regua";
+import { progressoDaFatura, type EnvioReguaLista, type ReguaParaProgresso } from "@/lib/regua-progresso";
 import { rotuloFormaCobranca } from "@/lib/rotulos";
 import type { ClienteServicoDTO, FaturaDTO, PreferenciasCobrancaDTO } from "@/lib/tipos";
 import { AcoesFatura } from "./acoes-fatura";
+import { ProgressoRegua } from "./progresso-regua";
 import { SeloFatura } from "./selo";
 import { SemaforoRegua } from "./semaforo-regua";
+
+const COLUNAS = "md:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_auto]";
 
 function OlhoVisualizada() {
   return (
@@ -36,6 +40,7 @@ export function TabelaFaturas({
   passosCliente = null,
   hoje = "",
   reguasEnvio,
+  enviosRegua = [],
   modoTeste = false,
   emailLogado = "",
 }: {
@@ -49,7 +54,8 @@ export function TabelaFaturas({
   vinculos?: ClienteServicoDTO[];
   passosCliente?: PassoParaRotulo[] | null;
   hoje?: string;
-  reguasEnvio?: { id: string; padrao: boolean; nome: string; passos: { id: string; naEmissao: boolean; dias: number | null; assunto?: string; canal?: string }[] }[];
+  reguasEnvio?: ReguaParaProgresso[];
+  enviosRegua?: EnvioReguaLista[];
   modoTeste?: boolean;
   emailLogado?: string;
 }) {
@@ -61,13 +67,25 @@ export function TabelaFaturas({
     );
   }
 
+  const enviosPorFatura = new Map<string, EnvioReguaLista[]>();
+  for (const envio of enviosRegua) {
+    const lista = enviosPorFatura.get(envio.faturaId);
+    if (lista) lista.push(envio);
+    else enviosPorFatura.set(envio.faturaId, [envio]);
+  }
+
   return (
-    <ul className="divide-y divide-line overflow-hidden rounded-3xl border border-line bg-card">
-          {faturas.map((fatura) => {
-            const passosEnvio = reguasEnvio
-              ? opcoesDaReguaAplicavel({ modo: fatura.reguaModo, reguaId: fatura.reguaId }, reguasEnvio)
-              : passosRegua;
-            const rotulo = hoje
+    <ul className="divide-y divide-line rounded-3xl border border-line bg-card">
+      <li className={`hidden items-center gap-x-6 border-line px-4 py-3 md:grid ${COLUNAS} md:rounded-t-3xl`}>
+        <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Fatura</span>
+        <span className="text-center text-xs font-semibold uppercase tracking-[0.14em] text-muted">Régua</span>
+        <span className="text-right text-xs font-semibold uppercase tracking-[0.14em] text-muted">Situação</span>
+      </li>
+      {faturas.map((fatura, indice) => {
+        const passosEnvio = reguasEnvio
+          ? opcoesDaReguaAplicavel({ modo: fatura.reguaModo, reguaId: fatura.reguaId }, reguasEnvio)
+          : passosRegua;
+        const rotulo = hoje
           ? rotuloReguaDaFatura({
               status: fatura.status,
               excluida: fatura.excluida,
@@ -76,13 +94,29 @@ export function TabelaFaturas({
               passos: passosCliente,
             })
           : null;
+        const progresso = reguasEnvio
+          ? progressoDaFatura({
+              status: fatura.status,
+              excluida: fatura.excluida,
+              modo: fatura.reguaModo,
+              reguaId: fatura.reguaId,
+              reguas: reguasEnvio,
+              envios: enviosPorFatura.get(fatura.id) ?? [],
+            })
+          : null;
+        const situacao = (
+          <span className="inline-flex shrink-0 items-center gap-2">
+            {fatura.visualizada ? <OlhoVisualizada /> : null}
+            <SeloFatura status={fatura.status} excluida={fatura.excluida} />
+          </span>
+        );
         return (
           <li
             key={fatura.id}
             id={`fatura-${fatura.id}`}
-            className={`scroll-mt-24 px-4 py-4 ${fatura.excluida ? "opacity-60" : ""} ${destaqueId === fatura.id ? "bg-gold-soft" : ""}`}
+            className={`scroll-mt-24 grid grid-cols-1 items-center gap-3 px-4 py-4 last:rounded-b-3xl md:gap-x-6 ${COLUNAS} ${indice === 0 ? "rounded-t-3xl md:rounded-t-none" : ""} ${fatura.excluida ? "opacity-60" : ""} ${destaqueId === fatura.id ? "bg-gold-soft" : ""}`}
           >
-            <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex min-w-0 items-start justify-between gap-3 md:block">
               <div className="min-w-0">
                 {mostrarCliente ? (
                   <Link href={`/clientes/${fatura.clienteId}`} className="font-medium text-canopy hover:underline">
@@ -96,14 +130,20 @@ export function TabelaFaturas({
                   {rotuloFormaCobranca(fatura.formaCobranca)}
                   {fatura.nomeServico ? ` · ${fatura.nomeServico}` : ""}
                 </p>
+                {rotulo ? (
+                  <div className="mt-2">
+                    <SemaforoRegua fase={rotulo.fase} texto={rotulo.texto} aria={rotulo.aria} />
+                  </div>
+                ) : null}
               </div>
-              <span className="inline-flex items-center gap-2">
-                {fatura.visualizada ? <OlhoVisualizada /> : null}
-                <SeloFatura status={fatura.status} excluida={fatura.excluida} />
-              </span>
+              <span className="md:hidden">{situacao}</span>
             </div>
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-              {rotulo ? <SemaforoRegua fase={rotulo.fase} texto={rotulo.texto} aria={rotulo.aria} /> : <span />}
+            <div className="flex min-w-0 flex-col items-center justify-center">
+              <p className="mb-1.5 text-center text-[11px] font-semibold uppercase tracking-[0.14em] text-muted md:hidden">Régua</p>
+              {progresso ? <ProgressoRegua progresso={progresso} /> : <span className="text-sm text-muted">—</span>}
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-3 md:flex-col md:items-end md:justify-center">
+              <span className="hidden md:inline-flex">{situacao}</span>
               <AcoesFatura
                 fatura={fatura}
                 podeCancelar={podeCancelar}

@@ -6,6 +6,7 @@ import { formatarReais, somarDinheiro } from "@/lib/dinheiro";
 import { faturasNaSituacao, faturaNaSituacao } from "@/lib/fatura-situacao";
 import { formatarDataIso } from "@/lib/formatacao";
 import { dataSaoPaulo, type OpcaoPassoRegua, type PassoParaRotulo } from "@/lib/regua";
+import type { EnvioReguaLista, ReguaParaProgresso } from "@/lib/regua-progresso";
 import type { ClienteServicoDTO, FaturaDTO, PreferenciasCobrancaDTO, SituacaoFatura } from "@/lib/tipos";
 import { AcoesCompartilhar } from "./acoes-compartilhar";
 import { FormularioFatura } from "./formulario-fatura";
@@ -75,6 +76,8 @@ export function PainelFaturasCliente({
   podeEnviarRegua = false,
   passosCliente = null,
   hoje,
+  reguasEnvio,
+  enviosRegua = [],
   modoTeste = false,
   emailLogado = "",
 }: {
@@ -87,6 +90,8 @@ export function PainelFaturasCliente({
   podeEnviarRegua?: boolean;
   passosCliente?: PassoParaRotulo[] | null;
   hoje: string;
+  reguasEnvio?: ReguaParaProgresso[];
+  enviosRegua?: EnvioReguaLista[];
   modoTeste?: boolean;
   emailLogado?: string;
 }) {
@@ -211,6 +216,8 @@ export function PainelFaturasCliente({
           vinculos={vinculos}
           passosCliente={passosCliente}
           hoje={hoje}
+          reguasEnvio={reguasEnvio}
+          enviosRegua={enviosRegua}
           modoTeste={modoTeste}
           emailLogado={emailLogado}
         />

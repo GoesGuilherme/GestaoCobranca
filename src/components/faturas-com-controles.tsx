@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { compararDinheiro } from "@/lib/dinheiro";
-import type { ClienteServicoDTO, FaturaDTO, PreferenciasCobrancaDTO } from "@/lib/tipos";
+import type { EnvioReguaLista, ReguaParaProgresso } from "@/lib/regua-progresso";
 import type { PassoParaRotulo } from "@/lib/regua";
+import type { ClienteServicoDTO, FaturaDTO, PreferenciasCobrancaDTO } from "@/lib/tipos";
 import { classeCampo } from "./campo";
 import { Paginacao } from "./paginacao";
 import { TabelaFaturas } from "./tabela-faturas";
@@ -18,6 +19,7 @@ export function FaturasComControles({
   mostrarCliente,
   preferencias,
   reguasEnvio,
+  enviosRegua = [],
   podeEnviarRegua,
   modoTeste,
   emailLogado,
@@ -30,7 +32,8 @@ export function FaturasComControles({
   podeCancelar: boolean;
   mostrarCliente: boolean;
   preferencias?: PreferenciasCobrancaDTO;
-  reguasEnvio?: { id: string; padrao: boolean; nome: string; passos: { id: string; naEmissao: boolean; dias: number | null; assunto?: string; canal?: string }[] }[];
+  reguasEnvio?: ReguaParaProgresso[];
+  enviosRegua?: EnvioReguaLista[];
   podeEnviarRegua?: boolean;
   modoTeste?: boolean;
   emailLogado?: string;
@@ -86,6 +89,7 @@ export function FaturasComControles({
         mostrarCliente={mostrarCliente}
         preferencias={preferencias}
         reguasEnvio={reguasEnvio}
+        enviosRegua={enviosRegua}
         podeEnviarRegua={podeEnviarRegua}
         modoTeste={modoTeste}
         emailLogado={emailLogado}

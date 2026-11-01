@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
   // forbidden() e unauthorized() só devolvem 403/401 com esta opção.
   experimental: {
     authInterrupts: true,
+    optimizePackageImports: ["lucide-react"],
   },
 };
 
