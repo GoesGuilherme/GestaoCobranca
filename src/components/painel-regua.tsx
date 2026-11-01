@@ -14,6 +14,7 @@ import {
   textoDiasDe,
 } from "@/lib/regua-rascunho";
 import type { ConfiguracaoReguaDTO, ConfiguracaoTwilioDTO, ReguaDTO } from "@/lib/tipos";
+import { LinhaDoTempoRegua } from "./linha-tempo-regua";
 import { PainelWhatsapp } from "./painel-whatsapp";
 import { AvisoModoTeste } from "./aviso-modo-teste";
 import { Campo, classeCampo } from "./campo";
@@ -333,7 +334,7 @@ export function PainelRegua({
 
       <PainelWhatsapp podeEditar={podeEditar} nomeEmpresa={nomeEmpresa} inicial={whatsapp} />
 
-      <section className="mt-8 rounded-3xl border border-line bg-card p-6">
+      <section className="mt-8 min-w-0 rounded-3xl border border-line bg-card p-6">
         <h2 className="font-display text-3xl">Réguas</h2>
         <p className="mt-2 max-w-2xl text-sm text-muted">
           Cada régua tem os próprios passos, o horário de envio e se sai no fim de semana. Uma é a padrão da empresa. O cliente pode usar outra, nenhuma, ou ficar pausado.
@@ -360,6 +361,24 @@ export function PainelRegua({
               Adicionar régua
             </button>
           </form>
+        ) : null}
+
+        {lista.length > 0 ? (
+          <div className="mt-6 grid min-w-0 gap-5">
+            {lista.map((regua) => {
+              const editando = regua.id === selecionada && rascunho?.id === regua.id;
+              return (
+                <LinhaDoTempoRegua
+                  key={regua.id}
+                  nome={editando && rascunho ? rascunho.nome : regua.nome}
+                  passos={editando && rascunho ? rascunho.passos : regua.passos}
+                  passoAberto={editando ? passoAberto : null}
+                  onSelecionar={editando ? setPassoAberto : undefined}
+                  ativa={editando}
+                />
+              );
+            })}
+          </div>
         ) : null}
 
         {rascunho ? (
