@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PREFERENCIAS_COBRANCA_PADRAO } from "@/lib/cobranca";
 import { formatarReais } from "@/lib/dinheiro";
+import { dataHojeIso } from "@/lib/data";
 import { formatarDataIso } from "@/lib/formatacao";
 import { opcoesDaReguaAplicavel, rotuloReguaDaFatura, type OpcaoPassoRegua, type PassoParaRotulo } from "@/lib/regua";
 import { progressoDaFatura, type EnvioReguaLista, type ReguaParaProgresso } from "@/lib/regua-progresso";
@@ -94,16 +95,16 @@ export function TabelaFaturas({
               passos: passosCliente,
             })
           : null;
-        const progresso = reguasEnvio
-          ? progressoDaFatura({
-              status: fatura.status,
-              excluida: fatura.excluida,
-              modo: fatura.reguaModo,
-              reguaId: fatura.reguaId,
-              reguas: reguasEnvio,
-              envios: enviosPorFatura.get(fatura.id) ?? [],
-            })
-          : null;
+        const progresso = progressoDaFatura({
+          status: fatura.status,
+          excluida: fatura.excluida,
+          vencimento: fatura.vencimento,
+          hoje: hoje || dataHojeIso(),
+          modo: fatura.reguaModo,
+          reguaId: fatura.reguaId,
+          reguas: reguasEnvio,
+          envios: enviosPorFatura.get(fatura.id) ?? [],
+        });
         const situacao = (
           <span className="inline-flex shrink-0 items-center gap-2">
             {fatura.visualizada ? <OlhoVisualizada /> : null}
@@ -140,7 +141,7 @@ export function TabelaFaturas({
             </div>
             <div className="flex min-w-0 flex-col items-center justify-center">
               <p className="mb-1.5 text-center text-[11px] font-semibold uppercase tracking-[0.14em] text-muted md:hidden">Régua</p>
-              {progresso ? <ProgressoRegua progresso={progresso} /> : <span className="text-sm text-muted">—</span>}
+              <ProgressoRegua progresso={progresso} />
             </div>
             <div className="flex flex-wrap items-center justify-end gap-3 md:flex-col md:items-end md:justify-center">
               <span className="hidden md:inline-flex">{situacao}</span>
