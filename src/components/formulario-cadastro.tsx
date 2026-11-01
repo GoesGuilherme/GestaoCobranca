@@ -8,6 +8,7 @@ import { mascararCnpjDigitando, mascararTelefoneDigitando } from "@/lib/mascaras
 import { esquemaCadastroEmpresa, mensagensDoZod } from "@/lib/validacao";
 import { Campo, classeCampo } from "./campo";
 import { classeBotaoPrimario } from "./estilos";
+import { avisarCamposObrigatorios, avisarErro, avisarSucesso } from "./notificador";
 
 const vazio = {
   razaoSocial: "",
@@ -24,7 +25,6 @@ export function FormularioCadastro() {
   const router = useRouter();
   const [valores, setValores] = useState(vazio);
   const [campos, setCampos] = useState<Record<string, string>>({});
-  const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
 
   function alterar(campo: keyof typeof vazio, valor: string) {
@@ -35,23 +35,22 @@ export function FormularioCadastro() {
     evento.preventDefault();
     const resultado = esquemaCadastroEmpresa.safeParse(valores);
     if (!resultado.success) {
-      const mensagens = mensagensDoZod(resultado.error);
-      setCampos(mensagens);
-      setErro(Object.values(mensagens)[0] ?? "Revise os dados da empresa.");
+      setCampos(mensagensDoZod(resultado.error));
+      avisarCamposObrigatorios();
       return;
     }
 
     setEnviando(true);
-    setErro("");
     setCampos({});
     const resposta = await enviarJson("/api/cadastro", "POST", resultado.data);
     setEnviando(false);
     if (!resposta.ok) {
-      setErro(resposta.erro);
+      avisarErro(resposta.erro);
       setCampos(resposta.campos ?? {});
       return;
     }
-    router.push("/login?cadastrado=1");
+    avisarSucesso("Empresa criada. Entre com o e-mail e a senha do dono.", { aposNavegar: true });
+    router.push("/login");
   }
 
   return (
@@ -60,11 +59,6 @@ export function FormularioCadastro() {
       <p className="mt-2 text-sm text-muted">
         A primeira pessoa vira dona da conta e pode cadastrar o restante da equipe depois.
       </p>
-      {erro ? (
-        <p className="mt-5 rounded-2xl bg-clay-soft px-4 py-3 text-sm text-clay" role="alert">
-          {erro}
-        </p>
-      ) : null}
       <div className="mt-5 space-y-4">
         <Campo label="Razão social" htmlFor="razaoSocial" erro={campos.razaoSocial}>
           <input id="razaoSocial" className={classeCampo} value={valores.razaoSocial} onChange={(evento) => alterar("razaoSocial", evento.target.value)} />

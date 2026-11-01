@@ -2,29 +2,20 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { EMPRESA_ADMIN_VAZIA, valoresAposSalvar } from "@/lib/apos-salvar";
 import { enviarJson } from "@/lib/api-cliente";
 import { mascararCnpjDigitando, mascararTelefoneDigitando } from "@/lib/mascaras";
 import { esquemaCadastroAdmin, mensagensDoZod } from "@/lib/validacao";
 import { Campo, classeCampo } from "./campo";
 import { classeBotaoPrimario } from "./estilos";
+import { avisarCamposObrigatorios, avisarErro, avisarSucesso } from "./notificador";
 
-const vazio = {
-  razaoSocial: "",
-  nomeFantasia: "",
-  cnpj: "",
-  emailContato: "",
-  telefone: "",
-  nome: "",
-  email: "",
-  senha: "",
-  plano: "basico",
-};
+const vazio = EMPRESA_ADMIN_VAZIA;
 
 export function FormularioEmpresaAdmin() {
   const router = useRouter();
   const [valores, setValores] = useState(vazio);
   const [campos, setCampos] = useState<Record<string, string>>({});
-  const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
 
   function alterar(campo: keyof typeof vazio, valor: string) {
@@ -38,23 +29,22 @@ export function FormularioEmpresaAdmin() {
       plano: valores.plano.trim() || undefined,
     });
     if (!resultado.success) {
-      const mensagens = mensagensDoZod(resultado.error);
-      setCampos(mensagens);
-      setErro(Object.values(mensagens)[0] ?? "Revise os dados.");
+      setCampos(mensagensDoZod(resultado.error));
+      avisarCamposObrigatorios();
       return;
     }
 
     setEnviando(true);
-    setErro("");
     setCampos({});
     const resposta = await enviarJson("/api/admin/empresas", "POST", resultado.data);
     setEnviando(false);
     if (!resposta.ok) {
-      setErro(resposta.erro);
+      avisarErro(resposta.erro);
       setCampos(resposta.campos ?? {});
       return;
     }
-    setValores(vazio);
+    setValores((atual) => valoresAposSalvar("criar", atual, vazio));
+    avisarSucesso("Empresa cadastrada");
     router.refresh();
   }
 
@@ -62,11 +52,6 @@ export function FormularioEmpresaAdmin() {
     <form onSubmit={enviar} noValidate className="rounded-3xl border border-line bg-card p-6">
       <h2 className="font-display text-2xl">Nova empresa</h2>
       <p className="mt-1 text-sm text-muted">Cria a assinante e o primeiro usuário, já como dono.</p>
-      {erro ? (
-        <p className="mt-4 rounded-2xl bg-clay-soft px-4 py-3 text-sm text-clay" role="alert">
-          {erro}
-        </p>
-      ) : null}
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         <Campo label="Razão social" htmlFor="admin-razao" erro={campos.razaoSocial}>
           <input id="admin-razao" className={classeCampo} value={valores.razaoSocial} onChange={(evento) => alterar("razaoSocial", evento.target.value)} />

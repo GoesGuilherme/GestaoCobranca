@@ -2,12 +2,14 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { USUARIO_NOVO, valoresAposSalvar } from "@/lib/apos-salvar";
 import { enviarJson } from "@/lib/api-cliente";
 import { PAPEIS } from "@/lib/rotulos";
 import type { PapelUsuario } from "@/lib/tipos";
 import { esquemaNovoUsuario, mensagensDoZod } from "@/lib/validacao";
 import { Campo, classeCampo } from "./campo";
 import { classeBotaoPrimario } from "./estilos";
+import { avisarCamposObrigatorios, avisarErro, avisarSucesso } from "./notificador";
 
 export function FormularioUsuario() {
   const router = useRouter();
@@ -16,33 +18,32 @@ export function FormularioUsuario() {
   const [senha, setSenha] = useState("");
   const [papel, setPapel] = useState<PapelUsuario>("SUPORTE");
   const [campos, setCampos] = useState<Record<string, string>>({});
-  const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
 
   async function enviar(evento: React.FormEvent) {
     evento.preventDefault();
     const resultado = esquemaNovoUsuario.safeParse({ nome, email, senha, papel });
     if (!resultado.success) {
-      const mensagens = mensagensDoZod(resultado.error);
-      setCampos(mensagens);
-      setErro(Object.values(mensagens)[0] ?? "Revise o cadastro.");
+      setCampos(mensagensDoZod(resultado.error));
+      avisarCamposObrigatorios();
       return;
     }
 
     setEnviando(true);
-    setErro("");
     setCampos({});
     const resposta = await enviarJson("/api/usuarios", "POST", resultado.data);
     setEnviando(false);
     if (!resposta.ok) {
-      setErro(resposta.erro);
+      avisarErro(resposta.erro);
       setCampos(resposta.campos ?? {});
       return;
     }
-    setNome("");
-    setEmail("");
-    setSenha("");
-    setPapel("SUPORTE");
+    const limpo = valoresAposSalvar("criar", { nome, email, senha, papel }, USUARIO_NOVO);
+    setNome(limpo.nome);
+    setEmail(limpo.email);
+    setSenha(limpo.senha);
+    setPapel(limpo.papel);
+    avisarSucesso("Usuário cadastrado");
     router.refresh();
   }
 
@@ -52,11 +53,6 @@ export function FormularioUsuario() {
       <p className="mt-1 text-sm text-muted">
         A pessoa entra com este e-mail e esta senha. O acesso vale só para esta empresa.
       </p>
-      {erro ? (
-        <p className="mt-4 rounded-2xl bg-clay-soft px-4 py-3 text-sm text-clay" role="alert">
-          {erro}
-        </p>
-      ) : null}
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         <Campo label="Nome" htmlFor="nome" erro={campos.nome}>
           <input id="nome" className={classeCampo} value={nome} onChange={(evento) => setNome(evento.target.value)} />

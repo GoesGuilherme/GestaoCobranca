@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
+import { faturaInicial, valoresAposSalvar } from "@/lib/apos-salvar";
 import { enviarJson } from "@/lib/api-cliente";
 import { PREFERENCIAS_COBRANCA_PADRAO } from "@/lib/cobranca";
 import { dataHojeIso } from "@/lib/data";
@@ -14,6 +15,7 @@ import { esquemaFatura, mensagensDoZod } from "@/lib/validacao";
 import { Campo, classeCampo } from "./campo";
 import { DialogoConfirmacao } from "./dialogo-confirmacao";
 import { classeBotaoPrimario } from "./estilos";
+import { avisarCamposObrigatorios, avisarErro, avisarSucesso } from "./notificador";
 
 export function FormularioFatura({
   clienteId,
@@ -33,7 +35,6 @@ export function FormularioFatura({
   const [descricao, setDescricao] = useState("");
   const [clienteServicoId, setClienteServicoId] = useState("");
   const [campos, setCampos] = useState<Record<string, string>>({});
-  const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [confirmar, setConfirmar] = useState(false);
   const chaveEmissao = useRef("");
@@ -53,11 +54,11 @@ export function FormularioFatura({
   function enviar(evento: React.FormEvent) {
     evento.preventDefault();
     if (enviando) return;
-    setErro("");
     const validado = esquemaFatura.safeParse(entradaAtual());
     if (!validado.success) {
       setCampos(mensagensDoZod(validado.error));
       setConfirmar(false);
+      avisarCamposObrigatorios();
       return;
     }
     setCampos({});
@@ -70,6 +71,7 @@ export function FormularioFatura({
     if (!validado.success) {
       setCampos(mensagensDoZod(validado.error));
       setConfirmar(false);
+      avisarCamposObrigatorios();
       return;
     }
     setConfirmar(false);
@@ -81,13 +83,18 @@ export function FormularioFatura({
         router.push("/login");
         return;
       }
-      setErro(resposta.erro);
+      avisarErro(resposta.erro);
       setCampos(resposta.campos ?? {});
       return;
     }
-    setValor("");
-    setDescricao("");
+    const limpa = valoresAposSalvar("criar", { valor, vencimento, formaCobranca, descricao, clienteServicoId }, faturaInicial(preferencias.formaCobranca, dataHojeIso()));
+    setValor(limpa.valor);
+    setVencimento(limpa.vencimento);
+    setFormaCobranca(limpa.formaCobranca);
+    setDescricao(limpa.descricao);
+    setClienteServicoId(limpa.clienteServicoId);
     chaveEmissao.current = "";
+    avisarSucesso("Fatura criada");
     if (resposta.dados.fatura) onEmitida?.(resposta.dados.fatura);
     router.refresh();
   }
@@ -149,12 +156,6 @@ export function FormularioFatura({
       <Campo label="Descrição" htmlFor="descricao-fatura" erro={campos.descricao}>
         <input id="descricao-fatura" className={classeCampo} value={descricao} onChange={(evento) => setDescricao(evento.target.value)} maxLength={500} />
       </Campo>
-      {erro ? (
-        <div role="alert" className="rounded-2xl border border-clay/40 bg-clay-soft px-4 py-3 text-sm text-clay">
-          <p className="font-medium">O Asaas não emitiu a cobrança.</p>
-          <p className="mt-1">{erro}</p>
-        </div>
-      ) : null}
       <div>
         <button type="submit" className={classeBotaoPrimario} disabled={enviando}>
           {enviando ? "Emitindo..." : "Emitir cobrança"}

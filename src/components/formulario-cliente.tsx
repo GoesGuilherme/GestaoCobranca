@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { CLIENTE_VAZIO, valoresAposSalvar } from "@/lib/apos-salvar";
 import { enviarJson } from "@/lib/api-cliente";
 import { dataHojeIso } from "@/lib/data";
 import { mascararDocumentoDigitando, mascararTelefoneDigitando } from "@/lib/mascaras";
@@ -12,6 +13,7 @@ import { UFS } from "@/lib/ufs";
 import { esquemaCliente, mensagemDoCampo, mensagensDoZod } from "@/lib/validacao";
 import { Campo, classeCampo } from "./campo";
 import { classeBotaoPrimario, classeBotaoSecundario } from "./estilos";
+import { avisarCamposObrigatorios, avisarErro, avisarSucesso } from "./notificador";
 
 type Valores = {
   nomeFantasia: string;
@@ -28,20 +30,7 @@ type Valores = {
   observacoes: string;
 };
 
-const vazio: Valores = {
-  nomeFantasia: "",
-  razaoSocial: "",
-  documento: "",
-  segmento: "RESTAURANTE",
-  contatoNome: "",
-  whatsapp: "",
-  email: "",
-  cidade: "",
-  uf: "SP",
-  status: "ATIVO",
-  ativadoEm: "",
-  observacoes: "",
-};
+const vazio: Valores = CLIENTE_VAZIO;
 
 export function FormularioCliente({
   cliente,
@@ -74,7 +63,6 @@ export function FormularioCliente({
       : vazio,
   );
   const [campos, setCampos] = useState<Record<string, string>>({});
-  const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
 
   function alterar(nome: keyof Valores, valor: string) {
@@ -85,14 +73,12 @@ export function FormularioCliente({
     evento.preventDefault();
     const resultado = esquemaCliente.safeParse(valores);
     if (!resultado.success) {
-      const mensagens = mensagensDoZod(resultado.error);
-      setCampos(mensagens);
-      setErro(Object.values(mensagens)[0] ?? "Revise os campos destacados.");
+      setCampos(mensagensDoZod(resultado.error));
+      avisarCamposObrigatorios();
       return;
     }
 
     setEnviando(true);
-    setErro("");
     setCampos({});
     const resposta = await enviarJson<{ cliente: ClienteResumo }>(
       cliente ? `/api/clientes/${cliente.id}` : "/api/clientes",
@@ -106,22 +92,23 @@ export function FormularioCliente({
         router.push("/login");
         return;
       }
-      setErro(resposta.erro);
+      avisarErro(resposta.erro);
       setCampos(resposta.campos ?? {});
       return;
     }
 
-    router.push(`/clientes/${resposta.dados.cliente.id}`);
+    setValores((atual) => valoresAposSalvar(cliente ? "editar" : "criar", atual, vazio));
+    if (cliente) {
+      avisarSucesso("Cliente salvo", { aposNavegar: true });
+      router.push(`/clientes/${resposta.dados.cliente.id}`);
+    } else {
+      avisarSucesso("Cliente salvo");
+    }
     router.refresh();
   }
 
   return (
     <form onSubmit={enviar} noValidate className="rounded-3xl border border-line bg-card p-5 md:p-7">
-      {erro ? (
-        <p className="mb-5 rounded-2xl bg-clay-soft px-4 py-3 text-sm text-clay" role="alert">
-          {erro}
-        </p>
-      ) : null}
       <div className="grid gap-5 md:grid-cols-2">
         <Campo label="Nome fantasia" htmlFor="nomeFantasia" erro={campos.nomeFantasia}>
           <input

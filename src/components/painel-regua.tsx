@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { valoresAposSalvar } from "@/lib/apos-salvar";
 import { enviarJson } from "@/lib/api-cliente";
 import { inteiroDeCampo, textoHoraPermitido, textoInteiroPermitido } from "@/lib/inteiro-campo";
 import { AMOSTRA_REGUA, textoRegua } from "@/lib/regua";
@@ -14,10 +15,12 @@ import {
   textoDiasDe,
 } from "@/lib/regua-rascunho";
 import type { ConfiguracaoReguaDTO, ConfiguracaoTwilioDTO, ReguaDTO } from "@/lib/tipos";
+import { esquemaConfiguracaoRegua, mensagensDoZod } from "@/lib/validacao";
 import { PainelWhatsapp } from "./painel-whatsapp";
 import { AvisoModoTeste } from "./aviso-modo-teste";
 import { Campo, classeCampo } from "./campo";
 import { classeBotaoPerigo, classeBotaoPrimario, classeBotaoSecundario } from "./estilos";
+import { avisarCamposObrigatorios, avisarErro, avisarSucesso } from "./notificador";
 
 type PassoEditavel = {
   id?: string;
@@ -95,8 +98,24 @@ export function PainelRegua({
   const [passoAberto, setPassoAberto] = useState(0);
   const [nomeNova, setNomeNova] = useState("");
   const [erro, setErro] = useState("");
-  const [aviso, setAviso] = useState("");
+  const [campos, setCampos] = useState<Record<string, string>>({});
   const [enviando, setEnviando] = useState(false);
+
+  function marcarTextos(atual: Rascunho) {
+    const proximos: Record<string, string> = {};
+    if (atual.nome.trim().length < 2) proximos.nome = "Informe o nome da régua.";
+    atual.passos.forEach((passo, indice) => {
+      if (!passo.assunto.trim()) proximos[`assunto-${indice}`] = "Informe o assunto.";
+      if (!passo.corpo.trim()) proximos[`corpo-${indice}`] = "Informe o texto.";
+    });
+    if (Object.keys(proximos).length === 0) return false;
+    const primeiro = atual.passos.findIndex((_, indice) => proximos[`assunto-${indice}`] || proximos[`corpo-${indice}`]);
+    if (primeiro >= 0) setPassoAberto(primeiro);
+    setCampos(proximos);
+    setErro("");
+    avisarCamposObrigatorios();
+    return true;
+  }
 
   function aplicar(painel: { config: ConfiguracaoReguaDTO; reguas: ReguaDTO[] }, manterId?: string) {
     setLista(painel.reguas);
@@ -126,8 +145,21 @@ export function PainelRegua({
   async function salvarConfig(evento: React.FormEvent) {
     evento.preventDefault();
     if (!podeEditar) return;
+    const validado = esquemaConfiguracaoRegua.safeParse({
+      ativa,
+      modoTeste,
+      remetenteNome,
+      remetenteEmail,
+      replyTo,
+      chaveResend: chave,
+    });
+    if (!validado.success) {
+      setCampos(mensagensDoZod(validado.error));
+      avisarCamposObrigatorios();
+      return;
+    }
     setErro("");
-    setAviso("");
+    setCampos({});
     setEnviando(true);
     const resposta = await enviarJson<{ config: ConfiguracaoReguaDTO; reguas: ReguaDTO[] }>("/api/regua/config", "POST", {
       ativa,
@@ -143,19 +175,24 @@ export function PainelRegua({
         router.push("/login");
         return;
       }
-      setErro(resposta.erro);
+      avisarErro(resposta.erro);
       return;
     }
     aplicar(resposta.dados, selecionada);
-    setAviso(resposta.dados.config.ativa ? "Régua salva." : "Régua desligada.");
+    avisarSucesso(resposta.dados.config.ativa ? "Régua salva" : "Régua desligada");
     router.refresh();
   }
 
   async function criar(evento: React.FormEvent) {
     evento.preventDefault();
     if (!podeEditar) return;
+    if (nomeNova.trim().length < 2) {
+      setCampos({ nomeNova: "Informe o nome da régua." });
+      avisarCamposObrigatorios();
+      return;
+    }
     setErro("");
-    setAviso("");
+    setCampos({});
     const montado = montarReguaParaSalvar({
       nome: nomeNova,
       padrao: lista.length === 0,
@@ -166,6 +203,7 @@ export function PainelRegua({
     });
     if (!montado.ok) {
       setErro(montado.mensagem);
+      avisarCamposObrigatorios();
       return;
     }
     setEnviando(true);
@@ -176,27 +214,28 @@ export function PainelRegua({
     );
     setEnviando(false);
     if (!resposta.ok) {
-      setErro(resposta.erro);
+      avisarErro(resposta.erro);
       return;
     }
     const criada = resposta.dados.reguas.find((regua) => regua.nome === nomeNova.trim());
-    setNomeNova("");
+    setNomeNova((atual) => valoresAposSalvar("criar", atual, ""));
     aplicar(resposta.dados, criada?.id);
-    setAviso("Régua criada.");
+    avisarSucesso("Régua criada");
     router.refresh();
   }
 
   async function salvarRegua(evento: React.FormEvent) {
     evento.preventDefault();
     if (!podeEditar || !rascunho) return;
+    if (marcarTextos(rascunho)) return;
     const montado = montarReguaParaSalvar(rascunho);
     if (!montado.ok) {
-      setAviso("");
       setErro(montado.mensagem);
+      avisarCamposObrigatorios();
       return;
     }
     setErro("");
-    setAviso("");
+    setCampos({});
     setEnviando(true);
     const resposta = await enviarJson<{ config: ConfiguracaoReguaDTO; reguas: ReguaDTO[] }>(
       `/api/regua/reguas/${rascunho.id}`,
@@ -205,18 +244,17 @@ export function PainelRegua({
     );
     setEnviando(false);
     if (!resposta.ok) {
-      setErro(resposta.erro);
+      avisarErro(resposta.erro);
       return;
     }
     aplicar(resposta.dados, rascunho.id);
-    setAviso("Passos salvos.");
+    avisarSucesso("Passos salvos");
     router.refresh();
   }
 
   async function excluir() {
     if (!podeEditar || !rascunho) return;
     setErro("");
-    setAviso("");
     setEnviando(true);
     const resposta = await enviarJson<{ config: ConfiguracaoReguaDTO; reguas: ReguaDTO[] }>(
       `/api/regua/reguas/${rascunho.id}`,
@@ -224,26 +262,25 @@ export function PainelRegua({
     );
     setEnviando(false);
     if (!resposta.ok) {
-      setErro(resposta.erro);
+      avisarErro(resposta.erro);
       return;
     }
     aplicar(resposta.dados);
-    setAviso("Régua apagada.");
+    avisarSucesso("Régua apagada");
     router.refresh();
   }
 
   async function testarEmail() {
     if (!podeEditar) return;
     setErro("");
-    setAviso("");
     setEnviando(true);
     const resposta = await enviarJson<{ enviado: boolean }>("/api/regua/teste-email", "POST");
     setEnviando(false);
     if (!resposta.ok) {
-      setErro(resposta.erro);
+      avisarErro(resposta.erro);
       return;
     }
-    setAviso("E-mail de teste enviado para o seu endereço.");
+    avisarSucesso("E-mail de teste enviado");
   }
 
   function atualizarPasso(indice: number, parcial: Partial<PassoEditavel>) {
@@ -297,13 +334,13 @@ export function PainelRegua({
           <Campo label="Nome do remetente" htmlFor="resend-nome">
             <input id="resend-nome" className={classeCampo} value={remetenteNome} disabled={!podeEditar} onChange={(evento) => setRemetenteNome(evento.target.value)} />
           </Campo>
-          <Campo label="E-mail do remetente" htmlFor="resend-email" dica="Se ficar vazio, os e-mails saem de cobranca@taguaro.com.br. O domínio precisa estar verificado na Resend.">
+          <Campo label="E-mail do remetente" htmlFor="resend-email" erro={campos.remetenteEmail} dica="Se ficar vazio, os e-mails saem de cobranca@taguaro.com.br. O domínio precisa estar verificado na Resend.">
             <input id="resend-email" className={classeCampo} value={remetenteEmail} disabled={!podeEditar} onChange={(evento) => setRemetenteEmail(evento.target.value)} />
           </Campo>
-          <Campo label="Responder para" htmlFor="resend-reply">
+          <Campo label="Responder para" htmlFor="resend-reply" erro={campos.replyTo}>
             <input id="resend-reply" className={classeCampo} value={replyTo} disabled={!podeEditar} onChange={(evento) => setReplyTo(evento.target.value)} />
           </Campo>
-          <Campo label="Chave da Resend" htmlFor="resend-chave" dica="Fica cifrada. A tela não mostra a chave de novo.">
+          <Campo label="Chave da Resend" htmlFor="resend-chave" erro={campos.chaveResend} dica="Fica cifrada. A tela não mostra a chave de novo.">
             <input
               id="resend-chave"
               className={classeCampo}
@@ -353,7 +390,7 @@ export function PainelRegua({
         </div>
         {podeEditar ? (
           <form className="mt-4 flex flex-wrap items-end gap-2" onSubmit={criar}>
-            <Campo label="Nova régua" htmlFor="regua-nome-nova">
+            <Campo label="Nova régua" htmlFor="regua-nome-nova" erro={campos.nomeNova}>
               <input id="regua-nome-nova" className={classeCampo} value={nomeNova} onChange={(evento) => setNomeNova(evento.target.value)} placeholder="Nome da régua" />
             </Campo>
             <button id="regua-criar" type="submit" className={classeBotaoSecundario} disabled={enviando}>
@@ -365,7 +402,7 @@ export function PainelRegua({
         {rascunho ? (
           <form className="mt-6 grid gap-4" onSubmit={salvarRegua}>
             <div className="grid gap-4 md:grid-cols-2">
-              <Campo label="Nome" htmlFor="regua-nome">
+              <Campo label="Nome" htmlFor="regua-nome" erro={campos.nome}>
                 <input id="regua-nome" className={classeCampo} value={rascunho.nome} disabled={!podeEditar} onChange={(evento) => setRascunho({ ...rascunho, nome: evento.target.value })} />
               </Campo>
               <label className="mt-7 flex items-center gap-2 text-sm">
@@ -523,11 +560,11 @@ export function PainelRegua({
                   />
                   Também enviar por WhatsApp, no mesmo dia deste passo
                 </label>
-                <Campo label="Assunto" htmlFor="passo-assunto">
+                <Campo label="Assunto" htmlFor="passo-assunto" erro={campos[`assunto-${passoAberto}`]}>
                   <input id="passo-assunto" className={classeCampo} disabled={!podeEditar} value={passo.assunto} onChange={(evento) => atualizarPasso(passoAberto, { assunto: evento.target.value })} />
                 </Campo>
                 <div className="md:col-span-2">
-                  <Campo label="Texto" htmlFor="passo-corpo" dica="Campos: {cliente} {servico} {valor} {vencimento} {link} {dias_atraso} {empresa}">
+                  <Campo label="Texto" htmlFor="passo-corpo" erro={campos[`corpo-${passoAberto}`]} dica="Campos: {cliente} {servico} {valor} {vencimento} {link} {dias_atraso} {empresa}">
                     <textarea id="passo-corpo" className={`${classeCampo} min-h-28`} disabled={!podeEditar} value={passo.corpo} onChange={(evento) => atualizarPasso(passoAberto, { corpo: evento.target.value })} />
                   </Campo>
                 </div>
@@ -553,8 +590,6 @@ export function PainelRegua({
         )}
       </section>
 
-      {erro ? <p className="mt-4 text-sm text-clay">{erro}</p> : null}
-      {aviso ? <p className="mt-4 text-sm text-canopy">{aviso}</p> : null}
     </>
   );
 }

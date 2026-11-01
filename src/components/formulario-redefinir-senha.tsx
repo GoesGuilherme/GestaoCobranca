@@ -5,17 +5,16 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { enviarJson } from "@/lib/api-cliente";
 import { esquemaRedefinirSenha, mensagensDoZod } from "@/lib/validacao";
-import { Aviso } from "./aviso";
 import { Campo } from "./campo";
 import { EntradaSenha } from "./entrada-senha";
 import { classeBotaoPrimario } from "./estilos";
+import { avisarCamposObrigatorios, avisarErro, avisarSucesso } from "./notificador";
 
 export function FormularioRedefinirSenha({ token }: { token: string }) {
   const router = useRouter();
   const [senha, setSenha] = useState("");
   const [confirmacao, setConfirmacao] = useState("");
   const [campos, setCampos] = useState<Record<string, string>>({});
-  const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
 
   if (!token) {
@@ -36,22 +35,21 @@ export function FormularioRedefinirSenha({ token }: { token: string }) {
     evento.preventDefault();
     const resultado = esquemaRedefinirSenha.safeParse({ token, senha, confirmacao });
     if (!resultado.success) {
-      const mensagens = mensagensDoZod(resultado.error);
-      setCampos(mensagens);
-      setErro(Object.values(mensagens)[0] ?? "Revise a senha.");
+      setCampos(mensagensDoZod(resultado.error));
+      avisarCamposObrigatorios();
       return;
     }
 
     setEnviando(true);
-    setErro("");
     setCampos({});
     const resposta = await enviarJson("/api/auth/redefinir-senha", "POST", resultado.data);
     setEnviando(false);
     if (!resposta.ok) {
-      setErro(resposta.erro);
+      avisarErro(resposta.erro);
       return;
     }
-    router.push("/login?senha=redefinida");
+    avisarSucesso("Senha redefinida. Entre com a senha nova.", { aposNavegar: true });
+    router.push("/login");
     router.refresh();
   }
 
@@ -59,11 +57,6 @@ export function FormularioRedefinirSenha({ token }: { token: string }) {
     <form onSubmit={enviar} noValidate className="rounded-3xl border border-line bg-card p-6 shadow-sm md:p-8">
       <h1 className="font-display text-4xl">Nova senha</h1>
       <p className="mt-2 text-sm text-muted">Escolha uma senha com pelo menos 8 caracteres.</p>
-      {erro ? (
-        <div className="mt-5">
-          <Aviso tom="erro" titulo={erro} />
-        </div>
-      ) : null}
       <div className="mt-5 space-y-4">
         <Campo label="Nova senha" htmlFor="senha" erro={campos.senha} obrigatorio dica="Pelo menos 8 caracteres.">
           <EntradaSenha

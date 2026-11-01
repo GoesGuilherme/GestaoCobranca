@@ -2,12 +2,14 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { asaasAposSalvar } from "@/lib/apos-salvar";
 import { enviarJson } from "@/lib/api-cliente";
 import { AMBIENTES_ASAAS } from "@/lib/rotulos";
 import type { ConfiguracaoAsaasDTO } from "@/lib/tipos";
 import { esquemaConfiguracaoAsaas, mensagensDoZod } from "@/lib/validacao";
 import { Campo, classeCampo } from "./campo";
 import { classeBotaoPrimario, classeBotaoSecundario } from "./estilos";
+import { avisarCamposObrigatorios, avisarErro, avisarSucesso } from "./notificador";
 
 export function FormularioAsaas({ inicial }: { inicial: ConfiguracaoAsaasDTO }) {
   const router = useRouter();
@@ -15,19 +17,21 @@ export function FormularioAsaas({ inicial }: { inicial: ConfiguracaoAsaasDTO }) 
   const [chaveApi, setChaveApi] = useState("");
   const [configuracao, setConfiguracao] = useState(inicial);
   const [campos, setCampos] = useState<Record<string, string>>({});
-  const [erro, setErro] = useState("");
-  const [avisoTeste, setAvisoTeste] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [testando, setTestando] = useState(false);
   const [copiado, setCopiado] = useState(false);
 
   async function salvar(evento: React.FormEvent) {
     evento.preventDefault();
-    setErro("");
-    setAvisoTeste("");
+    if (!configuracao.configurado && !chaveApi.trim()) {
+      setCampos({ chaveApi: "Informe a chave da API." });
+      avisarCamposObrigatorios();
+      return;
+    }
     const validado = esquemaConfiguracaoAsaas.safeParse({ ambiente, chaveApi });
     if (!validado.success) {
       setCampos(mensagensDoZod(validado.error));
+      avisarCamposObrigatorios();
       return;
     }
     setCampos({});
@@ -43,37 +47,38 @@ export function FormularioAsaas({ inicial }: { inicial: ConfiguracaoAsaasDTO }) 
         router.push("/login");
         return;
       }
-      setErro(resposta.erro);
+      avisarErro(resposta.erro);
       setCampos(resposta.campos ?? {});
       return;
     }
+    const gravado = asaasAposSalvar(ambiente);
     setConfiguracao(resposta.dados.configuracao);
-    setChaveApi("");
+    setAmbiente(gravado.ambiente as "SANDBOX" | "PRODUCAO");
+    setChaveApi(gravado.chaveApi);
+    avisarSucesso("Configurações salvas");
     router.refresh();
   }
 
   async function testar() {
-    setErro("");
-    setAvisoTeste("");
     setTestando(true);
     const resposta = await enviarJson<{ conta: string }>("/api/asaas/testar", "POST");
     setTestando(false);
     if (!resposta.ok) {
-      setErro(resposta.erro);
+      avisarErro(resposta.erro);
       return;
     }
-    setAvisoTeste(`Conexão aceita. Conta: ${resposta.dados.conta}`);
+    avisarSucesso(`Conexão aceita. Conta: ${resposta.dados.conta}`);
   }
 
   async function regenerar() {
-    setErro("");
     const resposta = await enviarJson<{ configuracao: ConfiguracaoAsaasDTO }>("/api/asaas/token", "POST");
     if (!resposta.ok) {
-      setErro(resposta.erro);
+      avisarErro(resposta.erro);
       return;
     }
     setConfiguracao(resposta.dados.configuracao);
     setCopiado(false);
+    avisarSucesso("Token do webhook gerado");
   }
 
   async function copiar() {
@@ -82,7 +87,7 @@ export function FormularioAsaas({ inicial }: { inicial: ConfiguracaoAsaasDTO }) 
       await navigator.clipboard.writeText(configuracao.tokenWebhook);
       setCopiado(true);
     } catch {
-      setErro("Não foi possível copiar. Selecione o token e copie manualmente.");
+      avisarErro("Não foi possível copiar. Selecione o token e copie manualmente.");
     }
   }
 
@@ -119,8 +124,6 @@ export function FormularioAsaas({ inicial }: { inicial: ConfiguracaoAsaasDTO }) 
             placeholder={configuracao.configurado ? "••••" : ""}
           />
         </Campo>
-        {erro ? <p className="text-sm text-clay">{erro}</p> : null}
-        {avisoTeste ? <p className="text-sm text-canopy">{avisoTeste}</p> : null}
         {configuracao.aviso ? <p className="text-sm text-clay">{configuracao.aviso}</p> : null}
         <div className="flex flex-wrap gap-3">
           <button type="submit" className={classeBotaoPrimario} disabled={enviando}>

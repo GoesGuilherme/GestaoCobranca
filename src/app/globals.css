@@ -79,3 +79,48 @@ textarea,
 button {
   font: inherit;
 }
+
+[data-sonner-toaster] {
+  z-index: 80 !important;
+  font-family: inherit !important;
+  --width: min(22rem, calc(100vw - 1.5rem)) !important;
+}
+
+[data-sonner-toast] {
+  border-radius: 16px !important;
+  border: 1px solid #d5dee8 !important;
+  box-shadow: 0 12px 32px rgba(11, 29, 64, 0.16) !important;
+  font-family: inherit !important;
+}
+
+[data-sonner-toast][data-type="success"] {
+  background: #e4f2ea !important;
+  color: #146c43 !important;
+  border-color: #146c43 !important;
+}
+
+[data-sonner-toast][data-type="error"] {
+  background: #f8e3da !important;
+  color: #a33b24 !important;
+  border-color: #a33b24 !important;
+}
+
+[data-sonner-toast] [data-close-button] {
+  background: #0b1d40 !important;
+  border-color: #0e3a6b !important;
+  color: #f4f7fb !important;
+}
+
+@media (max-width: 640px) {
+  [data-sonner-toaster] {
+    left: 12px !important;
+    right: 12px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-sonner-toast] {
+    animation: none !important;
+    transition: none !important;
+  }
+}

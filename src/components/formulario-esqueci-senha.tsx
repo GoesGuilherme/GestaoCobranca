@@ -8,11 +8,11 @@ import { esquemaEsqueciSenha, mensagemDoCampo, mensagensDoZod } from "@/lib/vali
 import { Aviso } from "./aviso";
 import { Campo, classeCampo } from "./campo";
 import { classeBotaoPrimario } from "./estilos";
+import { avisarCamposObrigatorios, avisarErro, avisarSucesso } from "./notificador";
 
 export function FormularioEsqueciSenha() {
   const [email, setEmail] = useState("");
   const [campos, setCampos] = useState<Record<string, string>>({});
-  const [erro, setErro] = useState("");
   const [mensagem, setMensagem] = useState("");
   const [enviando, setEnviando] = useState(false);
 
@@ -20,22 +20,22 @@ export function FormularioEsqueciSenha() {
     evento.preventDefault();
     const resultado = esquemaEsqueciSenha.safeParse({ email });
     if (!resultado.success) {
-      const mensagens = mensagensDoZod(resultado.error);
-      setCampos(mensagens);
-      setErro(Object.values(mensagens)[0] ?? "Informe o e-mail.");
+      setCampos(mensagensDoZod(resultado.error));
+      avisarCamposObrigatorios();
       return;
     }
 
     setEnviando(true);
-    setErro("");
     setCampos({});
     const resposta = await enviarJson<{ mensagem: string }>("/api/auth/esqueci-senha", "POST", resultado.data);
     setEnviando(false);
     if (!resposta.ok) {
-      setErro(resposta.erro);
+      avisarErro(resposta.erro);
       return;
     }
-    setMensagem(resposta.dados.mensagem || MENSAGEM_REDEFINICAO_ENVIADA);
+    const texto = resposta.dados.mensagem || MENSAGEM_REDEFINICAO_ENVIADA;
+    setMensagem(texto);
+    avisarSucesso(texto);
   }
 
   return (
@@ -49,11 +49,6 @@ export function FormularioEsqueciSenha() {
           <Aviso tom="ok" titulo={mensagem}>
             <p>Olhe a caixa de entrada e o spam. O link vale por tempo limitado.</p>
           </Aviso>
-        </div>
-      ) : null}
-      {erro ? (
-        <div className="mt-5">
-          <Aviso tom="erro" titulo={erro} />
         </div>
       ) : null}
       {mensagem ? null : (

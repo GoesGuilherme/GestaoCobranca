@@ -5,6 +5,7 @@ import { useState } from "react";
 import { enviarJson } from "@/lib/api-cliente";
 import type { ResultadoVisualizacoesFaturas } from "@/lib/tipos";
 import { classeBotaoSecundario } from "./estilos";
+import { avisarErro, avisarSucesso } from "./notificador";
 
 function textoResultado(dados: ResultadoVisualizacoesFaturas) {
   const partes: string[] = [];
@@ -25,13 +26,9 @@ function textoResultado(dados: ResultadoVisualizacoesFaturas) {
 export function BotaoAtualizarVisualizacoes() {
   const router = useRouter();
   const [enviando, setEnviando] = useState(false);
-  const [mensagem, setMensagem] = useState("");
-  const [erro, setErro] = useState("");
 
   async function atualizar() {
     setEnviando(true);
-    setErro("");
-    setMensagem("");
     const resposta = await enviarJson<ResultadoVisualizacoesFaturas>("/api/faturas/visualizacoes", "POST");
     setEnviando(false);
     if (!resposta.ok) {
@@ -39,10 +36,10 @@ export function BotaoAtualizarVisualizacoes() {
         router.push("/login");
         return;
       }
-      setErro(resposta.erro);
+      avisarErro(resposta.erro);
       return;
     }
-    setMensagem(textoResultado(resposta.dados));
+    avisarSucesso(textoResultado(resposta.dados));
     router.refresh();
   }
 
@@ -51,13 +48,6 @@ export function BotaoAtualizarVisualizacoes() {
       <button type="button" className={classeBotaoSecundario} disabled={enviando} onClick={() => void atualizar()}>
         {enviando ? "Atualizando..." : "Atualizar visualizações"}
       </button>
-      {mensagem ? <p role="status" className="mt-3 text-sm text-ok">{mensagem}</p> : null}
-      {erro ? (
-        <div role="alert" className="mt-3 rounded-2xl border border-clay/40 bg-clay-soft px-4 py-3 text-sm text-clay">
-          <p className="font-medium">Não foi possível consultar o Asaas.</p>
-          <p className="mt-1">{erro}</p>
-        </div>
-      ) : null}
     </div>
   );
 }
