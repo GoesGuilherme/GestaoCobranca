@@ -20,8 +20,8 @@ export function LegendaFaturas() {
         ))}
       </ul>
       <p className="mt-3 text-xs leading-5 text-muted">
-        Régua: quatro ícones fixos, um embaixo do outro. Sino antes do vencimento, calendário no dia, relógio depois e
-        check quando paga. Só acende o que já aconteceu. Cancelada e estornada ficam apagadas.
+        Régua: cada marco é um passo da régua da fatura. A cor da fase acende quando o dia já chegou ou o envio saiu;
+        o que ainda vem fica cinza. O check verde só acende com a fatura paga. Cancelada, estornada ou sem régua fica neutra.
       </p>
     </div>
   );
