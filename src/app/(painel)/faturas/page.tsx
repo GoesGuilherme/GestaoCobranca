@@ -9,6 +9,7 @@ import { AvisoModoTeste } from "@/components/aviso-modo-teste";
 import { FaturasComControles } from "@/components/faturas-com-controles";
 import { LegendaFaturas } from "@/components/legenda-faturas";
 import { EstadoVazio } from "@/components/estado-vazio";
+import { dataHojeIso } from "@/lib/data";
 import { podeAtualizarVisualizacoes, podeEmitirCobranca, podeVerFaturas } from "@/lib/permissoes";
 import { FILTROS_VISUALIZACAO, SITUACOES_FATURA, filtroVisualizacao, situacaoFatura } from "@/lib/rotulos";
 import { acessoDaPagina } from "@/server/auth/pagina";
@@ -113,6 +114,7 @@ export default async function PaginaFaturas({ searchParams }: { searchParams: Pr
           podeEnviarRegua={podeEmitirCobranca(acesso.papel)}
           modoTeste={regua.config.gravada && regua.config.modoTeste}
           emailLogado={acesso.email}
+          hoje={dataHojeIso()}
         />
       )}
       <p className="mt-4 text-sm text-muted">

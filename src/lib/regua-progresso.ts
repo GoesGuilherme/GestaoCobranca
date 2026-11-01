@@ -1,7 +1,8 @@
-import { STATUS_PAGAS } from "./fatura-situacao";
+import { tomFatura } from "./fatura-situacao";
 import type { ModoReguaCliente } from "./tipos";
 
 export type MomentoEtapa = "antes" | "vencimento" | "atraso";
+export type MarcoRegua = MomentoEtapa | "pago";
 
 export type PassoDaRegua = {
   id: string;
@@ -24,21 +25,31 @@ export type EnvioReguaLista = {
   status: string;
 };
 
-export type EtapaRegua = {
-  id: string;
+export type LembreteMarco = {
   nome: string;
-  momento: MomentoEtapa;
-  enviada: boolean;
   canais: string[];
 };
 
+export type IconeRegua = {
+  id: MarcoRegua;
+  nome: string;
+  aceso: boolean;
+  lembretes: LembreteMarco[];
+};
+
 export type ProgressoRegua = {
+  neutra: boolean;
   paga: boolean;
-  encerrada: boolean;
-  etapas: EtapaRegua[];
+  icones: [IconeRegua, IconeRegua, IconeRegua, IconeRegua];
 };
 
 const ORDEM_CANAL = ["EMAIL", "WHATSAPP"];
+const NOMES: Record<MarcoRegua, string> = {
+  antes: "Antes do vencimento",
+  vencimento: "No vencimento",
+  atraso: "Depois do vencimento",
+  pago: "Pago",
+};
 
 export function nomeEtapaRegua(passo: { naEmissao: boolean; dias: number | null }): string {
   if (passo.naEmissao) return "Na emissão";
@@ -59,62 +70,88 @@ export function momentoEtapaRegua(passo: { naEmissao: boolean; dias: number | nu
   return "atraso";
 }
 
-export function textoEtapa(etapa: Pick<EtapaRegua, "nome" | "enviada" | "canais">): string {
-  if (!etapa.enviada) return `${etapa.nome} · ainda não enviada`;
-  return `${etapa.nome} · enviada por ${rotuloCanais(etapa.canais)}`;
+export function textoIcone(icone: IconeRegua, neutra: boolean): string {
+  const enviados = icone.lembretes.map((lembrete) => `${lembrete.nome} por ${rotuloCanais(lembrete.canais)}`);
+  if (neutra) {
+    return enviados.length > 0 ? `${icone.nome} · encerrada · ${enviados.join(" · ")}` : `${icone.nome} · encerrada`;
+  }
+  if (!icone.aceso) {
+    return enviados.length > 0 ? `${icone.nome} · ainda não · ${enviados.join(" · ")}` : `${icone.nome} · ainda não`;
+  }
+  return enviados.length > 0 ? `${icone.nome} · ${enviados.join(" · ")}` : icone.nome;
 }
 
 export function ariaProgressoRegua(progresso: ProgressoRegua): string {
-  const enviadas = progresso.etapas.filter((etapa) => etapa.enviada).length;
-  const partes = progresso.etapas.map((etapa) => textoEtapa(etapa));
-  if (progresso.paga) partes.push("Fatura paga");
-  else if (progresso.encerrada) partes.push("Régua encerrada");
-  return `Régua de cobrança, ${enviadas} de ${progresso.etapas.length} etapas enviadas. ${partes.join(". ")}`;
+  const partes = progresso.icones.map((icone) => {
+    const estado = progresso.neutra || !icone.aceso ? "apagado" : "aceso";
+    return `${textoIcone(icone, progresso.neutra).replaceAll(" · ", ", ")}, ${estado}`;
+  });
+  return `Régua de cobrança. ${partes.join(". ")}`;
 }
 
 export function progressoDaFatura(entrada: {
   status: string;
   excluida: boolean;
-  modo: ModoReguaCliente;
-  reguaId: string | null;
-  reguas: ReguaParaProgresso[];
-  envios: Pick<EnvioReguaLista, "passoId" | "canal" | "status">[];
-}): ProgressoRegua | null {
-  const passos = passosAplicaveis(entrada.modo, entrada.reguaId, entrada.reguas);
-  if (!passos || passos.length === 0) return null;
-  const paga = !entrada.excluida && STATUS_PAGAS.some((status) => status === entrada.status);
-  return {
-    paga,
-    encerrada: paga || entrada.excluida,
-    etapas: ordenarPassos(passos).map((passo) => {
-      const canais = canaisEnviados(entrada.envios, passo.id);
-      return {
-        id: passo.id,
-        nome: nomeEtapaRegua(passo),
-        momento: momentoEtapaRegua(passo),
-        enviada: canais.length > 0,
-        canais,
-      };
-    }),
+  vencimento: string;
+  hoje: string;
+  modo?: ModoReguaCliente;
+  reguaId?: string | null;
+  reguas?: ReguaParaProgresso[];
+  envios?: Pick<EnvioReguaLista, "passoId" | "canal" | "status">[];
+}): ProgressoRegua {
+  const tom = tomFatura(entrada.status, entrada.excluida);
+  const neutra = tom === "cancelada" || tom === "estorno";
+  const paga = tom === "paga";
+  const fase = faseDaData(entrada.vencimento, entrada.hoje);
+  const passos = passosAplicaveis(entrada.modo ?? "PADRAO", entrada.reguaId ?? null, entrada.reguas ?? []);
+  const envios = entrada.envios ?? [];
+  const aceso: Record<MarcoRegua, boolean> = {
+    antes: !neutra,
+    vencimento: !neutra && fase !== "antes",
+    atraso: !neutra && fase === "atraso",
+    pago: !neutra && paga,
   };
+
+  const icones = (["antes", "vencimento", "atraso", "pago"] as const).map((id) => ({
+    id,
+    nome: NOMES[id],
+    aceso: aceso[id],
+    lembretes: id === "pago" ? [] : lembretesDoMomento(passos, envios, id),
+  })) as ProgressoRegua["icones"];
+
+  return { neutra, paga, icones };
+}
+
+function faseDaData(vencimento: string, hoje: string): MomentoEtapa {
+  if (vencimento > hoje) return "antes";
+  if (vencimento < hoje) return "atraso";
+  return "vencimento";
 }
 
 function passosAplicaveis(
   modo: ModoReguaCliente,
   reguaId: string | null,
   reguas: ReguaParaProgresso[],
-): PassoDaRegua[] | null {
-  if (modo === "NENHUMA") return null;
+): PassoDaRegua[] {
+  if (modo === "NENHUMA") return [];
   const regua = modo === "ESPECIFICA" ? reguas.find((item) => item.id === reguaId) : reguas.find((item) => item.padrao);
-  if (!regua || regua.passos.length === 0) return null;
-  return regua.passos;
+  if (!regua) return [];
+  return [...regua.passos].sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
 }
 
-function ordenarPassos(passos: PassoDaRegua[]): PassoDaRegua[] {
-  return passos
-    .map((passo, indice) => ({ passo, indice, ordem: passo.ordem ?? indice }))
-    .sort((a, b) => a.ordem - b.ordem || a.indice - b.indice)
-    .map((item) => item.passo);
+function lembretesDoMomento(
+  passos: PassoDaRegua[],
+  envios: Pick<EnvioReguaLista, "passoId" | "canal" | "status">[],
+  momento: MomentoEtapa,
+): LembreteMarco[] {
+  const lista: LembreteMarco[] = [];
+  for (const passo of passos) {
+    if (momentoEtapaRegua(passo) !== momento) continue;
+    const canais = canaisEnviados(envios, passo.id);
+    if (canais.length === 0) continue;
+    lista.push({ nome: nomeEtapaRegua(passo), canais });
+  }
+  return lista;
 }
 
 function canaisEnviados(

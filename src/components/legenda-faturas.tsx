@@ -20,8 +20,8 @@ export function LegendaFaturas() {
         ))}
       </ul>
       <p className="mt-3 text-xs leading-5 text-muted">
-        Régua: sino antes do vencimento, calendário no dia e relógio depois. Cinza ainda não enviado, azul quando o
-        lembrete saiu, dourado no atraso. O check verde aparece quando a fatura está paga.
+        Régua: quatro ícones fixos, um embaixo do outro. Sino antes do vencimento, calendário no dia, relógio depois e
+        check quando paga. Só acende o que já aconteceu. Cancelada e estornada ficam apagadas.
       </p>
     </div>
   );
