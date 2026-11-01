@@ -9,10 +9,12 @@ import { formatarDataIso } from "@/lib/formatacao";
 import { FORMAS_COBRANCA } from "@/lib/rotulos";
 import { textoResultadoLote, tomDoLote, type FalhaLoteVisivel } from "@/lib/textos-feedback";
 import type { PreferenciasCobrancaDTO, PreviaRecorrencia, ResultadoLoteRecorrencia } from "@/lib/tipos";
+import { esquemaLoteRecorrencia, mensagensDoZod } from "@/lib/validacao";
 import { Aviso } from "./aviso";
 import { Campo, classeCampo } from "./campo";
 import { DialogoConfirmacao } from "./dialogo-confirmacao";
 import { classeBotaoPrimario, classeBotaoSecundario } from "./estilos";
+import { avisarCamposObrigatorios, avisarErro, avisarSucesso } from "./notificador";
 
 function percentualCampo(valor: string | null) {
   return valor ? formatarAliquotaCampo(valor) : "";
@@ -38,7 +40,7 @@ export function PainelRecorrenciaLote({
   );
   const [previa, setPrevia] = useState<PreviaRecorrencia | null>(null);
   const [escolhidos, setEscolhidos] = useState<string[]>([]);
-  const [erro, setErro] = useState("");
+  const [campos, setCampos] = useState<Record<string, string>>({});
   const chaveResultado = `taguaro-lote-recorrencia-${clienteId ?? "todos"}`;
   const [resultado, setResultado] = useState<{ vencimento: string; criadas: number; falhas: FalhaLoteVisivel[] } | null>(null);
 
@@ -55,7 +57,6 @@ export function PainelRecorrenciaLote({
   const [enviando, setEnviando] = useState(false);
 
   async function carregar(diaInformado = dia) {
-    setErro("");
     const consulta = new URLSearchParams({ dia: diaInformado });
     if (clienteId) consulta.set("clienteId", clienteId);
     const resposta = await fetch(`/api/recorrencias/lote?${consulta.toString()}`);
@@ -66,7 +67,7 @@ export function PainelRecorrenciaLote({
         return;
       }
       setPrevia(null);
-      setErro(dados.erro ?? "Não foi possível montar a prévia.");
+      avisarErro(dados.erro ?? "Não foi possível montar a prévia.");
       return;
     }
     setPrevia(dados);
@@ -86,7 +87,6 @@ export function PainelRecorrenciaLote({
     if (enviando || !previa || escolhidos.length === 0) return;
     setPedirConfirmacao(false);
     setEnviando(true);
-    setErro("");
     const nomes = new Map(previa.itens.map((item) => [item.id, `${item.nomeCliente} · ${item.nomeServico}`]));
     const resposta = await enviarJson<ResultadoLoteRecorrencia>("/api/recorrencias/lote", "POST", {
       diaVencimento: previa.diaVencimento,
@@ -105,7 +105,7 @@ export function PainelRecorrenciaLote({
         router.push("/login");
         return;
       }
-      setErro(resposta.erro);
+      avisarErro(resposta.erro);
       return;
     }
     const visivel = {
@@ -119,6 +119,7 @@ export function PainelRecorrenciaLote({
     };
     setResultado(visivel);
     sessionStorage.setItem(chaveResultado, JSON.stringify(visivel));
+    avisarSucesso(textoResultadoLote(visivel.criadas, visivel.falhas.length));
     router.refresh();
     await carregar(String(previa.diaVencimento));
   }
@@ -178,7 +179,7 @@ export function PainelRecorrenciaLote({
             Vendas mensais ativas que ainda não têm assinatura. O mesmo dia vale para todas. Nada é criado antes da confirmação.
           </p>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <Campo label="Dia de vencimento" htmlFor="dia-lote">
+            <Campo label="Dia de vencimento" htmlFor="dia-lote" erro={campos.diaVencimento}>
               <input
                 id="dia-lote"
                 className={classeCampo}
@@ -256,19 +257,30 @@ export function PainelRecorrenciaLote({
           ) : (
             <p className="mt-4 text-sm text-muted">Nenhuma venda mensal ativa sem recorrência.</p>
           )}
-          {erro ? (
-            <div className="mt-4">
-              <Aviso tom="erro" titulo="O Asaas não ativou o lote.">
-                <p>{erro}</p>
-              </Aviso>
-            </div>
-          ) : null}
           <div className="mt-4 flex flex-wrap gap-2">
             <button
               type="button"
               className={classeBotaoPrimario}
               disabled={enviando || escolhidos.length === 0}
-              onClick={() => setPedirConfirmacao(true)}
+              onClick={() => {
+                const validado = esquemaLoteRecorrencia.safeParse({
+                  diaVencimento: Number(dia),
+                  formaCobranca: forma,
+                  modeloDescricao: modelo,
+                  multaPercentual: multa,
+                  jurosPercentual: juros,
+                  descontoPercentual: desconto,
+                  descontoDiasAntes: diasDesconto.trim() === "" ? null : Number(diasDesconto),
+                  ids: escolhidos,
+                });
+                if (!validado.success) {
+                  setCampos(mensagensDoZod(validado.error));
+                  avisarCamposObrigatorios();
+                  return;
+                }
+                setCampos({});
+                setPedirConfirmacao(true);
+              }}
             >
               {enviando ? "Criando..." : "Confirmar e criar as assinaturas"}
             </button>

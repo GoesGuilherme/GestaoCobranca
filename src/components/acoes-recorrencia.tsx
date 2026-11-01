@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import type { ZodType } from "zod";
 import { enviarJson } from "@/lib/api-cliente";
 import { descreverCobranca, PREFERENCIAS_COBRANCA_PADRAO } from "@/lib/cobranca";
 import { dataHojeIso, proximoVencimentoIso } from "@/lib/data";
@@ -10,20 +11,11 @@ import { mascararMoedaDigitando } from "@/lib/mascaras";
 import { formatarDataIso } from "@/lib/formatacao";
 import { FORMAS_COBRANCA, rotuloAssinatura, rotuloCartao } from "@/lib/rotulos";
 import type { ClienteServicoDTO, PreferenciasCobrancaDTO } from "@/lib/tipos";
+import { esquemaAtivarRecorrencia, esquemaEditarRecorrencia, esquemaRetomarRecorrencia, mensagensDoZod } from "@/lib/validacao";
 import { AcoesCompartilhar } from "./acoes-compartilhar";
-import { Aviso } from "./aviso";
 import { Campo, classeCampo } from "./campo";
 import { classeBotaoPerigo, classeBotaoPrimario, classeBotaoSecundario } from "./estilos";
-
-function caixaErro(erro: string) {
-  if (!erro) return null;
-  return (
-    <div role="alert" className="rounded-2xl border border-clay/40 bg-clay-soft px-4 py-3 text-sm text-clay">
-      <p className="font-medium">O Asaas não concluiu a recorrência.</p>
-      <p className="mt-1">{erro}</p>
-    </div>
-  );
-}
+import { avisarCamposObrigatorios, avisarErro, avisarSucesso } from "./notificador";
 
 function percentualCampo(valor: string | null) {
   return valor ? formatarAliquotaCampo(valor) : "";
@@ -58,8 +50,7 @@ export function AcoesRecorrencia({
   const [desconto, setDesconto] = useState(percentualCampo(preferencias.descontoPercentual));
   const [diasDesconto, setDiasDesconto] = useState(preferencias.descontoDiasAntes === null ? "" : String(preferencias.descontoDiasAntes));
   const [atualizarPendentes, setAtualizarPendentes] = useState(preferencias.atualizarPendentes);
-  const [erro, setErro] = useState("");
-  const [aviso, setAviso] = useState("");
+  const [falhas, setFalhas] = useState<Record<string, string>>({});
   const [enviando, setEnviando] = useState(false);
 
   const diaNumero = Number(dia);
@@ -77,6 +68,17 @@ export function AcoesRecorrencia({
     descontoDiasAntes: diasDesconto.trim() === "" ? null : Number(diasDesconto),
   };
 
+  function recusar(esquema: ZodType, dados: unknown) {
+    const resultado = esquema.safeParse(dados);
+    if (resultado.success) {
+      setFalhas({});
+      return false;
+    }
+    setFalhas(mensagensDoZod(resultado.error));
+    avisarCamposObrigatorios();
+    return true;
+  }
+
   async function concluir(resposta: { ok: boolean; status?: number; erro?: string }, sucesso: string) {
     setEnviando(false);
     if (!resposta.ok) {
@@ -84,20 +86,28 @@ export function AcoesRecorrencia({
         router.push("/login");
         return;
       }
-      setErro(resposta.erro ?? "Não foi possível concluir a operação.");
+      avisarErro(resposta.erro);
       return;
     }
     setModo("ver");
-    setErro("");
-    setAviso(sucesso);
+    avisarSucesso(sucesso);
     router.refresh();
   }
+
+  const corpoRecorrencia = {
+    formaCobranca: forma,
+    diaVencimento: diaNumero,
+    ...(vencimento ? { proximoVencimento: vencimento } : {}),
+    valor,
+    descricao,
+    ...encargos,
+  };
 
   async function ativar(evento: React.FormEvent) {
     evento.preventDefault();
     if (enviando) return;
+    if (recusar(esquemaAtivarRecorrencia, corpoRecorrencia)) return;
     setEnviando(true);
-    setErro("");
     const resposta = await enviarJson(`/api/servicos-cliente/${vinculo.id}/recorrencia`, "POST", {
       formaCobranca: forma,
       diaVencimento: diaNumero,
@@ -111,8 +121,8 @@ export function AcoesRecorrencia({
 
   async function editar(evento: React.FormEvent) {
     evento.preventDefault();
+    if (recusar(esquemaEditarRecorrencia, { ...corpoRecorrencia, atualizarPendentes })) return;
     setEnviando(true);
-    setErro("");
     const resposta = await enviarJson(`/api/servicos-cliente/${vinculo.id}/recorrencia`, "PATCH", {
       formaCobranca: forma,
       diaVencimento: diaNumero,
@@ -127,21 +137,23 @@ export function AcoesRecorrencia({
 
   async function pausar() {
     setEnviando(true);
-    setErro("");
     const resposta = await enviarJson(`/api/servicos-cliente/${vinculo.id}/recorrencia/pausa`, "POST");
     await concluir(resposta, "Recorrência pausada. Cobranças novas param de sair. As que já existem continuam.");
   }
 
   async function cancelar() {
     setEnviando(true);
-    setErro("");
     const resposta = await enviarJson(`/api/servicos-cliente/${vinculo.id}/recorrencia`, "DELETE");
     await concluir(resposta, "Recorrência cancelada.");
   }
 
   async function retomar() {
+    const dados = {
+      diaVencimento: diaNumero,
+      ...(vencimento ? { proximoVencimento: vencimento } : {}),
+    };
+    if (recusar(esquemaRetomarRecorrencia, dados)) return;
     setEnviando(true);
-    setErro("");
     const resposta = await enviarJson(`/api/servicos-cliente/${vinculo.id}/recorrencia/retomar`, "POST", {
       diaVencimento: diaNumero,
       ...(vencimento ? { proximoVencimento: vencimento } : {}),
@@ -152,10 +164,10 @@ export function AcoesRecorrencia({
   const campos = (
     <>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Campo label="Valor" htmlFor={`valor-recorrencia-${vinculo.id}`}>
+        <Campo label="Valor" htmlFor={`valor-recorrencia-${vinculo.id}`} erro={falhas.valor}>
           <input id={`valor-recorrencia-${vinculo.id}`} className={classeCampo} inputMode="decimal" value={valor} onChange={(evento) => setValor(mascararMoedaDigitando(evento.target.value))} />
         </Campo>
-        <Campo label="Dia de vencimento" htmlFor={`dia-recorrencia-${vinculo.id}`} dica={vencimento ? `Primeiro vencimento em ${formatarDataIso(vencimento)}.` : "Escolha um dia de 1 a 31."}>
+        <Campo label="Dia de vencimento" htmlFor={`dia-recorrencia-${vinculo.id}`} erro={falhas.diaVencimento} dica={vencimento ? `Primeiro vencimento em ${formatarDataIso(vencimento)}.` : "Escolha um dia de 1 a 31."}>
           <input id={`dia-recorrencia-${vinculo.id}`} className={classeCampo} inputMode="numeric" min={1} max={31} value={dia} onChange={(evento) => setDia(evento.target.value)} />
         </Campo>
         <Campo label="Forma" htmlFor={`forma-recorrencia-${vinculo.id}`}>
@@ -197,11 +209,6 @@ export function AcoesRecorrencia({
 
   return (
     <div className="mt-3 w-full">
-      {aviso ? (
-        <div className="mb-3">
-          <Aviso tom="ok" titulo={aviso} onFechar={() => setAviso("")} />
-        </div>
-      ) : null}
       <div className="flex flex-wrap items-center gap-2">
         {assinatura ? (
           <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${ativa ? "bg-leaf text-ok" : pausada ? "bg-gold-soft text-gold-ink" : "bg-clay-soft text-clay"}`}>
@@ -219,27 +226,27 @@ export function AcoesRecorrencia({
           </span>
         ) : null}
         {encerrada && vinculo.status === "ATIVO" && vinculo.recorrencia === "MENSAL" ? (
-          <button type="button" className={classeBotaoPrimario} onClick={() => { setErro(""); setModo(modo === "ativar" ? "ver" : "ativar"); }}>
+          <button type="button" className={classeBotaoPrimario} onClick={() => { setFalhas({}); setModo(modo === "ativar" ? "ver" : "ativar"); }}>
             Ativar cobrança recorrente
           </button>
         ) : null}
         {ativa || pausada ? (
-          <button type="button" className={classeBotaoSecundario} onClick={() => { setErro(""); setModo(modo === "editar" ? "ver" : "editar"); }}>
+          <button type="button" className={classeBotaoSecundario} onClick={() => { setFalhas({}); setModo(modo === "editar" ? "ver" : "editar"); }}>
             Editar recorrência
           </button>
         ) : null}
         {ativa ? (
-          <button type="button" className={classeBotaoSecundario} onClick={() => { setErro(""); setModo("pausar"); }}>
+          <button type="button" className={classeBotaoSecundario} onClick={() => { setFalhas({}); setModo("pausar"); }}>
             Pausar
           </button>
         ) : null}
         {pausada ? (
-          <button type="button" className={classeBotaoSecundario} disabled={enviando} onClick={() => { setErro(""); setModo("retomar"); }}>
+          <button type="button" className={classeBotaoSecundario} disabled={enviando} onClick={() => { setFalhas({}); setModo("retomar"); }}>
             Retomar
           </button>
         ) : null}
         {ativa || pausada ? (
-          <button type="button" className={classeBotaoPerigo} onClick={() => { setErro(""); setModo("cancelar"); }}>
+          <button type="button" className={classeBotaoPerigo} onClick={() => { setFalhas({}); setModo("cancelar"); }}>
             Cancelar recorrência
           </button>
         ) : null}
@@ -270,7 +277,6 @@ export function AcoesRecorrencia({
         <form onSubmit={ativar} className="mt-3 grid gap-4 rounded-2xl border border-line bg-paper p-4">
           <p className="text-sm text-muted">O Asaas passa a gerar a mensalidade neste dia. A primeira cobrança aparece pelo webhook ou em Importar faturas.</p>
           {campos}
-          {caixaErro(erro)}
           <div className="flex flex-wrap gap-2">
             <button type="submit" className={classeBotaoPrimario} disabled={enviando}>{enviando ? "Ativando..." : "Ativar cobrança recorrente"}</button>
             <button type="button" className={classeBotaoSecundario} onClick={() => setModo("ver")}>Voltar</button>
@@ -285,7 +291,6 @@ export function AcoesRecorrencia({
             <input type="checkbox" checked={atualizarPendentes} onChange={(evento) => setAtualizarPendentes(evento.target.checked)} />
             Atualizar cobranças em aberto
           </label>
-          {caixaErro(erro)}
           <div className="flex flex-wrap gap-2">
             <button type="submit" className={classeBotaoPrimario} disabled={enviando}>{enviando ? "Salvando..." : "Salvar recorrência"}</button>
             <button type="button" className={classeBotaoSecundario} onClick={() => setModo("ver")}>Voltar</button>
@@ -296,7 +301,6 @@ export function AcoesRecorrencia({
       {modo === "pausar" ? (
         <div className="mt-3 rounded-2xl border border-line bg-paper p-4 text-sm">
           <p>A pausa para de gerar cobranças novas. As que já existem continuam.</p>
-          {caixaErro(erro)}
           <div className="mt-3 flex flex-wrap gap-2">
             <button type="button" className={classeBotaoPrimario} disabled={enviando} onClick={() => void pausar()}>{enviando ? "Pausando..." : "Confirmar pausa"}</button>
             <button type="button" className={classeBotaoSecundario} onClick={() => setModo("ver")}>Voltar</button>
@@ -307,7 +311,6 @@ export function AcoesRecorrencia({
       {modo === "retomar" ? (
         <div className="mt-3 rounded-2xl border border-line bg-paper p-4 text-sm">
           <p>Retomar volta a gerar cobranças nesta recorrência. As que já existem não são duplicadas por este botão.</p>
-          {caixaErro(erro)}
           <div className="mt-3 flex flex-wrap gap-2">
             <button type="button" className={classeBotaoPrimario} disabled={enviando} onClick={() => void retomar()}>{enviando ? "Retomando..." : "Confirmar retomada"}</button>
             <button type="button" className={classeBotaoSecundario} onClick={() => setModo("ver")}>Voltar</button>
@@ -318,7 +321,6 @@ export function AcoesRecorrencia({
       {modo === "cancelar" ? (
         <div className="mt-3 rounded-2xl border border-line bg-paper p-4 text-sm">
           <p>Cancelar remove a assinatura no Asaas e as cobranças em aberto desta recorrência.</p>
-          {caixaErro(erro)}
           <div className="mt-3 flex flex-wrap gap-2">
             <button type="button" className={classeBotaoPerigo} disabled={enviando} onClick={() => void cancelar()}>{enviando ? "Cancelando..." : "Confirmar cancelamento"}</button>
             <button type="button" className={classeBotaoSecundario} onClick={() => setModo("ver")}>Voltar</button>

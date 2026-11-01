@@ -5,6 +5,7 @@ import { useState } from "react";
 import { enviarJson } from "@/lib/api-cliente";
 import type { StatusEmpresa } from "@/lib/tipos";
 import { classeBotaoPerigo, classeBotaoSecundario } from "./estilos";
+import { avisarErro, avisarSucesso } from "./notificador";
 
 export function BotaoStatusEmpresa({
   empresaId,
@@ -16,21 +17,20 @@ export function BotaoStatusEmpresa({
   propria: boolean;
 }) {
   const router = useRouter();
-  const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
   const suspender = status === "ATIVA";
 
   async function alterar() {
     setEnviando(true);
-    setErro("");
     const resposta = await enviarJson(`/api/admin/empresas/${empresaId}`, "PATCH", {
       status: suspender ? "SUSPENSA" : "ATIVA",
     });
     setEnviando(false);
     if (!resposta.ok) {
-      setErro(resposta.erro);
+      avisarErro(resposta.erro);
       return;
     }
+    avisarSucesso(suspender ? "Empresa suspensa" : "Empresa reativada");
     router.refresh();
   }
 
@@ -48,7 +48,6 @@ export function BotaoStatusEmpresa({
       >
         {enviando ? "Salvando..." : suspender ? "Suspender" : "Reativar"}
       </button>
-      {erro ? <p className="mt-1 text-xs text-clay">{erro}</p> : null}
     </div>
   );
 }

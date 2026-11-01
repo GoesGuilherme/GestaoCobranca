@@ -5,6 +5,7 @@ import { useState } from "react";
 import { enviarJson } from "@/lib/api-cliente";
 import { formatarDataIso } from "@/lib/formatacao";
 import { classeBotaoPerigo, classeBotaoSecundario } from "./estilos";
+import { avisarErro, avisarSucesso } from "./notificador";
 
 export function BotaoCancelarFatura({
   id,
@@ -17,18 +18,15 @@ export function BotaoCancelarFatura({
   const [aberto, setAberto] = useState(false);
   const [etapa, setEtapa] = useState<"fatura" | "recorrencia">("fatura");
   const [enviando, setEnviando] = useState(false);
-  const [erro, setErro] = useState("");
 
   function fechar() {
     if (enviando) return;
     setAberto(false);
     setEtapa("fatura");
-    setErro("");
   }
 
   async function confirmarFatura() {
     setEnviando(true);
-    setErro("");
     const resposta = await enviarJson(`/api/faturas/${id}`, "DELETE");
     setEnviando(false);
     if (!resposta.ok) {
@@ -36,18 +34,18 @@ export function BotaoCancelarFatura({
         router.push("/login");
         return;
       }
-      setErro(resposta.erro);
+      avisarErro(resposta.erro);
       return;
     }
     setAberto(false);
     setEtapa("fatura");
+    avisarSucesso("Cobrança cancelada");
     router.refresh();
   }
 
   async function confirmarRecorrencia() {
     if (!recorrencia) return;
     setEnviando(true);
-    setErro("");
     const resposta = await enviarJson(`/api/servicos-cliente/${recorrencia.vinculoId}/recorrencia`, "DELETE");
     setEnviando(false);
     if (!resposta.ok) {
@@ -55,11 +53,12 @@ export function BotaoCancelarFatura({
         router.push("/login");
         return;
       }
-      setErro(resposta.erro);
+      avisarErro(resposta.erro);
       return;
     }
     setAberto(false);
     setEtapa("fatura");
+    avisarSucesso("Recorrência cancelada");
     router.refresh();
   }
 
@@ -85,7 +84,6 @@ export function BotaoCancelarFatura({
                 <p className="mt-3 text-sm leading-6 text-muted">
                   Cancelar remove a assinatura no Asaas e as cobranças em aberto desta recorrência.
                 </p>
-                {erro ? <p className="mt-3 text-sm text-clay">{erro}</p> : null}
                 <div className="mt-6 flex justify-end gap-3">
                   <button type="button" className={classeBotaoSecundario} onClick={() => setEtapa("fatura")} disabled={enviando}>
                     Voltar
@@ -109,7 +107,6 @@ export function BotaoCancelarFatura({
                     Cancelar a recorrência
                   </button>
                 ) : null}
-                {erro ? <p className="mt-3 text-sm text-clay">{erro}</p> : null}
                 <div className="mt-6 flex justify-end gap-3">
                   <button type="button" className={classeBotaoSecundario} onClick={fechar} disabled={enviando}>
                     Voltar

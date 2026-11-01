@@ -4,26 +4,27 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { enviarJson } from "@/lib/api-cliente";
 import { classeBotaoPerigo, classeBotaoSecundario } from "./estilos";
+import { avisarErro, avisarSucesso } from "./notificador";
 
 export function BotaoExcluir({
   url,
   mensagem,
   rotulo = "Excluir",
   redirecionar,
+  sucesso = "Excluído com sucesso",
 }: {
   url: string;
   mensagem: string;
   rotulo?: string;
   redirecionar?: string;
+  sucesso?: string;
 }) {
   const router = useRouter();
   const [aberto, setAberto] = useState(false);
   const [enviando, setEnviando] = useState(false);
-  const [erro, setErro] = useState("");
 
   async function confirmar() {
     setEnviando(true);
-    setErro("");
     const resposta = await enviarJson(url, "DELETE");
     setEnviando(false);
     if (!resposta.ok) {
@@ -31,10 +32,11 @@ export function BotaoExcluir({
         router.push("/login");
         return;
       }
-      setErro(resposta.erro);
+      avisarErro(resposta.erro);
       return;
     }
     setAberto(false);
+    avisarSucesso(sucesso, redirecionar ? { aposNavegar: true } : undefined);
     if (redirecionar) {
       router.push(redirecionar);
     }
@@ -58,7 +60,6 @@ export function BotaoExcluir({
               Confirmar exclusão
             </h2>
             <p className="mt-3 text-sm leading-6 text-muted">{mensagem}</p>
-            {erro ? <p className="mt-3 text-sm text-clay">{erro}</p> : null}
             <div className="mt-6 flex justify-end gap-3">
               <button
                 type="button"

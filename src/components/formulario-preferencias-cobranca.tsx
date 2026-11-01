@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { valoresAposSalvar } from "@/lib/apos-salvar";
 import { enviarJson } from "@/lib/api-cliente";
 import { formatarAliquotaCampo } from "@/lib/dinheiro";
 import { FORMAS_COBRANCA } from "@/lib/rotulos";
@@ -9,6 +10,7 @@ import type { PreferenciasCobrancaDTO } from "@/lib/tipos";
 import { esquemaPreferenciasCobranca, mensagensDoZod } from "@/lib/validacao";
 import { Campo, classeCampo } from "./campo";
 import { classeBotaoPrimario } from "./estilos";
+import { avisarCamposObrigatorios, avisarErro, avisarSucesso } from "./notificador";
 
 function percentualCampo(valor: string | null) {
   return valor ? formatarAliquotaCampo(valor) : "";
@@ -30,14 +32,10 @@ export function FormularioPreferenciasCobranca({ inicial }: { inicial: Preferenc
   const [modeloMensagem, setModeloMensagem] = useState(inicial.modeloMensagem);
   const [modeloAssunto, setModeloAssunto] = useState(inicial.modeloAssunto);
   const [campos, setCampos] = useState<Record<string, string>>({});
-  const [erro, setErro] = useState("");
-  const [aviso, setAviso] = useState("");
   const [enviando, setEnviando] = useState(false);
 
   async function salvar(evento: React.FormEvent) {
     evento.preventDefault();
-    setErro("");
-    setAviso("");
     const entrada = {
       formaCobranca,
       diaVencimento: Number(diaVencimento),
@@ -54,6 +52,7 @@ export function FormularioPreferenciasCobranca({ inicial }: { inicial: Preferenc
     const validado = esquemaPreferenciasCobranca.safeParse(entrada);
     if (!validado.success) {
       setCampos(mensagensDoZod(validado.error));
+      avisarCamposObrigatorios();
       return;
     }
     setCampos({});
@@ -69,11 +68,17 @@ export function FormularioPreferenciasCobranca({ inicial }: { inicial: Preferenc
         router.push("/login");
         return;
       }
-      setErro(resposta.erro);
+      avisarErro(resposta.erro);
       setCampos(resposta.campos ?? {});
       return;
     }
-    setAviso("Preferências salvas. Os formulários de cobrança desta empresa passam a abrir com estes valores.");
+    const mantidos = valoresAposSalvar("editar", entrada, entrada);
+    setFormaCobranca(mantidos.formaCobranca);
+    setDiaVencimento(String(mantidos.diaVencimento));
+    setModeloDescricao(mantidos.modeloDescricao);
+    setModeloMensagem(mantidos.modeloMensagem);
+    setModeloAssunto(mantidos.modeloAssunto);
+    avisarSucesso("Configurações salvas");
     router.refresh();
   }
 
@@ -85,16 +90,6 @@ export function FormularioPreferenciasCobranca({ inicial }: { inicial: Preferenc
           Valem só para esta empresa e já vêm preenchidas na cobrança avulsa, na recorrência e no lote. Quem emite ainda pode mudar forma, dia, descrição e encargos na hora.
         </p>
       </div>
-      {erro ? (
-        <div role="alert" className="rounded-2xl border border-clay/40 bg-clay-soft px-4 py-3 text-sm text-clay">
-          {erro}
-        </div>
-      ) : null}
-      {aviso ? (
-        <p role="status" className="rounded-2xl bg-leaf px-4 py-3 text-sm text-ok">
-          {aviso}
-        </p>
-      ) : null}
       <div className="grid gap-4 sm:grid-cols-2">
         <Campo label="Forma padrão" htmlFor="pref-forma" erro={campos.formaCobranca}>
           <select id="pref-forma" className={classeCampo} value={formaCobranca} onChange={(evento) => setFormaCobranca(evento.target.value as PreferenciasCobrancaDTO["formaCobranca"])}>

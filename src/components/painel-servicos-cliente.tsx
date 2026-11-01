@@ -165,6 +165,7 @@ export function PainelServicosCliente({
                         url={`/api/servicos-cliente/${item.id}`}
                         rotulo="Excluir"
                         mensagem={`Remover ${item.nomeServico} deste cliente? O serviço continua no catálogo.`}
+                        sucesso="Serviço removido"
                       />
                     </>
                   ) : null}

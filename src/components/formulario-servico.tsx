@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { SERVICO_NOVO, valoresAposSalvar } from "@/lib/apos-salvar";
 import { enviarJson } from "@/lib/api-cliente";
 import {
   calcularMargem,
@@ -16,6 +17,7 @@ import type { ServicoDTO } from "@/lib/tipos";
 import { esquemaServico, mensagensDoZod } from "@/lib/validacao";
 import { Campo, classeCampo } from "./campo";
 import { classeBotaoPrimario, classeBotaoSecundario } from "./estilos";
+import { avisarCamposObrigatorios, avisarErro, avisarSucesso } from "./notificador";
 
 type Valores = {
   nome: string;
@@ -45,7 +47,6 @@ export function FormularioServico({
     ativo: servico ? String(servico.ativo) : "true",
   });
   const [campos, setCampos] = useState<Record<string, string>>({});
-  const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
 
   function alterar(nome: keyof Valores, valor: string) {
@@ -64,14 +65,12 @@ export function FormularioServico({
     evento.preventDefault();
     const resultado = esquemaServico.safeParse(valores);
     if (!resultado.success) {
-      const mensagens = mensagensDoZod(resultado.error);
-      setCampos(mensagens);
-      setErro(Object.values(mensagens)[0] ?? "Revise os campos destacados.");
+      setCampos(mensagensDoZod(resultado.error));
+      avisarCamposObrigatorios();
       return;
     }
 
     setEnviando(true);
-    setErro("");
     setCampos({});
     const resposta = await enviarJson<{ servico: ServicoDTO }>(
       servico ? `/api/servicos/${servico.id}` : "/api/servicos",
@@ -85,12 +84,15 @@ export function FormularioServico({
         router.push("/login");
         return;
       }
-      setErro(resposta.erro);
+      avisarErro(resposta.erro);
       setCampos(resposta.campos ?? {});
       return;
     }
 
-    aoSalvar();
+    const modo = servico ? "editar" : "criar";
+    setValores((atual) => valoresAposSalvar(modo, atual, servico ? atual : SERVICO_NOVO));
+    avisarSucesso(servico ? "Serviço salvo" : "Serviço cadastrado");
+    if (servico) aoSalvar();
     router.refresh();
   }
 
@@ -100,11 +102,6 @@ export function FormularioServico({
       <p className="mt-1 text-sm text-muted">
         O preço padrão e o custo padrão só sugerem os valores na hora de vincular um cliente. O combinado e o custo da venda ficam no cliente.
       </p>
-      {erro ? (
-        <p className="mt-4 rounded-2xl bg-clay-soft px-4 py-3 text-sm text-clay" role="alert">
-          {erro}
-        </p>
-      ) : null}
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         <Campo label="Nome" htmlFor="servico-nome" erro={campos.nome}>
           <input

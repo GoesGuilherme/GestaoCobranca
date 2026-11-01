@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { valoresAposSalvar } from "@/lib/apos-salvar";
 import { enviarJson } from "@/lib/api-cliente";
 import type { ConfiguracaoTwilioDTO } from "@/lib/tipos";
-import { Aviso } from "./aviso";
+import { esquemaCodigoTwilio, esquemaConexaoTwilio, mensagensDoZod } from "@/lib/validacao";
 import { Campo, classeCampo } from "./campo";
 import { classeBotaoPrimario, classeBotaoSecundario } from "./estilos";
+import { avisarCamposObrigatorios, avisarErro, avisarSucesso } from "./notificador";
 
 const ROTULO: Record<string, string> = {
   BOLETO_GERADO: "Boleto gerado",
@@ -52,8 +54,7 @@ export function PainelWhatsapp({
   const [wabaId, setWabaId] = useState(inicial.wabaId ?? "");
   const [coexistencia, setCoexistencia] = useState(inicial.coexistencia !== "NAO_SOLICITADA");
   const [codigo, setCodigo] = useState("");
-  const [erro, setErro] = useState("");
-  const [aviso, setAviso] = useState("");
+  const [campos, setCampos] = useState<Record<string, string>>({});
   const [enviando, setEnviando] = useState(false);
 
   function aplicar(proximo: ConfiguracaoTwilioDTO, texto: string) {
@@ -62,27 +63,28 @@ export function PainelWhatsapp({
     setNome(proximo.nomeExibicao || nome);
     setWabaId(proximo.wabaId ?? "");
     setCoexistencia(proximo.coexistencia !== "NAO_SOLICITADA");
-    setAviso(texto);
-    setErro(proximo.erro ?? "");
+    setCampos({});
+    avisarSucesso(texto);
+    if (proximo.erro) avisarErro(proximo.erro);
   }
 
-  async function enviar(url: string, corpo: unknown, sucesso: string) {
-    if (!podeEditar) return;
+  async function enviar(url: string, corpo: unknown, sucesso: string): Promise<boolean> {
+    if (!podeEditar) return false;
     setEnviando(true);
-    setErro("");
-    setAviso("");
+    setCampos({});
     const resposta = await enviarJson<ConfiguracaoTwilioDTO>(url, "POST", corpo);
     setEnviando(false);
     if (!resposta.ok) {
       if (resposta.status === 401) {
         router.push("/login");
-        return;
+        return false;
       }
-      setErro(resposta.erro);
-      return;
+      avisarErro(resposta.erro);
+      return false;
     }
     aplicar(resposta.dados, sucesso);
     router.refresh();
+    return true;
   }
 
   return (
@@ -115,13 +117,19 @@ export function PainelWhatsapp({
           className="mt-4 grid gap-4 md:grid-cols-2"
           onSubmit={(evento) => {
             evento.preventDefault();
-            void enviar("/api/regua/whatsapp", { telefone, nomeExibicao: nome, wabaId, coexistencia }, "WhatsApp salvo.");
+            const validado = esquemaConexaoTwilio.safeParse({ telefone, nomeExibicao: nome, wabaId, coexistencia });
+            if (!validado.success) {
+              setCampos(mensagensDoZod(validado.error));
+              avisarCamposObrigatorios();
+              return;
+            }
+            void enviar("/api/regua/whatsapp", { telefone, nomeExibicao: nome, wabaId, coexistencia }, "WhatsApp salvo");
           }}
         >
-          <Campo label="WhatsApp do remetente" htmlFor="twilio-telefone" dica="O número que a Twilio usa para enviar. Pode incluir o código do país, como +55 11 98888-0000.">
+          <Campo label="WhatsApp do remetente" htmlFor="twilio-telefone" erro={campos.telefone} dica="O número que a Twilio usa para enviar. Pode incluir o código do país, como +55 11 98888-0000.">
             <input id="twilio-telefone" className={classeCampo} inputMode="tel" autoComplete="tel" value={telefone} onChange={(evento) => setTelefone(evento.target.value)} />
           </Campo>
-          <Campo label="Nome no WhatsApp" htmlFor="twilio-nome">
+          <Campo label="Nome no WhatsApp" htmlFor="twilio-nome" erro={campos.nomeExibicao}>
             <input id="twilio-nome" className={classeCampo} value={nome} onChange={(evento) => setNome(evento.target.value)} />
           </Campo>
           <Campo label="WABA ID (se a Twilio já tiver passado)" htmlFor="twilio-waba">
@@ -151,26 +159,25 @@ export function PainelWhatsapp({
           className="mt-4 flex flex-wrap items-end gap-3"
           onSubmit={(evento) => {
             evento.preventDefault();
-            void enviar("/api/regua/whatsapp/codigo", { codigo }, "Código enviado à Twilio.");
+            void (async () => {
+            const validado = esquemaCodigoTwilio.safeParse({ codigo });
+            if (!validado.success) {
+              setCampos(mensagensDoZod(validado.error));
+              avisarCamposObrigatorios();
+              return;
+            }
+            const ok = await enviar("/api/regua/whatsapp/codigo", { codigo }, "Código enviado");
+            if (ok) setCodigo((atual) => valoresAposSalvar("criar", atual, ""));
+            })();
           }}
         >
-          <Campo label="Código de verificação" htmlFor="twilio-codigo">
+          <Campo label="Código de verificação" htmlFor="twilio-codigo" erro={campos.codigo}>
             <input id="twilio-codigo" className={classeCampo} inputMode="numeric" value={codigo} onChange={(evento) => setCodigo(evento.target.value)} />
           </Campo>
           <button type="submit" className={classeBotaoSecundario} disabled={enviando}>
             Confirmar código
           </button>
         </form>
-      ) : null}
-      {erro ? (
-        <div className="mt-3">
-          <Aviso tom="erro" titulo={erro} onFechar={() => setErro("")} />
-        </div>
-      ) : null}
-      {aviso && !erro ? (
-        <div className="mt-3">
-          <Aviso tom="ok" titulo={aviso} onFechar={() => setAviso("")} />
-        </div>
       ) : null}
     </section>
   );

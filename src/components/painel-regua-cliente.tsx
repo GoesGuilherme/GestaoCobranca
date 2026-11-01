@@ -7,6 +7,7 @@ import { rotuloAtribuicao } from "@/lib/regua";
 import type { AtribuicaoReguaDTO, ModoReguaCliente, ReguaDTO } from "@/lib/tipos";
 import { Campo, classeCampo } from "./campo";
 import { classeBotaoPrimario, classeBotaoSecundario } from "./estilos";
+import { avisarErro, avisarSucesso } from "./notificador";
 
 export function PainelReguaCliente({
   clienteId,
@@ -30,16 +31,12 @@ export function PainelReguaCliente({
   const [pausadaLocal, setPausadaLocal] = useState(pausada);
   const [nomeLocal, setNomeLocal] = useState(nome);
   const [modoLocal, setModoLocal] = useState(modo);
-  const [erro, setErro] = useState("");
-  const [aviso, setAviso] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [editando, setEditando] = useState(false);
 
   async function salvar(evento: React.FormEvent) {
     evento.preventDefault();
     if (!podeEditar) return;
-    setErro("");
-    setAviso("");
     const modoEnvio: ModoReguaCliente = escolha === "PADRAO" || escolha === "NENHUMA" ? escolha : "ESPECIFICA";
     const corpo = {
       modo: modoEnvio,
@@ -54,12 +51,13 @@ export function PainelReguaCliente({
         router.push("/login");
         return;
       }
-      setErro(resposta.erro);
+      avisarErro(resposta.erro);
       return;
     }
     setModoLocal(resposta.dados.atribuicao.modo);
     setNomeLocal(resposta.dados.atribuicao.nome);
-    setAviso("Régua do cliente salva.");
+    setEscolha(resposta.dados.atribuicao.modo === "ESPECIFICA" && resposta.dados.atribuicao.reguaId ? resposta.dados.atribuicao.reguaId : resposta.dados.atribuicao.modo);
+    avisarSucesso("Régua do cliente salva");
     setEditando(false);
     router.refresh();
   }
@@ -107,8 +105,6 @@ export function PainelReguaCliente({
             />
             Pausar a régua deste cliente
           </label>
-          {erro ? <p className="text-sm text-clay">{erro}</p> : null}
-          {aviso ? <p className="text-sm text-canopy">{aviso}</p> : null}
           <div className="flex flex-wrap gap-2">
             <button type="submit" className={classeBotaoPrimario} disabled={enviando}>
               {enviando ? "Salvando…" : "Salvar régua do cliente"}

@@ -2,12 +2,14 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { valoresAposSalvar } from "@/lib/apos-salvar";
 import { enviarJson } from "@/lib/api-cliente";
 import { mascararCnpjDigitando, mascararTelefoneDigitando } from "@/lib/mascaras";
 import type { EmpresaResumo } from "@/lib/tipos";
 import { esquemaDadosEmpresa, mensagensDoZod } from "@/lib/validacao";
 import { Campo, classeCampo } from "./campo";
 import { classeBotaoPrimario } from "./estilos";
+import { avisarCamposObrigatorios, avisarErro, avisarSucesso } from "./notificador";
 
 export function FormularioEmpresa({ empresa }: { empresa: EmpresaResumo }) {
   const router = useRouter();
@@ -19,8 +21,6 @@ export function FormularioEmpresa({ empresa }: { empresa: EmpresaResumo }) {
     telefone: mascararTelefoneDigitando(empresa.telefone),
   });
   const [campos, setCampos] = useState<Record<string, string>>({});
-  const [erro, setErro] = useState("");
-  const [ok, setOk] = useState("");
   const [enviando, setEnviando] = useState(false);
 
   function alterar(campo: keyof typeof valores, valor: string) {
@@ -31,36 +31,27 @@ export function FormularioEmpresa({ empresa }: { empresa: EmpresaResumo }) {
     evento.preventDefault();
     const resultado = esquemaDadosEmpresa.safeParse(valores);
     if (!resultado.success) {
-      const mensagens = mensagensDoZod(resultado.error);
-      setCampos(mensagens);
-      setErro(Object.values(mensagens)[0] ?? "Revise os dados.");
-      setOk("");
+      setCampos(mensagensDoZod(resultado.error));
+      avisarCamposObrigatorios();
       return;
     }
 
     setEnviando(true);
-    setErro("");
-    setOk("");
     setCampos({});
     const resposta = await enviarJson("/api/empresa", "PATCH", resultado.data);
     setEnviando(false);
     if (!resposta.ok) {
-      setErro(resposta.erro);
+      avisarErro(resposta.erro);
       setCampos(resposta.campos ?? {});
       return;
     }
-    setOk("Dados da empresa atualizados.");
+    setValores((atual) => valoresAposSalvar("editar", atual, atual));
+    avisarSucesso("Dados da empresa atualizados");
     router.refresh();
   }
 
   return (
     <form onSubmit={enviar} noValidate className="max-w-2xl space-y-4 rounded-3xl border border-line bg-card p-6">
-      {erro ? (
-        <p className="rounded-2xl bg-clay-soft px-4 py-3 text-sm text-clay" role="alert">
-          {erro}
-        </p>
-      ) : null}
-      {ok ? <p className="rounded-2xl bg-leaf px-4 py-3 text-sm text-ok">{ok}</p> : null}
       <Campo label="Razão social" htmlFor="razaoSocial" erro={campos.razaoSocial}>
         <input id="razaoSocial" className={classeCampo} value={valores.razaoSocial} onChange={(evento) => alterar("razaoSocial", evento.target.value)} />
       </Campo>

@@ -3,10 +3,13 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { valoresAposSalvar } from "@/lib/apos-salvar";
 import { enviarJson } from "@/lib/api-cliente";
 import type { ConfiguracaoAssessorDTO, ConversaAssessorDTO, ConversaAssessorDetalhe } from "@/lib/tipos";
+import { esquemaAssessor, esquemaRespostaAssessor, mensagensDoZod } from "@/lib/validacao";
 import { Campo, classeCampo } from "./campo";
 import { classeBotaoPrimario, classeBotaoSecundario } from "./estilos";
+import { avisarCamposObrigatorios, avisarErro, avisarSucesso } from "./notificador";
 
 export function PainelAssessor({
   podeEditar,
@@ -29,47 +32,62 @@ export function PainelAssessor({
   const [horaFim, setHoraFim] = useState(String(config.horaFim));
   const [fimDeSemana, setFimDeSemana] = useState(config.atendeFimDeSemana);
   const [resposta, setResposta] = useState("");
-  const [erro, setErro] = useState("");
-  const [aviso, setAviso] = useState("");
+  const [campos, setCampos] = useState<Record<string, string>>({});
   const [enviando, setEnviando] = useState(false);
 
   async function salvar(evento: React.FormEvent) {
     evento.preventDefault();
     if (!podeEditar) return;
-    setEnviando(true);
-    setErro("");
-    setAviso("");
-    const resultado = await enviarJson<ConfiguracaoAssessorDTO>("/api/assessor/config", "POST", {
+    const entrada = {
       ativo,
       modoTeste,
       nome,
       tom,
       promptExtra,
-      horaInicio: Number(horaInicio),
-      horaFim: Number(horaFim),
+      horaInicio: horaInicio.trim() === "" ? Number.NaN : Number(horaInicio),
+      horaFim: horaFim.trim() === "" ? Number.NaN : Number(horaFim),
       atendeFimDeSemana: fimDeSemana,
-    });
-    setEnviando(false);
-    if (!resultado.ok) {
-      setErro(resultado.erro);
+    };
+    const validado = esquemaAssessor.safeParse(entrada);
+    if (!validado.success) {
+      const mensagens = mensagensDoZod(validado.error);
+      const raiz = validado.error.issues.find((issue) => issue.path.length === 0);
+      if (raiz && !mensagens.horaFim) mensagens.horaFim = raiz.message;
+      setCampos(mensagens);
+      avisarCamposObrigatorios();
       return;
     }
-    setAviso("Assessor salvo.");
+    setEnviando(true);
+    setCampos({});
+    const resultado = await enviarJson<ConfiguracaoAssessorDTO>("/api/assessor/config", "POST", entrada);
+    setEnviando(false);
+    if (!resultado.ok) {
+      avisarErro(resultado.erro);
+      return;
+    }
+    avisarSucesso("Assessor salvo");
     router.refresh();
   }
 
-  async function acao(url: string, corpo?: unknown) {
+  async function acao(url: string, corpo?: unknown, sucesso = "Conversa atualizada") {
+    if (corpo && typeof corpo === "object" && "texto" in corpo) {
+      const validado = esquemaRespostaAssessor.safeParse(corpo);
+      if (!validado.success) {
+        avisarCamposObrigatorios();
+        return;
+      }
+    }
     setEnviando(true);
-    setErro("");
-    setAviso("");
     const resultado = await enviarJson<ConversaAssessorDetalhe>(url, "POST", corpo);
     setEnviando(false);
     if (!resultado.ok) {
-      setErro(resultado.erro);
+      avisarErro(resultado.erro);
       return;
     }
-    setResposta("");
-    setAviso("Conversa atualizada.");
+    if (corpo && typeof corpo === "object" && "texto" in corpo) {
+      setResposta((atual) => valoresAposSalvar("criar", atual, ""));
+    }
+    avisarSucesso(sucesso);
     router.refresh();
   }
 
@@ -80,8 +98,6 @@ export function PainelAssessor({
         <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
           Cada empresa liga o próprio assessor. Ele usa o WhatsApp desta empresa e só vê os dados dela. O modo teste começa ligado: a resposta sai só para o número em TWILIO_WHATSAPP_TESTE.
         </p>
-        {erro ? <p className="mt-4 rounded-2xl bg-clay-soft px-4 py-3 text-sm text-clay">{erro}</p> : null}
-        {aviso ? <p className="mt-4 rounded-2xl bg-sand px-4 py-3 text-sm text-ink">{aviso}</p> : null}
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={ativo} disabled={!podeEditar} onChange={(evento) => setAtivo(evento.target.checked)} />
@@ -91,16 +107,16 @@ export function PainelAssessor({
             <input type="checkbox" checked={modoTeste} disabled={!podeEditar} onChange={(evento) => setModoTeste(evento.target.checked)} />
             Modo teste
           </label>
-          <Campo label="Nome do assessor" htmlFor="assessor-nome">
+          <Campo label="Nome do assessor" htmlFor="assessor-nome" erro={campos.nome}>
             <input id="assessor-nome" className={classeCampo} value={nome} disabled={!podeEditar} maxLength={40} onChange={(evento) => setNome(evento.target.value)} />
           </Campo>
-          <Campo label="Tom" htmlFor="assessor-tom">
+          <Campo label="Tom" htmlFor="assessor-tom" erro={campos.tom}>
             <input id="assessor-tom" className={classeCampo} value={tom} disabled={!podeEditar} maxLength={160} onChange={(evento) => setTom(evento.target.value)} />
           </Campo>
-          <Campo label="Começa às" htmlFor="assessor-inicio">
+          <Campo label="Começa às" htmlFor="assessor-inicio" erro={campos.horaInicio}>
             <input id="assessor-inicio" className={classeCampo} inputMode="numeric" value={horaInicio} disabled={!podeEditar} onChange={(evento) => setHoraInicio(evento.target.value)} />
           </Campo>
-          <Campo label="Até às" htmlFor="assessor-fim">
+          <Campo label="Até às" htmlFor="assessor-fim" erro={campos.horaFim}>
             <input id="assessor-fim" className={classeCampo} inputMode="numeric" value={horaFim} disabled={!podeEditar} onChange={(evento) => setHoraFim(evento.target.value)} />
           </Campo>
           <label className="flex items-center gap-2 text-sm md:col-span-2">
@@ -203,7 +219,7 @@ export function PainelAssessor({
                 className="mt-4 flex flex-col gap-3"
                 onSubmit={(evento) => {
                   evento.preventDefault();
-                  void acao(`/api/assessor/conversas/${detalhe.id}/responder`, { texto: resposta });
+                  void acao(`/api/assessor/conversas/${detalhe.id}/responder`, { texto: resposta }, "Resposta enviada");
                 }}
               >
                 <textarea

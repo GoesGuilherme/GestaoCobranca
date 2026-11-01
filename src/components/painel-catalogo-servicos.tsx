@@ -139,6 +139,7 @@ export function PainelCatalogoServicos({
                             ? `Excluir ${servico.nome}? Se ainda houver cliente com este serviço, a exclusão é recusada. Nesse caso, inative o item.`
                             : `Excluir ${servico.nome} do catálogo? Esta ação não pode ser desfeita.`
                         }
+                        sucesso="Serviço excluído"
                       />
                     </>
                   ) : null}

@@ -167,7 +167,6 @@ export function PainelFaturasCliente({
             onEmitida={(fatura) => {
               setEmitida(fatura);
               setSituacao("em_aberto");
-              setEmitindo(false);
             }}
           />
         </div>
