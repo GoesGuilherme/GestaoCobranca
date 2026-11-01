@@ -105,6 +105,7 @@ export default async function PaginaCliente({ params }: { params: Promise<{ id: 
             url={`/api/clientes/${cliente.id}`}
             redirecionar="/clientes"
             mensagem={`Excluir ${cliente.nomeFantasia}? As filiais e os serviços vendidos a este cliente também serão apagados. O catálogo de serviços da empresa permanece. Esta ação não pode ser desfeita.`}
+            sucesso="Cliente excluído"
           />
         </div>
       </div>

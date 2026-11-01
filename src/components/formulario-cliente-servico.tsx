@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { valoresAposSalvar, vinculoNovo } from "@/lib/apos-salvar";
 import { enviarJson } from "@/lib/api-cliente";
 import { dataHojeIso } from "@/lib/data";
 import {
@@ -16,6 +17,7 @@ import type { ClienteServicoDTO, ServicoDTO } from "@/lib/tipos";
 import { esquemaClienteServico, mensagensDoZod } from "@/lib/validacao";
 import { Campo, classeCampo } from "./campo";
 import { classeBotaoPrimario, classeBotaoSecundario } from "./estilos";
+import { avisarCamposObrigatorios, avisarErro, avisarSucesso } from "./notificador";
 
 type Valores = {
   servicoId: string;
@@ -58,8 +60,18 @@ export function FormularioClienteServico({
     observacoes: vinculo?.observacoes ?? "",
   });
   const [campos, setCampos] = useState<Record<string, string>>({});
-  const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
+
+  function estadoInicial(): Valores {
+    const id = opcoes[0]?.id ?? "";
+    const sugerido = catalogo.find((item) => item.id === id);
+    return vinculoNovo({
+      servicoId: id,
+      valor: formatarValorCampo(sugerido?.precoPadrao ?? ""),
+      custo: textoCusto(sugerido?.custo),
+      inicioEm: dataHojeIso(),
+    });
+  }
 
   function alterar(nome: keyof Valores, valor: string) {
     setValores((atual) => ({ ...atual, [nome]: valor }));
@@ -88,14 +100,12 @@ export function FormularioClienteServico({
     evento.preventDefault();
     const resultado = esquemaClienteServico.safeParse(valores);
     if (!resultado.success) {
-      const mensagens = mensagensDoZod(resultado.error);
-      setCampos(mensagens);
-      setErro(Object.values(mensagens)[0] ?? "Revise os campos destacados.");
+      setCampos(mensagensDoZod(resultado.error));
+      avisarCamposObrigatorios();
       return;
     }
 
     setEnviando(true);
-    setErro("");
     setCampos({});
     const resposta = await enviarJson<{ servico: ClienteServicoDTO }>(
       vinculo ? `/api/servicos-cliente/${vinculo.id}` : `/api/clientes/${clienteId}/servicos`,
@@ -109,12 +119,19 @@ export function FormularioClienteServico({
         router.push("/login");
         return;
       }
-      setErro(resposta.erro);
+      avisarErro(resposta.erro);
       setCampos(resposta.campos ?? {});
       return;
     }
 
-    aoSalvar();
+    if (vinculo) {
+      setValores((atual) => valoresAposSalvar("editar", atual, atual));
+      avisarSucesso("Serviço salvo");
+      aoSalvar();
+    } else {
+      setValores((atual) => valoresAposSalvar("criar", atual, estadoInicial()));
+      avisarSucesso("Serviço vinculado");
+    }
     router.refresh();
   }
 
@@ -124,11 +141,6 @@ export function FormularioClienteServico({
       <p className="mt-1 text-sm text-muted">
         O valor combinado e o custo ficam neste cliente. Trocar o preço ou o custo padrão do catálogo não altera o que já foi vendido.
       </p>
-      {erro ? (
-        <p className="mt-4 rounded-2xl bg-clay-soft px-4 py-3 text-sm text-clay" role="alert">
-          {erro}
-        </p>
-      ) : null}
       {opcoes.length === 0 ? (
         <p className="mt-4 text-sm text-muted">Não há serviço ativo no catálogo para vincular.</p>
       ) : (

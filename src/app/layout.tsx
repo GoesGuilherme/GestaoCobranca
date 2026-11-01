@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Outfit } from "next/font/google";
+import { Notificador } from "@/components/notificador";
 import { NOME_PRODUTO } from "@/lib/marca";
 import "./globals.css";
 
@@ -25,6 +26,7 @@ export default function LayoutRaiz({ children }: Readonly<{ children: React.Reac
           Pular para o conteúdo
         </a>
         {children}
+        <Notificador />
       </body>
     </html>
   );

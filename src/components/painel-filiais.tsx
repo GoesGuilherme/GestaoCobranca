@@ -92,6 +92,7 @@ export function PainelFiliais({
                     url={`/api/filiais/${filial.id}`}
                     rotulo="Excluir"
                     mensagem={`Excluir a filial ${filial.nome}? Esta ação não pode ser desfeita.`}
+                    sucesso="Filial excluída"
                   />
                 </div>
               </li>

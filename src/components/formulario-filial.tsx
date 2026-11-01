@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { filialNova, valoresAposSalvar } from "@/lib/apos-salvar";
 import { enviarJson } from "@/lib/api-cliente";
 import { STATUS_FILIAL } from "@/lib/rotulos";
 import type { FilialDTO } from "@/lib/tipos";
@@ -10,6 +11,7 @@ import { UFS } from "@/lib/ufs";
 import { esquemaFilial, mensagensDoZod } from "@/lib/validacao";
 import { Campo, classeCampo } from "./campo";
 import { classeBotaoPrimario, classeBotaoSecundario } from "./estilos";
+import { avisarCamposObrigatorios, avisarErro, avisarSucesso } from "./notificador";
 
 type Valores = {
   nome: string;
@@ -48,8 +50,8 @@ export function FormularioFilial({
     whatsapp: filial?.whatsapp ?? "",
     observacoes: filial?.observacoes ?? "",
   });
+  const iniciais = filialNova(filial?.cidade ?? cidadeInicial ?? "", filial?.uf ?? ufInicial ?? "SP");
   const [campos, setCampos] = useState<Record<string, string>>({});
-  const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
 
   function alterar(nome: keyof Valores, valor: string) {
@@ -60,14 +62,12 @@ export function FormularioFilial({
     evento.preventDefault();
     const resultado = esquemaFilial.safeParse(valores);
     if (!resultado.success) {
-      const mensagens = mensagensDoZod(resultado.error);
-      setCampos(mensagens);
-      setErro(Object.values(mensagens)[0] ?? "Revise os campos destacados.");
+      setCampos(mensagensDoZod(resultado.error));
+      avisarCamposObrigatorios();
       return;
     }
 
     setEnviando(true);
-    setErro("");
     setCampos({});
     const resposta = await enviarJson<{ filial: FilialDTO }>(
       filial ? `/api/filiais/${filial.id}` : `/api/clientes/${clienteId}/filiais`,
@@ -81,12 +81,15 @@ export function FormularioFilial({
         router.push("/login");
         return;
       }
-      setErro(resposta.erro);
+      avisarErro(resposta.erro);
       setCampos(resposta.campos ?? {});
       return;
     }
 
-    aoSalvar();
+    const modo = filial ? "editar" : "criar";
+    setValores((atual) => valoresAposSalvar(modo, atual, filial ? atual : iniciais));
+    avisarSucesso(filial ? "Filial salva" : "Filial cadastrada");
+    if (filial) aoSalvar();
     router.refresh();
   }
 
@@ -94,11 +97,6 @@ export function FormularioFilial({
     <form onSubmit={enviar} noValidate className="rounded-2xl border border-line bg-paper p-4 md:p-5">
       <h3 className="font-display text-2xl">{filial ? "Editar filial" : "Nova filial"}</h3>
       <p className="mt-1 text-sm text-muted">Use o nome da unidade como a empresa a reconhece.</p>
-      {erro ? (
-        <p className="mt-4 rounded-2xl bg-clay-soft px-4 py-3 text-sm text-clay" role="alert">
-          {erro}
-        </p>
-      ) : null}
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         <Campo label="Nome da unidade" htmlFor="filial-nome" erro={campos.nome}>
           <input

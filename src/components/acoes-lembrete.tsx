@@ -7,6 +7,7 @@ import { formatarData } from "@/lib/formatacao";
 import type { OpcaoPassoRegua } from "@/lib/regua";
 import type { LembreteReguaDTO, StatusLembrete } from "@/lib/tipos";
 import { classeBotaoPrimario, classeBotaoSecundario } from "./estilos";
+import { avisarCamposObrigatorios, avisarErro, avisarSucesso } from "./notificador";
 
 function rotuloStatus(status: StatusLembrete) {
   if (status === "ENVIADO") return "Enviado";
@@ -42,24 +43,23 @@ export function AcoesLembrete({
   const [lista, setLista] = useState(lembretes);
   const [aberto, setAberto] = useState(false);
   const [passoId, setPassoId] = useState(passos[0]?.id ?? "");
-  const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
 
   function abrir() {
     setPassoId(passos[0]?.id ?? "");
-    setErro("");
     setAberto(true);
   }
 
   function fechar() {
     if (enviando) return;
     setAberto(false);
-    setErro("");
   }
 
   async function confirmar() {
-    if (!passoId) return;
-    setErro("");
+    if (!passoId) {
+      avisarCamposObrigatorios();
+      return;
+    }
     setEnviando(true);
     const resposta = await enviarJson<{ lembrete: LembreteReguaDTO }>(`/api/faturas/${faturaId}/lembretes`, "POST", { passoId });
     setEnviando(false);
@@ -68,11 +68,12 @@ export function AcoesLembrete({
         router.push("/login");
         return;
       }
-      setErro(resposta.erro);
+      avisarErro(resposta.erro);
       return;
     }
     setLista((atual) => [resposta.dados.lembrete, ...atual]);
     setAberto(false);
+    avisarSucesso("Lembrete enviado");
     router.refresh();
   }
 
@@ -136,7 +137,6 @@ export function AcoesLembrete({
                 ? `Modo teste ligado. Este envio não vai para o cliente. Vai para quem está logado${emailLogado ? ` (${emailLogado})` : ""}. O envio diário da régua vai só para o dono.`
                 : `Destinatário: ${destinatario || "o cliente não tem e-mail"}.`}
             </p>
-            {erro ? <p className="mt-3 text-sm text-clay">{erro}</p> : null}
             <div className="mt-6 flex justify-end gap-3">
               <button type="button" className={classeBotaoSecundario} onClick={fechar} disabled={enviando}>
                 Cancelar

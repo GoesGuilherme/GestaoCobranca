@@ -9,6 +9,7 @@ import { Aviso } from "./aviso";
 import { Campo, classeCampo } from "./campo";
 import { EntradaSenha } from "./entrada-senha";
 import { classeBotaoPrimario } from "./estilos";
+import { avisarCamposObrigatorios, avisarErro } from "./notificador";
 
 function destinoSeguro(valor: string | null) {
   if (!valor || !valor.startsWith("/") || valor.startsWith("//")) return "/";
@@ -21,29 +22,24 @@ export function FormularioLogin({ mostrarExemplo }: { mostrarExemplo: boolean })
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [campos, setCampos] = useState<Record<string, string>>({});
-  const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
   const suspensa = params.get("motivo") === "suspensa";
-  const cadastrado = params.get("cadastrado") === "1";
-  const senhaRedefinida = params.get("senha") === "redefinida";
 
   async function enviar(evento: React.FormEvent) {
     evento.preventDefault();
     const resultado = esquemaLogin.safeParse({ email, senha });
     if (!resultado.success) {
-      const mensagens = mensagensDoZod(resultado.error);
-      setCampos(mensagens);
-      setErro(Object.values(mensagens)[0] ?? "Informe e-mail e senha.");
+      setCampos(mensagensDoZod(resultado.error));
+      avisarCamposObrigatorios();
       return;
     }
 
     setEnviando(true);
-    setErro("");
     setCampos({});
     const resposta = await enviarJson("/api/auth/entrar", "POST", resultado.data);
     setEnviando(false);
     if (!resposta.ok) {
-      setErro(resposta.erro);
+      avisarErro(resposta.erro);
       setCampos(resposta.campos ?? {});
       return;
     }
@@ -55,24 +51,9 @@ export function FormularioLogin({ mostrarExemplo }: { mostrarExemplo: boolean })
     <form onSubmit={enviar} noValidate className="rounded-3xl border border-line bg-card p-6 shadow-sm md:p-8">
       <h1 className="font-display text-4xl">Entrar</h1>
       <p className="mt-2 text-sm text-muted">Entre com o acesso da sua empresa.</p>
-      {cadastrado ? (
-        <div className="mt-5">
-          <Aviso tom="ok" titulo="Empresa criada. Entre com o e-mail e a senha do dono." />
-        </div>
-      ) : null}
-      {senhaRedefinida ? (
-        <div className="mt-5">
-          <Aviso tom="ok" titulo="Senha redefinida. Entre com a senha nova." />
-        </div>
-      ) : null}
       {suspensa ? (
         <div className="mt-5">
           <Aviso tom="erro" titulo="Esta empresa está suspensa. O acesso volta quando a plataforma reativar a conta." />
-        </div>
-      ) : null}
-      {erro ? (
-        <div className="mt-5">
-          <Aviso tom="erro" titulo={erro} />
         </div>
       ) : null}
       <div className="mt-5 space-y-4">
