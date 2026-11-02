@@ -15,6 +15,7 @@ import {
   type NovoClienteAsaas,
   type PaginaCobrancasAsaas,
 } from "./contrato";
+import { dataPagamentoAsaas } from "./data-pagamento";
 import { lerVisualizacaoAsaas } from "./visualizacao";
 
 const AGENTE = "GestaoCobranca";
@@ -81,6 +82,7 @@ function lerCobranca(json: unknown): CobrancaAsaas {
     faturaUrl: textoDe(corpo.invoiceUrl),
     descricao: textoDe(corpo.description),
     excluida: corpo.deleted === true,
+    pagoEm: dataPagamentoAsaas(corpo),
     referencia: textoDe(corpo.externalReference),
     cartao: cartaoSeguro(corpo.creditCard),
   };

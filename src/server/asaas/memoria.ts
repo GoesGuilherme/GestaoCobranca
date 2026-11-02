@@ -270,6 +270,7 @@ export class AsaasMemoria implements ClienteHttpAsaas {
       faturaUrl: `https://sandbox.asaas.com/i/${id}`,
       descricao: dados.descricao,
       excluida: false,
+      pagoEm: null,
       referencia: dados.referencia,
       encargos: dados.encargos,
     };

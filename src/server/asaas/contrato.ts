@@ -25,6 +25,7 @@ export type CobrancaAsaas = {
   faturaUrl: string | null;
   descricao: string | null;
   excluida: boolean;
+  pagoEm: string | null;
   referencia: string | null;
   cartao?: { bandeira: string | null; final: string | null } | null;
 };

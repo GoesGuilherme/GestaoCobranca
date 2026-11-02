@@ -13,6 +13,7 @@ import { dataHojeIso } from "@/lib/data";
 import { podeAtualizarVisualizacoes, podeEmitirCobranca, podeVerFaturas } from "@/lib/permissoes";
 import { FILTROS_VISUALIZACAO, SITUACOES_FATURA, filtroVisualizacao, situacaoFatura } from "@/lib/rotulos";
 import { acessoDaPagina } from "@/server/auth/pagina";
+import { classificarPagadoresDaEmpresa } from "@/server/services/classificacao-pagador-service";
 import { listarFaturas } from "@/server/services/fatura-service";
 import { obterPreferenciasCobranca } from "@/server/services/preferencia-cobranca-service";
 import { listarEnviosRegua } from "@/server/services/regua-envios";
@@ -46,10 +47,18 @@ export default async function PaginaFaturas({ searchParams }: { searchParams: Pr
     podeEmitirCobranca(acesso.papel) ? obterPreferenciasCobranca(acesso.empresaId) : Promise.resolve(undefined),
     obterPainelRegua(acesso),
   ]);
-  const enviosRegua = await listarEnviosRegua(
-    acesso.empresaId,
-    faturas.map((fatura) => fatura.id),
-  );
+  const hoje = dataHojeIso();
+  const [enviosRegua, selos] = await Promise.all([
+    listarEnviosRegua(
+      acesso.empresaId,
+      faturas.map((fatura) => fatura.id),
+    ),
+    classificarPagadoresDaEmpresa(
+      acesso.empresaId,
+      faturas.map((fatura) => fatura.clienteId),
+      hoje,
+    ),
+  ]);
 
   return (
     <>
@@ -114,7 +123,8 @@ export default async function PaginaFaturas({ searchParams }: { searchParams: Pr
           podeEnviarRegua={podeEmitirCobranca(acesso.papel)}
           modoTeste={regua.config.gravada && regua.config.modoTeste}
           emailLogado={acesso.email}
-          hoje={dataHojeIso()}
+          hoje={hoje}
+          selos={Object.fromEntries(selos)}
         />
       )}
       <p className="mt-4 text-sm text-muted">

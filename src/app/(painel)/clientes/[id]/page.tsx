@@ -10,6 +10,8 @@ import { PainelFaturasCliente } from "@/components/painel-faturas-cliente";
 import { PainelReguaCliente } from "@/components/painel-regua-cliente";
 import { PainelRecorrenciaLote } from "@/components/painel-recorrencia-lote";
 import { Selo } from "@/components/selo";
+import { SeloPagador } from "@/components/selo-pagador";
+import type { ResultadoClassificacaoPagador } from "@/lib/classificacao-pagador";
 import { dataHojeIso } from "@/lib/data";
 import { formatarReais } from "@/lib/dinheiro";
 import { formatarDocumento, formatarWhatsapp, somenteDigitos } from "@/lib/documento";
@@ -19,6 +21,7 @@ import { opcoesDaReguaAplicavel, passosDaAtribuicao } from "@/lib/regua";
 import type { ClienteDetalhe, ClienteServicoDTO, FaturaDTO, ServicoDTO } from "@/lib/tipos";
 import { acessoDaPagina } from "@/server/auth/pagina";
 import { ErroAplicacao } from "@/server/erros";
+import { classificarPagadoresDaEmpresa } from "@/server/services/classificacao-pagador-service";
 import { obterCliente } from "@/server/services/cliente-service";
 import { listarServicosDoCliente } from "@/server/services/cliente-servico-service";
 import { listarFaturas } from "@/server/services/fatura-service";
@@ -57,14 +60,17 @@ export default async function PaginaCliente({ params }: { params: Promise<{ id: 
   let vinculos: ClienteServicoDTO[];
   let catalogo: ServicoDTO[];
   let faturas: FaturaDTO[] = [];
+  const hoje = dataHojeIso();
+  let seloPagador: ResultadoClassificacaoPagador | null = null;
   try {
-    [cliente, vinculos, catalogo, faturas] = await Promise.all([
+    [cliente, vinculos, catalogo, faturas, seloPagador] = await Promise.all([
       obterCliente(acesso.empresaId, id),
       listarServicosDoCliente(acesso.empresaId, id, verCusto, podeCobrar),
       listarServicos(acesso.empresaId, verCusto),
       verFaturas
         ? listarFaturas(acesso, { clienteId: id, situacao: "todas", ordem: "desc" })
         : Promise.resolve([]),
+      classificarPagadoresDaEmpresa(acesso.empresaId, [id], hoje).then((selos) => selos.get(id) ?? null),
     ]);
   } catch (erro) {
     if (erro instanceof ErroAplicacao && erro.status === 404) notFound();
@@ -82,7 +88,6 @@ export default async function PaginaCliente({ params }: { params: Promise<{ id: 
   const passosCliente = regua
     ? passosDaAtribuicao({ modo: cliente.reguaModo, reguaId: cliente.reguaId }, regua.reguas)
     : null;
-  const hoje = dataHojeIso();
   const whatsapp = somenteDigitos(cliente.whatsapp);
 
   return (
@@ -94,7 +99,10 @@ export default async function PaginaCliente({ params }: { params: Promise<{ id: 
             <Selo valor={cliente.segmento} tipo="segmento" />
             <Selo valor={cliente.status} tipo="cliente" />
           </div>
-          <h1 className="mt-3 font-display text-3xl tracking-tight sm:text-4xl">{cliente.nomeFantasia}</h1>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <h1 className="font-display text-3xl tracking-tight sm:text-4xl">{cliente.nomeFantasia}</h1>
+            <SeloPagador resultado={seloPagador} tamanho="ficha" />
+          </div>
           <p className="mt-2 text-muted">{cliente.razaoSocial}</p>
         </div>
         <div className="flex flex-wrap gap-2">

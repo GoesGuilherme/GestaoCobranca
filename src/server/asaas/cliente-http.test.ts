@@ -203,6 +203,8 @@ describe("cliente HTTP do Asaas", () => {
         status: "CONFIRMED",
         billingType: "CREDIT_CARD",
         invoiceUrl: "https://sandbox.asaas.com/i/pay_card",
+        clientPaymentDate: "2026-11-09",
+        paymentDate: "2026-11-12 14:00:00",
         creditCard: {
           creditCardBrand: "VISA",
           creditCardNumber: "8829",
@@ -231,6 +233,7 @@ describe("cliente HTTP do Asaas", () => {
       vencimento: "2026-11-10",
     });
     expect(cobranca.cartao).toEqual({ bandeira: "VISA", final: "8829" });
+    expect(cobranca.pagoEm).toBe("2026-11-09");
     expect(JSON.stringify(cobranca)).not.toContain("tok_super_secreto");
     const corpoCobranca = String(pedidos[1]?.init.body);
     expect(corpoCobranca).not.toMatch(/creditCard|cvv|ccv|cardNumber/i);
