@@ -9,6 +9,7 @@ import { AvisoModoTeste } from "@/components/aviso-modo-teste";
 import { PainelFaturasCliente } from "@/components/painel-faturas-cliente";
 import { PainelReguaCliente } from "@/components/painel-regua-cliente";
 import { PainelRecorrenciaLote } from "@/components/painel-recorrencia-lote";
+import { ChipSegmento } from "@/components/chip-segmento";
 import { Selo } from "@/components/selo";
 import { SeloPagador } from "@/components/selo-pagador";
 import type { ResultadoClassificacaoPagador } from "@/lib/classificacao-pagador";
@@ -97,6 +98,7 @@ export default async function PaginaCliente({ params }: { params: Promise<{ id: 
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <Selo valor={cliente.segmento} tipo="segmento" />
+            {cliente.segmentoNome ? <ChipSegmento nome={cliente.segmentoNome} cor={cliente.segmentoCor} /> : null}
             <Selo valor={cliente.status} tipo="cliente" />
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-3">

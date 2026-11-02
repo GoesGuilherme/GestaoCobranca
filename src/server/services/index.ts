@@ -34,6 +34,14 @@ export {
   obterServico,
 } from "./servico-service";
 export {
+  atualizarSegmento,
+  criarSegmento,
+  criarSugestoesSegmento,
+  excluirSegmento,
+  listarSegmentos,
+  obterSegmento,
+} from "./segmento-service";
+export {
   atualizarServicoDoCliente,
   criarServicoDoCliente,
   excluirServicoDoCliente,

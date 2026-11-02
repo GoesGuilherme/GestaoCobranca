@@ -4,6 +4,11 @@ export function podeAlterarServicos(papel: PapelUsuario): boolean {
   return papel === "DONO" || papel === "FINANCEIRO";
 }
 
+// Segmentos da empresa seguem o catálogo de serviços: dono e financeiro alteram.
+export function podeAlterarSegmentos(papel: PapelUsuario): boolean {
+  return papel === "DONO" || papel === "FINANCEIRO";
+}
+
 // Custo, alíquota e margem são da gestão financeira. Suporte vê o preço cobrado.
 export function podeVerCustoServico(papel: PapelUsuario): boolean {
   return papel === "DONO" || papel === "FINANCEIRO";

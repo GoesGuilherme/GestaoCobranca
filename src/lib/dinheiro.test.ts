@@ -16,7 +16,7 @@ import {
   somarDinheiro,
   somarDinheiroAssinado,
 } from "./dinheiro";
-import { podeAlterarServicos, podeConfigurarRegua, podeVerCustoServico, podeVerFaturas, podeVerRegua, podeVerResultado } from "./permissoes";
+import { podeAlterarSegmentos, podeAlterarServicos, podeConfigurarRegua, podeVerCustoServico, podeVerFaturas, podeVerRegua, podeVerResultado } from "./permissoes";
 
 describe("dinheiro em reais", () => {
   it("aceita os formatos usados no Brasil e devolve duas casas", () => {
@@ -95,6 +95,9 @@ describe("datas e permissão de serviços", () => {
     expect(podeAlterarServicos("DONO")).toBe(true);
     expect(podeAlterarServicos("FINANCEIRO")).toBe(true);
     expect(podeAlterarServicos("SUPORTE")).toBe(false);
+    expect(podeAlterarSegmentos("DONO")).toBe(true);
+    expect(podeAlterarSegmentos("FINANCEIRO")).toBe(true);
+    expect(podeAlterarSegmentos("SUPORTE")).toBe(false);
     expect(podeVerCustoServico("DONO")).toBe(true);
     expect(podeVerCustoServico("FINANCEIRO")).toBe(true);
     expect(podeVerCustoServico("SUPORTE")).toBe(false);

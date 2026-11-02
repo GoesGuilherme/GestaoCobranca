@@ -120,6 +120,7 @@ model Empresa {
   mensagensAssessor    MensagemAssessor[]
   pedidosAtendimento   PedidoAtendimento[]
   limitesAssessor      LimiteAssessor[]
+  segmentos            SegmentoCliente[]
 
   @@map("empresas")
 }
@@ -186,10 +187,12 @@ model Cliente {
   reguaId         String?          @map("regua_id")
   reguaModo       String           @default("PADRAO") @map("regua_modo")
   reguaPausada    Boolean          @default(false) @map("regua_pausada")
+  segmentoId      String?          @map("segmento_id")
   criadoEm        DateTime         @default(now()) @map("criado_em") @db.Timestamptz(3)
   atualizadoEm    DateTime         @updatedAt @map("atualizado_em") @db.Timestamptz(3)
   empresa         Empresa          @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   regua           ReguaCobranca?   @relation(fields: [reguaId], references: [id], onDelete: Restrict)
+  segmentoCadastrado SegmentoCliente? @relation(fields: [segmentoId], references: [id], onDelete: SetNull)
   filiais         Filial[]
   servicos        ClienteServico[]
   faturas         Fatura[]
@@ -207,7 +210,27 @@ model Cliente {
   @@index([cidade])
   @@index([status])
   @@index([segmento])
+  @@index([segmentoId])
   @@map("clientes")
+}
+
+// Segmento comercial definido pela empresa (Restaurante, Padaria...).
+// O enum `segmento` do cliente continua sendo a classificação fixa do painel.
+model SegmentoCliente {
+  id           String    @id @default(cuid())
+  empresaId    String    @map("empresa_id")
+  nome         String
+  descricao    String?   @db.Text
+  cor          String?
+  ativo        Boolean   @default(true)
+  criadoEm     DateTime  @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm DateTime  @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  empresa      Empresa   @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  clientes     Cliente[]
+
+  @@unique([empresaId, nome])
+  @@index([empresaId])
+  @@map("segmentos")
 }
 
 model Filial {

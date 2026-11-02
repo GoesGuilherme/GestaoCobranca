@@ -2,18 +2,50 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { enviarJson } from "@/lib/api-cliente";
 import { LogoTaguaro } from "./logo-taguaro";
 
-const itensBase = [
-  { href: "/dashboards/painel", rotulo: "Dashboards" },
-  { href: "/clientes", rotulo: "Clientes" },
-  { href: "/servicos", rotulo: "Serviços" },
-];
+const CHAVE_MENU = "taguaro.menu-lateral";
 
-function ativo(pathname: string, href: string) {
-  if (href === "/dashboards/painel") return pathname === "/dashboards" || pathname.startsWith("/dashboards/");
-  return pathname === href || pathname.startsWith(`${href}/`);
+type ItemMenu = {
+  href: string;
+  rotulo: string;
+};
+
+type GrupoMenu = {
+  id: string;
+  titulo: string;
+  itens: ItemMenu[];
+};
+
+function itemAtivo(pathname: string, hash: string, href: string) {
+  const [caminho, ancora] = href.split("#");
+  const noCaminho =
+    caminho === "/dashboards/painel"
+      ? pathname === "/" ||
+        pathname === "/dashboards" ||
+        pathname === "/dashboards/painel" ||
+        pathname.startsWith("/dashboards/painel/") ||
+        pathname.startsWith("/dashboards/resultado") ||
+        pathname.startsWith("/dashboards/metricas")
+      : pathname === caminho || pathname.startsWith(`${caminho}/`);
+  if (!noCaminho) return false;
+  if (ancora) return hash === `#${ancora}`;
+  if (caminho === "/regua") return hash !== "#whatsapp";
+  return true;
+}
+
+function lerRecolhidos(): Record<string, boolean> {
+  try {
+    const bruto = localStorage.getItem(CHAVE_MENU);
+    if (!bruto) return {};
+    const valor = JSON.parse(bruto) as unknown;
+    if (!valor || typeof valor !== "object") return {};
+    return valor as Record<string, boolean>;
+  } catch {
+    return {};
+  }
 }
 
 export function BarraLateral({
@@ -39,18 +71,71 @@ export function BarraLateral({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const itens = [
-    itensBase[0],
-    itensBase[1],
-    ...(mostrarFaturas ? [{ href: "/faturas", rotulo: "Faturas" }] : []),
-    ...(mostrarRegua ? [{ href: "/regua", rotulo: "Régua" }] : []),
-    ...(mostrarAssessor ? [{ href: "/assessor", rotulo: "Assessor" }] : []),
-    itensBase[2],
-    ...(mostrarAsaas ? [{ href: "/asaas", rotulo: "Asaas" }] : []),
-    ...(mostrarUsuarios ? [{ href: "/usuarios", rotulo: "Usuários" }] : []),
-    ...(mostrarUsuarios ? [{ href: "/empresa", rotulo: "Empresa" }] : []),
-    ...(mostrarAdmin ? [{ href: "/admin", rotulo: "Plataforma" }] : []),
-  ];
+  const [hash, setHash] = useState("");
+  const [recolhidos, setRecolhidos] = useState<Record<string, boolean>>({});
+
+  const grupos: GrupoMenu[] = [
+    {
+      id: "visao",
+      titulo: "Visão geral",
+      itens: [
+        { href: "/dashboards/painel", rotulo: "Dashboards" },
+        ...(mostrarFaturas ? [{ href: "/dashboards/financeiro", rotulo: "Financeiro" }] : []),
+      ],
+    },
+    {
+      id: "cobranca",
+      titulo: "Cobrança",
+      itens: [
+        ...(mostrarFaturas ? [{ href: "/faturas", rotulo: "Faturas" }] : []),
+        ...(mostrarRegua ? [{ href: "/regua", rotulo: "Régua de cobrança" }] : []),
+        ...(mostrarAssessor ? [{ href: "/assessor", rotulo: "Assessor" }] : []),
+      ],
+    },
+    {
+      id: "cadastros",
+      titulo: "Cadastros",
+      itens: [
+        { href: "/clientes", rotulo: "Clientes" },
+        { href: "/segmentos", rotulo: "Segmentos" },
+        { href: "/servicos", rotulo: "Serviços" },
+      ],
+    },
+    {
+      id: "configuracoes",
+      titulo: "Configurações",
+      itens: [
+        ...(mostrarUsuarios ? [{ href: "/empresa", rotulo: "Empresa" }] : []),
+        ...(mostrarAsaas ? [{ href: "/asaas", rotulo: "Asaas" }] : []),
+        ...(mostrarRegua ? [{ href: "/regua#whatsapp", rotulo: "WhatsApp" }] : []),
+        ...(mostrarUsuarios ? [{ href: "/usuarios", rotulo: "Usuários" }] : []),
+      ],
+    },
+  ].filter((grupo) => grupo.itens.length > 0);
+
+  const grupoAtual = grupos.find((grupo) => grupo.itens.some((item) => itemAtivo(pathname, hash, item.href)))?.id;
+
+  useEffect(() => {
+    const lerHash = () => setHash(window.location.hash);
+    lerHash();
+    window.addEventListener("hashchange", lerHash);
+    return () => window.removeEventListener("hashchange", lerHash);
+  }, [pathname]);
+
+  useEffect(() => {
+    const salvos = lerRecolhidos();
+    if (grupoAtual) salvos[grupoAtual] = false;
+    setRecolhidos(salvos);
+    if (grupoAtual) localStorage.setItem(CHAVE_MENU, JSON.stringify(salvos));
+  }, [grupoAtual]);
+
+  function alternar(id: string) {
+    setRecolhidos((atual) => {
+      const proximo = { ...atual, [id]: !atual[id] };
+      localStorage.setItem(CHAVE_MENU, JSON.stringify(proximo));
+      return proximo;
+    });
+  }
 
   async function sair() {
     await enviarJson("/api/auth/sair", "POST");
@@ -58,25 +143,57 @@ export function BarraLateral({
     router.refresh();
   }
 
+  function linkItem(item: ItemMenu) {
+    const ligado = itemAtivo(pathname, hash, item.href);
+    const ancora = item.href.includes("#") ? `#${item.href.split("#")[1]}` : "";
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        aria-current={ligado ? "page" : undefined}
+        onClick={() => setHash(ancora)}
+        className={`flex min-h-11 items-center rounded-xl px-3 py-2 text-sm font-medium transition ${
+          ligado ? "bg-canopy text-white" : "text-white/90 hover:bg-white/10 hover:text-white"
+        }`}
+      >
+        {item.rotulo}
+      </Link>
+    );
+  }
+
   const navegacao = (
-    <nav aria-label="Menu principal" className="flex flex-wrap gap-2 md:flex-col">
-      {itens.map((item) => {
-        const ligado = ativo(pathname, item.href);
+    <nav aria-label="Menu principal" className="flex max-h-[45vh] flex-col gap-4 overflow-y-auto md:max-h-none md:overflow-visible">
+      {grupos.map((grupo) => {
+        const recolhido = Boolean(recolhidos[grupo.id]);
         return (
-          <Link
-            key={item.href}
-            href={item.href}
-            aria-current={ligado ? "page" : undefined}
-            className={`min-h-11 rounded-full px-3 py-2 text-sm font-medium transition md:rounded-xl ${
-              ligado ? "bg-canopy text-white" : "text-white/90 hover:bg-white/10 hover:text-white"
-            }`}
-          >
-            {item.rotulo}
-          </Link>
+          <div key={grupo.id}>
+            <button
+              type="button"
+              className="flex w-full cursor-pointer items-center justify-between px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/55"
+              aria-expanded={!recolhido}
+              aria-controls={`grupo-${grupo.id}`}
+              onClick={() => alternar(grupo.id)}
+            >
+              {grupo.titulo}
+              <span aria-hidden="true">{recolhido ? "+" : "–"}</span>
+            </button>
+            {recolhido ? null : (
+              <div id={`grupo-${grupo.id}`} className="grid gap-1">
+                {grupo.itens.map(linkItem)}
+              </div>
+            )}
+          </div>
         );
       })}
     </nav>
   );
+
+  const plataforma = mostrarAdmin ? (
+    <div className="rounded-2xl border border-gold/40 bg-black/25 p-2">
+      <p className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-gold">Plataforma</p>
+      {linkItem({ href: "/admin", rotulo: "Empresas" })}
+    </div>
+  ) : null;
 
   return (
     <>
@@ -88,7 +205,8 @@ export function BarraLateral({
           </Link>
         </div>
         <div className="overflow-y-auto px-4 py-6">{navegacao}</div>
-        <div className="border-t border-white/10 px-5 py-4">
+        <div className="border-t border-white/10 px-4 py-4">
+          {plataforma ? <div className="mb-4">{plataforma}</div> : null}
           <p className="truncate text-sm font-medium">{nome}</p>
           <p className="truncate text-xs text-white/80">{email}</p>
           <button
@@ -110,7 +228,10 @@ export function BarraLateral({
             Sair
           </button>
         </div>
-        <div className="px-4 pb-3">{navegacao}</div>
+        <div className="space-y-3 px-4 pb-3">
+          {navegacao}
+          {plataforma}
+        </div>
       </div>
     </>
   );

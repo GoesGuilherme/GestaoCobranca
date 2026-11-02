@@ -9,6 +9,7 @@ export async function GET(request: Request) {
     const clientes = await listarClientes(acesso.empresaId, {
       q: url.searchParams.get("q") ?? undefined,
       segmento: url.searchParams.get("segmento") ?? undefined,
+      segmentoId: url.searchParams.get("segmentoId") ?? undefined,
       status: url.searchParams.get("status") ?? undefined,
     });
     return jsonOk({ clientes });

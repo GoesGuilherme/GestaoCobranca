@@ -29,6 +29,9 @@ export type ClienteResumo = {
   documento: string;
   tipoDocumento: TipoDocumento;
   segmento: Segmento;
+  segmentoId: string | null;
+  segmentoNome: string | null;
+  segmentoCor: string | null;
   contatoNome: string;
   whatsapp: string;
   email: string;
@@ -39,6 +42,17 @@ export type ClienteResumo = {
   observacoes: string | null;
   quantidadeFiliais: number;
   valorMensalAtivo: string;
+  criadoEm: string;
+  atualizadoEm: string;
+};
+
+export type SegmentoDTO = {
+  id: string;
+  nome: string;
+  descricao: string | null;
+  cor: string | null;
+  ativo: boolean;
+  quantidadeClientes: number;
   criadoEm: string;
   atualizadoEm: string;
 };

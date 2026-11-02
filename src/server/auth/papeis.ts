@@ -1,4 +1,5 @@
 import {
+  podeAlterarSegmentos,
   podeAlterarServicos,
   podeAtualizarVisualizacoes,
   podeConfigurarAsaas,
@@ -23,6 +24,16 @@ export function exigirFinanceiro(autor: AutorEmpresa) {
   if (!podeAlterarServicos(autor.papel)) {
     throw new ErroAplicacao(
       "Só o dono ou o financeiro pode alterar serviços e valores.",
+      403,
+      "sem_permissao",
+    );
+  }
+}
+
+export function exigirSegmentos(autor: AutorEmpresa) {
+  if (!podeAlterarSegmentos(autor.papel)) {
+    throw new ErroAplicacao(
+      "Só o dono ou o financeiro pode alterar segmentos.",
       403,
       "sem_permissao",
     );

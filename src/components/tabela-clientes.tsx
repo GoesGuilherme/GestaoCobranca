@@ -9,6 +9,7 @@ import type { ResultadoClassificacaoPagador } from "@/lib/classificacao-pagador"
 import type { ClienteResumo } from "@/lib/tipos";
 import { classeCabecalhoTabela, classeTabelaRolavel } from "./estilos";
 import { Paginacao } from "./paginacao";
+import { ChipSegmento } from "./chip-segmento";
 import { Selo } from "./selo";
 import { SeloPagador } from "./selo-pagador";
 
@@ -106,7 +107,12 @@ export function TabelaClientes({
                   {cliente.cidade}/{cliente.uf}
                 </td>
                 <td className="px-5 py-4">
-                  <Selo valor={cliente.segmento} tipo="segmento" />
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Selo valor={cliente.segmento} tipo="segmento" />
+                    {cliente.segmentoNome ? (
+                      <ChipSegmento nome={cliente.segmentoNome} cor={cliente.segmentoCor} />
+                    ) : null}
+                  </div>
                 </td>
                 <td className="px-5 py-4">
                   <Selo valor={cliente.status} tipo="cliente" />
