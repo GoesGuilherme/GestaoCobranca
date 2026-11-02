@@ -25,15 +25,16 @@ function degrade(atual: FaseLinhaTempo, proxima: FaseLinhaTempo, aceso: boolean,
 
 export function LinhaDoTempoFatura({ linha }: { linha: LinhaDoTempoFatura }) {
   return (
-    <div className="max-w-full overflow-x-auto overscroll-x-contain pb-1">
-      <div role="group" aria-label={ariaLinhaDoTempoFatura(linha)} className="flex w-max items-start">
-        {linha.semRegua ? <span className="mr-3 mt-1 shrink-0 text-[13px] text-muted">Sem régua</span> : null}
-        <ol className="flex items-start">
+    <div className="max-w-full overflow-x-auto overscroll-x-contain pb-1 lg:overflow-visible lg:pb-0">
+      <div role="group" aria-label={ariaLinhaDoTempoFatura(linha)} className="flex w-max items-start lg:w-full lg:min-w-0">
+        {linha.semRegua ? <span className="mr-2 mt-1 shrink-0 text-xs text-muted">Sem régua</span> : null}
+        <ol className="flex w-max items-start lg:w-full lg:min-w-0">
           {linha.marcadores.map((marco, posicao) => {
             const proximo = linha.marcadores[posicao + 1];
             const rotulo = corRotulo(marco);
+            const dica = marco.detalhe ? `${marco.dica}. ${marco.detalhe}` : marco.dica;
             return (
-              <li key={`${marco.chave}-${posicao}`} className="w-[8.75rem] shrink-0 sm:w-40">
+              <li key={`${marco.chave}-${posicao}`} className="w-[5.75rem] shrink-0 lg:w-auto lg:min-w-0 lg:flex-1">
                 <div className="relative flex h-8 w-full items-center justify-center">
                   {proximo ? (
                     <span
@@ -43,18 +44,18 @@ export function LinhaDoTempoFatura({ linha }: { linha: LinhaDoTempoFatura }) {
                     />
                   ) : null}
                   <span
-                    title={marco.dica}
-                    className="relative z-10 inline-flex h-8 min-w-8 items-center justify-center rounded-full px-1.5 text-[13px] font-semibold tabular-nums"
+                    title={dica}
+                    className="relative z-10 inline-flex h-8 min-w-8 items-center justify-center rounded-full px-1 text-[13px] font-semibold tabular-nums"
                     style={{ backgroundColor: corMarca(marco), color: corTexto(marco) }}
                   >
                     {marco.fase === "pago" ? <Check className="size-[22px]" strokeWidth={2.75} aria-hidden /> : marco.texto}
                   </span>
                 </div>
-                <p className="mt-2 px-1.5 text-center text-[13px] font-semibold leading-snug" style={{ color: rotulo }}>
+                <p className="mt-1.5 line-clamp-2 px-0.5 text-center text-[13px] font-semibold leading-tight" style={{ color: rotulo }}>
                   {marco.titulo}
                 </p>
                 {marco.detalhe ? (
-                  <p className="mt-0.5 px-1.5 text-center text-[13px] leading-snug" style={{ color: rotulo }}>
+                  <p className="mt-0.5 line-clamp-2 px-0.5 text-center text-[11px] leading-tight" style={{ color: rotulo }}>
                     {marco.detalhe}
                   </p>
                 ) : null}

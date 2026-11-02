@@ -192,7 +192,7 @@ export async function executarRegua(
             motivo: segredo.motivo ?? "remetente não configurado",
           })) resultado.ignorados += 1;
         } else if (emailPronto && segredo.chave) {
-          const corpo = textoRegua(passo.corpo, {
+          const campos = {
             cliente: cliente.nomeFantasia,
             servico: fatura.clienteServico?.servico.nome ?? fatura.descricao ?? "cobrança",
             valor: formatarReais(fatura.valor.toFixed(2)),
@@ -200,7 +200,8 @@ export async function executarRegua(
             link: fatura.boletoUrl ?? fatura.faturaUrl ?? "",
             diasAtraso: String(diasAtraso(hoje, vencimento)),
             empresa: nomeEmpresa,
-          });
+          };
+          const corpo = textoRegua(passo.corpo, campos);
           const texto = config.modoTeste
             ? `Modo teste: este e-mail foi enviado para você, não para o cliente.\n\n${corpo}`
             : corpo;
@@ -213,7 +214,7 @@ export async function executarRegua(
             automatico: true,
             modoTeste: config.modoTeste,
             destino: config.modoTeste ? dono!.email : emailCliente,
-            assunto: assuntoRegua(passo.assunto, config.modoTeste),
+            assunto: assuntoRegua(textoRegua(passo.assunto, campos), config.modoTeste),
             texto,
             de: remetenteResend(config.remetenteNome ?? "", remetente),
             replyTo: config.replyTo,

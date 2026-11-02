@@ -51,7 +51,7 @@ export function AcoesFatura({
   return (
     <details className="relative">
       <summary
-        className={`${classeBotaoSecundario} list-none marker:hidden [&::-webkit-details-marker]:hidden`}
+        className={`${classeBotaoSecundario} list-none marker:hidden lg:min-h-9 lg:px-3 lg:py-1.5 lg:text-xs [&::-webkit-details-marker]:hidden`}
         aria-label={`Ações da fatura de ${fatura.nomeCliente}`}
       >
         Ações

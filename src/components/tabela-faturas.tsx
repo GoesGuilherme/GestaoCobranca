@@ -13,7 +13,7 @@ import { LinhaDoTempoFatura } from "./linha-tempo-fatura";
 import { SeloFatura } from "./selo";
 import { SemaforoRegua } from "./semaforo-regua";
 
-const COLUNAS = "md:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_auto]";
+const COLUNAS = "md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.3fr)_auto] lg:grid-cols-[minmax(0,9.5rem)_minmax(0,1fr)_auto] lg:gap-x-3";
 
 function OlhoVisualizada() {
   return (
@@ -121,7 +121,7 @@ export function TabelaFaturas({
             <div className="flex min-w-0 items-start justify-between gap-3 md:block">
               <div className="min-w-0">
                 {mostrarCliente ? (
-                  <Link href={`/clientes/${fatura.clienteId}`} className="font-medium text-canopy hover:underline">
+                  <Link href={`/clientes/${fatura.clienteId}`} className="block break-words font-medium text-canopy hover:underline">
                     {fatura.nomeCliente}
                   </Link>
                 ) : null}

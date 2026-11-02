@@ -449,7 +449,7 @@ export async function enviarLembreteAgora(
 
   const vencimento = isoDeData(fatura.vencimento);
   const valor = fatura.valor.toFixed(2);
-  const corpo = textoRegua(passo.corpo, {
+  const campos = {
     cliente: fatura.cliente.nomeFantasia,
     servico: fatura.clienteServico?.servico.nome ?? fatura.descricao ?? "cobrança",
     valor: formatarReais(valor),
@@ -457,7 +457,8 @@ export async function enviarLembreteAgora(
     link: fatura.boletoUrl ?? fatura.faturaUrl ?? "",
     diasAtraso: String(diasAtraso(dataSaoPaulo(agora), vencimento)),
     empresa: empresa?.nomeFantasia ?? autor.nomeEmpresa,
-  });
+  };
+  const corpo = textoRegua(passo.corpo, campos);
   const texto = modoTeste
     ? `Modo teste: este e-mail foi enviado para você, não para o cliente.\n\n${corpo}`
     : corpo;
@@ -471,7 +472,7 @@ export async function enviarLembreteAgora(
     automatico: false,
     modoTeste,
     destino,
-    assunto: assuntoRegua(passo.assunto, modoTeste),
+    assunto: assuntoRegua(textoRegua(passo.assunto, campos), modoTeste),
     texto,
     de: remetenteResend(config.remetenteNome ?? "", emailDeCobranca(config.remetenteEmail)),
     replyTo: config.replyTo,

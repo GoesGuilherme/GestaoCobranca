@@ -14,6 +14,15 @@ import {
 } from "./regua";
 
 describe("texto da régua", () => {
+  it("usa o singular quando o atraso é de um dia", () => {
+    expect(textoRegua("Cobrança em atraso há {dias_atraso} dias", { ...AMOSTRA_REGUA, diasAtraso: "1", empresa: "Empresa" })).toBe(
+      "Cobrança em atraso há 1 dia",
+    );
+    expect(textoRegua("Cobrança em atraso há {dias_atraso} dias", { ...AMOSTRA_REGUA, diasAtraso: "12", empresa: "Empresa" })).toBe(
+      "Cobrança em atraso há 12 dias",
+    );
+  });
+
   it("troca cliente, serviço, valor, vencimento, link, atraso e empresa", () => {
     const texto = textoRegua(
       "Olá, {cliente}. A {empresa} cobra {servico} de {valor}, vencimento {vencimento}, atraso {dias_atraso}. {link}",
@@ -132,6 +141,40 @@ describe("texto da régua", () => {
         passos,
       }),
     ).toMatchObject({ fase: "atraso", texto: "Cobrança em atraso" });
+  });
+
+  it("preenche {dias_atraso} com os dias reais da fatura", () => {
+    const passos = [
+      { naEmissao: false, dias: 3, assunto: "Cobrança em atraso há {dias_atraso} dias" },
+      { naEmissao: false, dias: 7, assunto: "Cobrança em atraso há {dias_atraso} dias" },
+    ];
+    expect(
+      rotuloReguaDaFatura({
+        status: "OVERDUE",
+        excluida: false,
+        vencimento: "2026-10-20",
+        hoje: "2026-11-01",
+        passos,
+      }),
+    ).toMatchObject({ fase: "atraso", texto: "Cobrança em atraso há 12 dias", aria: "Em atraso: Cobrança em atraso há 12 dias" });
+    expect(
+      rotuloReguaDaFatura({
+        status: "OVERDUE",
+        excluida: false,
+        vencimento: "2026-10-31",
+        hoje: "2026-11-01",
+        passos,
+      })?.texto,
+    ).toBe("Cobrança em atraso há 1 dia");
+    expect(
+      rotuloReguaDaFatura({
+        status: "OVERDUE",
+        excluida: false,
+        vencimento: "2026-10-20",
+        hoje: "2026-11-01",
+        passos,
+      })?.texto,
+    ).not.toContain("{dias_atraso}");
   });
 
   it("cai no deslocamento quando o assunto está vazio e encerra paga ou cancelada", () => {
