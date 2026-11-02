@@ -5,10 +5,12 @@ import { useMemo, useState } from "react";
 import { compararDinheiro, formatarReais } from "@/lib/dinheiro";
 import { formatarDocumento } from "@/lib/documento";
 import { formatarDataIso } from "@/lib/formatacao";
+import type { ResultadoClassificacaoPagador } from "@/lib/classificacao-pagador";
 import type { ClienteResumo } from "@/lib/tipos";
 import { classeCabecalhoTabela, classeTabelaRolavel } from "./estilos";
 import { Paginacao } from "./paginacao";
 import { Selo } from "./selo";
+import { SeloPagador } from "./selo-pagador";
 
 type Coluna = "nome" | "cidade" | "status" | "ativacao" | "filiais" | "mensal";
 
@@ -18,7 +20,13 @@ function compararTexto(a: string, b: string) {
   return a.localeCompare(b, "pt-BR");
 }
 
-export function TabelaClientes({ clientes }: { clientes: ClienteResumo[] }) {
+export function TabelaClientes({
+  clientes,
+  selos = {},
+}: {
+  clientes: ClienteResumo[];
+  selos?: Record<string, ResultadoClassificacaoPagador | null>;
+}) {
   const [coluna, setColuna] = useState<Coluna>("nome");
   const [direcao, setDirecao] = useState<"asc" | "desc">("asc");
   const [pagina, setPagina] = useState(1);
@@ -85,9 +93,12 @@ export function TabelaClientes({ clientes }: { clientes: ClienteResumo[] }) {
             {fatia.map((cliente) => (
               <tr key={cliente.id} className="border-b border-line last:border-0">
                 <td className="px-5 py-4">
-                  <Link href={`/clientes/${cliente.id}`} className="font-medium text-canopy hover:underline">
-                    {cliente.nomeFantasia}
-                  </Link>
+                  <div className="flex items-center gap-1.5">
+                    <Link href={`/clientes/${cliente.id}`} className="min-w-0 font-medium text-canopy hover:underline">
+                      {cliente.nomeFantasia}
+                    </Link>
+                    <SeloPagador resultado={selos[cliente.id]} tamanho="lista" />
+                  </div>
                   <p className="mt-0.5 text-muted">{cliente.razaoSocial}</p>
                 </td>
                 <td className="px-5 py-4 tabular-nums">{formatarDocumento(cliente.documento, cliente.tipoDocumento)}</td>

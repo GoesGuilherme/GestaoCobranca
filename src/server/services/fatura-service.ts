@@ -609,6 +609,7 @@ function registroDeCobranca(cobranca: CobrancaAsaas): Record<string, unknown> {
     invoiceUrl: cobranca.faturaUrl,
     description: cobranca.descricao,
     deleted: cobranca.excluida,
+    ...(cobranca.pagoEm ? { clientPaymentDate: cobranca.pagoEm } : {}),
     ...(cobranca.cartao
       ? { creditCard: { creditCardBrand: cobranca.cartao.bandeira, creditCardNumber: cobranca.cartao.final } }
       : {}),

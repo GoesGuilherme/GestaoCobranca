@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST } from "@/app/api/webhooks/asaas/route";
+import { isoDeData } from "@/lib/data";
 import { completarCnpj } from "@/lib/documento";
 import type { PapelUsuario } from "@/lib/tipos";
 import { prisma } from "@/server/db";
@@ -194,6 +195,8 @@ describe("Asaas por empresa", () => {
         status: "RECEIVED",
         billingType: "BOLETO",
         invoiceUrl: "https://sandbox.asaas.com/i/recebido",
+        clientPaymentDate: "2026-11-14",
+        paymentDate: "2026-11-16",
         deleted: false,
       },
     };
@@ -206,6 +209,7 @@ describe("Asaas por empresa", () => {
 
     const recebida = await prisma.fatura.findUniqueOrThrow({ where: { id: fatura.id } });
     expect(recebida.status).toBe("RECEIVED");
+    expect(recebida.pagoEm ? isoDeData(recebida.pagoEm) : null).toBe("2026-11-14");
     expect(recebida.valor.toFixed(2)).toBe("189.90");
     expect(recebida.faturaUrl).toBe("https://sandbox.asaas.com/i/recebido");
     expect(recebida.linhaDigitavel).toBeTruthy();
@@ -279,6 +283,15 @@ describe("Asaas por empresa", () => {
       payment: { id: fatura.asaasPaymentId, deleted: true },
     });
     expect(await prisma.eventoAsaas.count({ where: { empresaId, asaasEventId: "evt_apagada_0001" } })).toBe(1);
+
+    await processarWebhookAsaas(token, {
+      id: "evt_estorno_pago_em_0001",
+      event: "PAYMENT_REFUNDED",
+      payment: { id: fatura.asaasPaymentId, status: "REFUNDED", value: 189.9, dueDate: "2026-11-15" },
+    });
+    const estornada = await prisma.fatura.findUniqueOrThrow({ where: { id: fatura.id } });
+    expect(estornada.status).toBe("REFUNDED");
+    expect(estornada.pagoEm).toBeNull();
   });
 });
 

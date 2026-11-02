@@ -203,6 +203,8 @@ describe("cliente HTTP do Asaas", () => {
         status: "CONFIRMED",
         billingType: "CREDIT_CARD",
         invoiceUrl: "https://sandbox.asaas.com/i/pay_card",
+        clientPaymentDate: "2026-11-09",
+        paymentDate: "2026-11-12 14:00:00",
         creditCard: {
           creditCardBrand: "VISA",
           creditCardNumber: "8829",
@@ -231,6 +233,7 @@ describe("cliente HTTP do Asaas", () => {
       vencimento: "2026-11-10",
     });
     expect(cobranca.cartao).toEqual({ bandeira: "VISA", final: "8829" });
+    expect(cobranca.pagoEm).toBe("2026-11-09");
     expect(JSON.stringify(cobranca)).not.toContain("tok_super_secreto");
     const corpoCobranca = String(pedidos[1]?.init.body);
     expect(corpoCobranca).not.toMatch(/creditCard|cvv|ccv|cardNumber/i);
@@ -279,6 +282,35 @@ describe("cliente HTTP do Asaas", () => {
     expect(pedidos.every((pedido) => pedido.init.method === "GET")).toBe(true);
     expect(pedidos.every((pedido) => pedido.init.body == null)).toBe(true);
     expect(pedidos.every((pedido) => new Headers(pedido.init.headers).get("access_token") === CHAVE)).toBe(true);
+  });
+
+  it("lista cobranças pagas em página e lê a data em que o cliente pagou", async () => {
+    const pedidos: string[] = [];
+    const fetchImpl: typeof fetch = async (entrada) => {
+      pedidos.push(String(entrada));
+      return resposta(200, {
+        hasMore: false,
+        data: [
+          {
+            id: "pay_lista",
+            customer: "cus_1",
+            value: 80,
+            dueDate: "2026-08-10",
+            status: "RECEIVED",
+            billingType: "BOLETO",
+            clientPaymentDate: "2026-08-09",
+            paymentDate: "2026-08-11",
+          },
+        ],
+      });
+    };
+    const cliente = criarClienteHttpAsaas({ baseUrl: URL_ASAAS.SANDBOX, apiKey: CHAVE, fetchImpl });
+    const pagina = await cliente.listarCobrancas({ status: "RECEIVED", offset: 0, limit: 100 });
+    expect(pedidos[0]).toContain("/payments?");
+    expect(pedidos[0]).toContain("status=RECEIVED");
+    expect(pedidos[0]).toContain("limit=100");
+    expect(pagina.cobrancas[0]?.pagoEm).toBe("2026-08-09");
+    expect(pagina.temMais).toBe(false);
   });
 
   it("recusa o modo simulado em produção", () => {

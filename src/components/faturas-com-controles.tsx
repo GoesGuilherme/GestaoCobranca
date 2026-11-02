@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { compararDinheiro } from "@/lib/dinheiro";
 import type { EnvioReguaLista, ReguaParaProgresso } from "@/lib/regua-progresso";
 import type { PassoParaRotulo } from "@/lib/regua";
+import type { ResultadoClassificacaoPagador } from "@/lib/classificacao-pagador";
 import type { ClienteServicoDTO, FaturaDTO, PreferenciasCobrancaDTO } from "@/lib/tipos";
 import { classeCampo } from "./campo";
 import { Paginacao } from "./paginacao";
@@ -27,6 +28,7 @@ export function FaturasComControles({
   passosCliente,
   hoje,
   destaqueId,
+  selos = {},
 }: {
   faturas: FaturaDTO[];
   podeCancelar: boolean;
@@ -41,6 +43,7 @@ export function FaturasComControles({
   passosCliente?: PassoParaRotulo[] | null;
   hoje?: string;
   destaqueId?: string | null;
+  selos?: Record<string, ResultadoClassificacaoPagador | null>;
 }) {
   const [ordem, setOrdem] = useState<Ordem>("padrao");
   const [pagina, setPagina] = useState(1);
@@ -97,6 +100,7 @@ export function FaturasComControles({
         passosCliente={passosCliente}
         hoje={hoje}
         destaqueId={destaqueId}
+        selos={selos}
       />
       <Paginacao pagina={paginaSegura} total={ordenadas.length} tamanho={TAMANHO} onChange={setPagina} />
     </div>

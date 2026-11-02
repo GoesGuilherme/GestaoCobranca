@@ -6,6 +6,7 @@ import { EstadoVazio } from "@/components/estado-vazio";
 import { TabelaClientes } from "@/components/tabela-clientes";
 import { SEGMENTOS, STATUS_CLIENTE } from "@/lib/rotulos";
 import { acessoDaPagina } from "@/server/auth/pagina";
+import { classificarPagadoresDaEmpresa } from "@/server/services/classificacao-pagador-service";
 import { listarClientes } from "@/server/services/cliente-service";
 
 export const metadata = { title: "Clientes" };
@@ -27,6 +28,12 @@ export default async function PaginaClientes({
   const segmento = params.segmento ?? "";
   const status = params.status ?? "";
   const clientes = await listarClientes(acesso.empresaId, { q, segmento, status });
+  const selos = Object.fromEntries(
+    await classificarPagadoresDaEmpresa(
+      acesso.empresaId,
+      clientes.map((cliente) => cliente.id),
+    ),
+  );
   const filtrando = Boolean(q || segmento || status);
 
   return (
@@ -108,7 +115,7 @@ export default async function PaginaClientes({
           }
         />
       ) : (
-        <TabelaClientes clientes={clientes} />
+        <TabelaClientes clientes={clientes} selos={selos} />
       )}
     </>
   );
