@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { enviarJson } from "@/lib/api-cliente";
 import { LogoTaguaro } from "./logo-taguaro";
 
-const CHAVE_MENU = "taguaro.menu-lateral";
+const CHAVE_MENU = "taguaro.menu-lateral.v2";
 
 type ItemMenu = {
   href: string;
@@ -36,13 +36,17 @@ function itemAtivo(pathname: string, hash: string, href: string) {
   return true;
 }
 
-function lerRecolhidos(): Record<string, boolean> {
+function lerAbertos(): Record<string, boolean> {
   try {
     const bruto = localStorage.getItem(CHAVE_MENU);
     if (!bruto) return {};
     const valor = JSON.parse(bruto) as unknown;
-    if (!valor || typeof valor !== "object") return {};
-    return valor as Record<string, boolean>;
+    if (!valor || typeof valor !== "object" || Array.isArray(valor)) return {};
+    const abertos: Record<string, boolean> = {};
+    for (const [chave, item] of Object.entries(valor)) {
+      if (item === true) abertos[chave] = true;
+    }
+    return abertos;
   } catch {
     return {};
   }
@@ -72,7 +76,7 @@ export function BarraLateral({
   const pathname = usePathname();
   const router = useRouter();
   const [hash, setHash] = useState("");
-  const [recolhidos, setRecolhidos] = useState<Record<string, boolean>>({});
+  const [abertos, setAbertos] = useState<Record<string, boolean>>({});
 
   const grupos: GrupoMenu[] = [
     {
@@ -113,7 +117,10 @@ export function BarraLateral({
     },
   ].filter((grupo) => grupo.itens.length > 0);
 
-  const grupoAtual = grupos.find((grupo) => grupo.itens.some((item) => itemAtivo(pathname, hash, item.href)))?.id;
+  const grupoAtual =
+    pathname === "/admin" || pathname.startsWith("/admin/")
+      ? "plataforma"
+      : grupos.find((grupo) => grupo.itens.some((item) => itemAtivo(pathname, hash, item.href)))?.id;
 
   useEffect(() => {
     const lerHash = () => setHash(window.location.hash);
@@ -123,18 +130,42 @@ export function BarraLateral({
   }, [pathname]);
 
   useEffect(() => {
-    const salvos = lerRecolhidos();
-    if (grupoAtual) salvos[grupoAtual] = false;
-    setRecolhidos(salvos);
-    if (grupoAtual) localStorage.setItem(CHAVE_MENU, JSON.stringify(salvos));
-  }, [grupoAtual]);
+    setAbertos(lerAbertos());
+  }, []);
 
   function alternar(id: string) {
-    setRecolhidos((atual) => {
+    setAbertos((atual) => {
       const proximo = { ...atual, [id]: !atual[id] };
       localStorage.setItem(CHAVE_MENU, JSON.stringify(proximo));
       return proximo;
     });
+  }
+
+  function tituloGrupo(id: string, titulo: string, tom: "grupo" | "plataforma") {
+    const aberto = abertos[id] === true;
+    const atual = id === grupoAtual;
+    const cor =
+      tom === "plataforma"
+        ? "text-gold"
+        : atual
+          ? "text-white"
+          : "text-white/55";
+    return (
+      <button
+        type="button"
+        className={`flex w-full cursor-pointer items-center justify-between px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${cor}`}
+        aria-expanded={aberto}
+        aria-controls={`grupo-${id}`}
+        onClick={() => alternar(id)}
+      >
+        <span className="flex items-center gap-2">
+          {atual ? <span className="size-1.5 rounded-full bg-gold" aria-hidden="true" /> : null}
+          {titulo}
+          {atual ? <span className="sr-only">Página atual neste grupo.</span> : null}
+        </span>
+        <span aria-hidden="true">{aberto ? "–" : "+"}</span>
+      </button>
+    );
   }
 
   async function sair() {
@@ -164,34 +195,30 @@ export function BarraLateral({
   const navegacao = (
     <nav aria-label="Menu principal" className="flex max-h-[45vh] flex-col gap-4 overflow-y-auto md:max-h-none md:overflow-visible">
       {grupos.map((grupo) => {
-        const recolhido = Boolean(recolhidos[grupo.id]);
+        const aberto = abertos[grupo.id] === true;
         return (
           <div key={grupo.id}>
-            <button
-              type="button"
-              className="flex w-full cursor-pointer items-center justify-between px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/55"
-              aria-expanded={!recolhido}
-              aria-controls={`grupo-${grupo.id}`}
-              onClick={() => alternar(grupo.id)}
-            >
-              {grupo.titulo}
-              <span aria-hidden="true">{recolhido ? "+" : "–"}</span>
-            </button>
-            {recolhido ? null : (
+            {tituloGrupo(grupo.id, grupo.titulo, "grupo")}
+            {aberto ? (
               <div id={`grupo-${grupo.id}`} className="grid gap-1">
                 {grupo.itens.map(linkItem)}
               </div>
-            )}
+            ) : null}
           </div>
         );
       })}
     </nav>
   );
 
+  const plataformaAberta = abertos.plataforma === true;
   const plataforma = mostrarAdmin ? (
     <div className="rounded-2xl border border-gold/40 bg-black/25 p-2">
-      <p className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-gold">Plataforma</p>
-      {linkItem({ href: "/admin", rotulo: "Empresas" })}
+      {tituloGrupo("plataforma", "Plataforma", "plataforma")}
+      {plataformaAberta ? (
+        <div id="grupo-plataforma" className="grid gap-1">
+          {linkItem({ href: "/admin", rotulo: "Empresas" })}
+        </div>
+      ) : null}
     </div>
   ) : null;
 
