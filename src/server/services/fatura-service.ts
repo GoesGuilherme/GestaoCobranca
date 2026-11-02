@@ -22,6 +22,7 @@ type FaturaComNomes = {
   asaasPaymentId: string | null;
   valor: { toFixed(casas: number): string };
   vencimento: Date;
+  pagoEm: Date | null;
   status: string;
   formaCobranca: string;
   boletoUrl: string | null;
@@ -88,6 +89,7 @@ function paraFatura(fatura: FaturaComNomes): FaturaDTO {
     asaasPaymentId: fatura.asaasPaymentId ?? "",
     valor: fatura.valor.toFixed(2),
     vencimento: isoDeData(fatura.vencimento),
+    pagoEm: fatura.pagoEm ? isoDeData(fatura.pagoEm) : null,
     status: fatura.status,
     formaCobranca: fatura.formaCobranca,
     boletoUrl: fatura.boletoUrl,

@@ -1,4 +1,5 @@
 import { dataIsoValida } from "@/lib/data";
+import { dataRecebimento } from "@/lib/data-recebimento";
 import { compararDinheiro, normalizarDinheiro, somarDinheiro } from "@/lib/dinheiro";
 import { diferencaDias } from "@/lib/regua";
 import { FORMAS_COBRANCA, STATUS_CLIENTE } from "@/lib/rotulos";
@@ -38,6 +39,8 @@ export type FaturaPainel = {
   excluida: boolean;
   valor: string;
   vencimento: string;
+  pagoEm: string | null;
+  // Dia de atualizado_em em São Paulo. Só entra no recebido se pagoEm for nulo.
   atualizadoEm: string;
   formaCobranca: string;
   clienteServicoId: string | null;
@@ -273,7 +276,10 @@ export function montarPainelFinanceiro(entrada: {
       atrasoPeriodo.push({ fatura, dias: diasDeAtraso(fatura.vencimento, entrada.hoje) });
     }
     if (item.classe === "a_receber" && noPeriodo) receberPeriodo.push(fatura.valor);
-    if (item.classe === "recebido" && dentro(fatura.atualizadoEm, periodo.inicio, periodo.fim)) {
+    if (
+      item.classe === "recebido" &&
+      dentro(dataRecebimento(fatura.pagoEm, fatura.atualizadoEm), periodo.inicio, periodo.fim)
+    ) {
       recebidoPeriodo.push(fatura.valor);
     }
     if ((item.classe === "atraso" || item.classe === "a_receber") && mes === mesProximo) {

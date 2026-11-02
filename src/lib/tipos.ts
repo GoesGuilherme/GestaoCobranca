@@ -226,6 +226,7 @@ export type FaturaDTO = {
   asaasPaymentId: string;
   valor: string;
   vencimento: string;
+  pagoEm: string | null;
   status: string;
   formaCobranca: string;
   boletoUrl: string | null;

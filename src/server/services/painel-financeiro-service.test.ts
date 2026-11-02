@@ -55,6 +55,7 @@ async function fatura(dados: {
   excluida?: boolean;
   clienteServicoId?: string;
   empresa?: string;
+  pagoEm?: string | null;
 }) {
   return prisma.fatura.create({
     data: {
@@ -64,6 +65,7 @@ async function fatura(dados: {
       asaasPaymentId: `pay_${randomBytes(4).toString("hex")}`,
       valor: dados.valor,
       vencimento: new Date(`${dados.vencimento}T00:00:00.000Z`),
+      pagoEm: dados.pagoEm ? new Date(`${dados.pagoEm}T00:00:00.000Z`) : null,
       status: dados.status,
       formaCobranca: dados.forma ?? "BOLETO",
       excluida: dados.excluida ?? false,
@@ -109,8 +111,9 @@ describe("painel financeiro", () => {
       vencimento: "2026-09-15",
       status: "RECEIVED",
       forma: "PIX",
+      pagoEm: "2026-10-05",
     });
-    await prisma.$executeRaw`UPDATE faturas SET atualizado_em = ${new Date("2026-10-05T15:00:00.000Z")} WHERE id = ${recebida.id}`;
+    await prisma.$executeRaw`UPDATE faturas SET atualizado_em = ${new Date("2026-11-02T15:00:00.000Z")} WHERE id = ${recebida.id}`;
     await fatura({ clienteId: ana.id, valor: "80.00", vencimento: "2026-10-30", status: "PENDING" });
     await fatura({ clienteId: ana.id, valor: "40.00", vencimento: "2026-11-12", status: "PENDING" });
     await fatura({ clienteId: ana.id, valor: "999.00", vencimento: "2026-10-08", status: "REFUNDED" });
@@ -156,6 +159,67 @@ describe("painel financeiro", () => {
     }, AGORA);
     expect(soBoleto.recebido.valor).toBe("0.00");
     expect(soBoleto.emAtraso.valor).toBe("180.00");
+  });
+
+  it("não conta em novembro pagamento de outubro atualizado pelo backfill, e usa atualizado_em se pago_em for nulo", async () => {
+    const ana = await criarCliente(empresaId, dadosCliente(completarCnpj("610000000021"), "Ana Caixa"));
+    const agora = new Date("2026-11-02T15:00:00.000Z");
+    const filtros = { periodo: "este_mes" as const, forma: null, statusCliente: null };
+
+    const outubro = await fatura({
+      clienteId: ana.id,
+      valor: "1000.00",
+      vencimento: "2024-06-01",
+      status: "RECEIVED",
+      pagoEm: "2026-10-20",
+    });
+    const novembro = await fatura({
+      clienteId: ana.id,
+      valor: "300.00",
+      vencimento: "2024-06-01",
+      status: "RECEIVED",
+      pagoEm: "2026-11-01",
+    });
+    const semData = await fatura({
+      clienteId: ana.id,
+      valor: "40.00",
+      vencimento: "2026-09-05",
+      status: "RECEIVED",
+      pagoEm: null,
+    });
+    const semDataOutubro = await fatura({
+      clienteId: ana.id,
+      valor: "80.00",
+      vencimento: "2026-08-05",
+      status: "DUNNING_RECEIVED",
+      pagoEm: null,
+    });
+    const noPrazoDoMes = await fatura({
+      clienteId: ana.id,
+      valor: "700.00",
+      vencimento: "2026-10-10",
+      status: "RECEIVED",
+      pagoEm: "2026-10-10",
+    });
+    await prisma.$executeRaw`
+      UPDATE faturas SET atualizado_em = ${new Date("2026-11-02T15:00:00.000Z")}
+      WHERE id IN (${outubro.id}, ${novembro.id}, ${semData.id}, ${noPrazoDoMes.id})
+    `;
+    await prisma.$executeRaw`
+      UPDATE faturas SET atualizado_em = ${new Date("2026-10-20T15:00:00.000Z")}
+      WHERE id = ${semDataOutubro.id}
+    `;
+
+    const painel = await obterPainelFinanceiro(autor("FINANCEIRO"), filtros, agora);
+    expect(painel.recebido.valor).toBe("340.00");
+    expect(painel.meses.find((mes) => mes.mes === "2026-10")?.recebido).toBe("700.00");
+
+    const passado = await obterPainelFinanceiro(
+      autor("DONO"),
+      { periodo: "mes_passado", forma: null, statusCliente: null },
+      agora,
+    );
+    expect(passado.recebido.valor).toBe("1780.00");
   });
 
   it("o suporte recebe 403 na página e o financeiro entra", async () => {

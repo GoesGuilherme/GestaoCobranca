@@ -49,6 +49,8 @@ function trechos(hoje: string) {
   const atraso = Prisma.join([...STATUS_ATRASO]);
   const abertos = Prisma.join([...STATUS_ABERTO]);
   const faturavel = Prisma.sql`f.excluida = false AND f.status <> 'CRIANDO' AND f.status NOT IN (${estornos})`;
+  // Parte paga da coorte do vencimento, não o caixa do mês. pago_em não muda
+  // o mês da linha: o cartão "Recebido no mês" é que soma pela data de pagamento.
   const recebido = Prisma.sql`${faturavel} AND f.status IN (${pagos})`;
   const inadimplente = Prisma.sql`f.excluida = false AND (
     f.status IN (${atraso})

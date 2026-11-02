@@ -31,15 +31,47 @@ function compararLinhas(a: LinhaResultado, b: LinhaResultado, coluna: Coluna) {
   return compararDinheiro(a[coluna], b[coluna]);
 }
 
-function Cartao({ rotulo, valor, destaque = false }: { rotulo: string; valor: string; destaque?: boolean }) {
+function Cartao({
+  rotulo,
+  valor,
+  detalhe,
+  dica,
+  dicaId,
+  destaque = false,
+}: {
+  rotulo: string;
+  valor: string;
+  detalhe: string;
+  dica: string;
+  dicaId: string;
+  destaque?: boolean;
+}) {
   return (
     <article
       className={`rounded-3xl border px-5 py-5 ${destaque ? "border-forest bg-forest text-paper" : "border-line bg-card"}`}
     >
       <p className={`text-xs font-semibold uppercase tracking-[0.14em] ${destaque ? "text-white/70" : "text-muted"}`}>
         {rotulo}
+        <span className="group relative ml-1 inline-flex align-middle">
+          <button
+            type="button"
+            className="inline-flex size-4 cursor-help items-center justify-center rounded-full border border-current/30 text-[10px] font-semibold leading-none"
+            aria-describedby={dicaId}
+          >
+            ?
+            <span className="sr-only">O que este número significa</span>
+          </button>
+          <span
+            id={dicaId}
+            role="tooltip"
+            className="invisible absolute top-full left-0 z-30 mt-2 w-64 rounded-xl border border-line bg-white px-3 py-2 text-left text-xs font-normal normal-case tracking-normal text-ink opacity-0 shadow-lg group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
+          >
+            {dica}
+          </span>
+        </span>
       </p>
       <p className="mt-2 font-display text-3xl tabular-nums">{valor}</p>
+      <p className={`mt-2 text-sm ${destaque ? "text-white/75" : "text-muted"}`}>{detalhe}</p>
     </article>
   );
 }
@@ -195,22 +227,62 @@ function Bloco({
   descricao,
   bloco,
   rotuloFaturamento,
+  textos,
 }: {
   titulo: string;
   descricao: string;
   bloco: BlocoResultado;
   rotuloFaturamento: string;
+  textos: {
+    faturamento: { linha: string; dica: string };
+    custo: { linha: string; dica: string };
+    impostos: { linha: string; dica: string };
+    margem: { linha: string; dica: string };
+    margemPercentual: { linha: string; dica: string };
+  };
 }) {
+  const prefixo = titulo === "Mensal" ? "mensal" : "avulso";
   return (
     <section className="mt-10">
       <h2 className="font-display text-3xl">{titulo}</h2>
       <p className="mt-1 max-w-2xl text-sm text-muted">{descricao}</p>
       <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <Cartao rotulo={rotuloFaturamento} valor={formatarReais(bloco.faturamento)} destaque />
-        <Cartao rotulo="Custo total" valor={formatarReais(bloco.custo)} />
-        <Cartao rotulo="Impostos" valor={formatarReais(bloco.impostos)} />
-        <Cartao rotulo="Margem" valor={formatarReaisAssinado(bloco.margem)} />
-        <Cartao rotulo="Margem %" valor={textoPercentual(bloco.margemPercentual)} />
+        <Cartao
+          rotulo={rotuloFaturamento}
+          valor={formatarReais(bloco.faturamento)}
+          detalhe={textos.faturamento.linha}
+          dica={textos.faturamento.dica}
+          dicaId={`dica-${prefixo}-faturamento`}
+          destaque
+        />
+        <Cartao
+          rotulo="Custo total"
+          valor={formatarReais(bloco.custo)}
+          detalhe={textos.custo.linha}
+          dica={textos.custo.dica}
+          dicaId={`dica-${prefixo}-custo`}
+        />
+        <Cartao
+          rotulo="Impostos"
+          valor={formatarReais(bloco.impostos)}
+          detalhe={textos.impostos.linha}
+          dica={textos.impostos.dica}
+          dicaId={`dica-${prefixo}-impostos`}
+        />
+        <Cartao
+          rotulo="Margem"
+          valor={formatarReaisAssinado(bloco.margem)}
+          detalhe={textos.margem.linha}
+          dica={textos.margem.dica}
+          dicaId={`dica-${prefixo}-margem`}
+        />
+        <Cartao
+          rotulo="Margem %"
+          valor={textoPercentual(bloco.margemPercentual)}
+          detalhe={textos.margemPercentual.linha}
+          dica={textos.margemPercentual.dica}
+          dicaId={`dica-${prefixo}-margem-percentual`}
+        />
       </div>
       {bloco.quantidade === 0 ? (
         <p className="mt-4 rounded-3xl border border-dashed border-line bg-card px-6 py-10 text-center text-muted">
@@ -247,12 +319,56 @@ export function PainelResultado({ mensal, avulso }: { mensal: BlocoResultado; av
         descricao="Serviços recorrentes ativos, de clientes ativos ou em implantação."
         bloco={mensal}
         rotuloFaturamento="Faturamento mensal"
+        textos={{
+          faturamento: {
+            linha: "Valor dos serviços recorrentes ativos",
+            dica: "Soma do valor combinado dos serviços mensais ativos, de clientes ativos ou em implantação.",
+          },
+          custo: {
+            linha: "Custo dos serviços recorrentes ativos",
+            dica: "Soma do custo informado nesses serviços. Custo vazio entra como zero.",
+          },
+          impostos: {
+            linha: "Impostos sobre os serviços recorrentes ativos",
+            dica: "Imposto de cada serviço mensal, pelo percentual cadastrado no serviço.",
+          },
+          margem: {
+            linha: "Faturamento mensal menos custo e impostos",
+            dica: "O que sobra do faturamento mensal depois de tirar custo e impostos.",
+          },
+          margemPercentual: {
+            linha: "Margem em relação ao faturamento mensal",
+            dica: "A margem dividida pelo faturamento mensal.",
+          },
+        }}
       />
       <Bloco
         titulo="Avulsos"
         descricao="Cobranças únicas ativas. Não entram no faturamento mensal."
         bloco={avulso}
         rotuloFaturamento="Faturamento avulso"
+        textos={{
+          faturamento: {
+            linha: "Valor das cobranças únicas ativas",
+            dica: "Soma do valor combinado das cobranças únicas ativas. Não entra no faturamento mensal.",
+          },
+          custo: {
+            linha: "Custo das cobranças únicas ativas",
+            dica: "Soma do custo informado nessas cobranças. Custo vazio entra como zero.",
+          },
+          impostos: {
+            linha: "Impostos sobre as cobranças únicas ativas",
+            dica: "Imposto de cada cobrança única, pelo percentual cadastrado no serviço.",
+          },
+          margem: {
+            linha: "Faturamento avulso menos custo e impostos",
+            dica: "O que sobra do faturamento avulso depois de tirar custo e impostos.",
+          },
+          margemPercentual: {
+            linha: "Margem em relação ao faturamento avulso",
+            dica: "A margem dividida pelo faturamento avulso.",
+          },
+        }}
       />
     </>
   );

@@ -11,18 +11,14 @@ import { FORMAS_COBRANCA, rotuloFormaCobranca, STATUS_CLIENTE } from "@/lib/rotu
 import { classeBotaoPrimario, classeCampo } from "./estilos";
 
 const DICAS = {
-  atraso:
-    "Faturas vencidas (OVERDUE ou em negativação) e as em aberto (PENDING ou em análise de risco) com vencimento anterior a hoje, no fuso de São Paulo. Canceladas e estornos ficam de fora. Os dias contam desde o vencimento.",
-  recebido:
-    "Faturas RECEIVED, CONFIRMED, RECEIVED_IN_CASH ou recebidas após negativação (DUNNING_RECEIVED) cuja última atualização cai no período. O Asaas não guarda a data do pagamento nesta tela; usamos a última atualização, que também muda se a fatura for editada.",
-  receber:
-    "Faturas em aberto que ainda não venceram, com vencimento dentro do período. Não inclui o que já foi pago nem a previsão das assinaturas.",
+  atraso: "Soma das faturas que já venceram e ainda não foram pagas. Fatura cancelada não entra.",
+  recebido: "Soma das faturas pagas no período escolhido, pela data do pagamento.",
+  receber: "Soma das faturas em aberto que vencem no período escolhido. Não inclui o que já foi pago nem a previsão.",
   previsto:
-    "Sempre o mês que vem, independente do filtro de período. Soma as faturas já emitidas e ainda não recebidas com a previsão das assinaturas mensais ativas no Asaas que ainda não geraram fatura naquele mês. A previsão não é uma cobrança emitida.",
-  taxa:
-    "Valor em atraso com vencimento no período, dividido pelo valor de todas as faturas do período que não foram canceladas nem estornadas. Se não houve faturamento, a taxa não aparece.",
+    "Sempre o mês que vem, qualquer que seja o filtro. Junta as faturas já emitidas e ainda não pagas com as recorrências que ainda não geraram fatura.",
+  taxa: "Valor em atraso do período dividido pelo valor faturado no período. Sem faturamento, a taxa não aparece.",
   grafico:
-    "Cada barra é o mês de vencimento: recebido, em atraso e a receber das faturas emitidas, mais a previsão da recorrência ainda não gerada. A linha é a inadimplência daquele mês (atraso dividido pelo que foi emitido). O cartão de recebido usa a data da atualização, então pode não coincidir com a barra.",
+    "Cada barra é um mês de vencimento: o que já foi pago, o que está atrasado, o que ainda vai vencer e a previsão da recorrência. A linha é o percentual em atraso daquele mês. O cartão de recebido olha a data do pagamento, então pode não bater com a barra.",
 };
 
 function Dica({ id, texto }: { id: string; texto: string }) {
@@ -51,14 +47,6 @@ function centavosDe(texto: string): bigint {
   const normal = normalizarDinheiro(texto) ?? "0.00";
   const [inteiro, frac] = normal.split(".");
   return BigInt(inteiro) * BigInt(100) + BigInt(frac);
-}
-
-function textoAtraso(quantidade: number, dias: number | null): string {
-  if (quantidade === 0 || dias === null) return "Nenhuma fatura em atraso";
-  const faturas = quantidade === 1 ? "1 fatura" : `${quantidade} faturas`;
-  if (dias === 0) return `${faturas} · vence hoje`;
-  if (dias === 1) return `${faturas} · a mais antiga há 1 dia`;
-  return `${faturas} · a mais antiga há ${dias} dias`;
 }
 
 export function FiltrosPainelFinanceiro({
@@ -271,8 +259,8 @@ export function PainelFinanceiroView({ painel }: { painel: PainelFinanceiro }) {
   return (
     <div className="space-y-6">
       <p className="text-sm text-muted">
-        Vencimentos de {formatarDataIso(painel.periodo.inicio)} a {formatarDataIso(painel.periodo.fim)}. O recebido usa a
-        data da última atualização da fatura.
+        Vencimentos de {formatarDataIso(painel.periodo.inicio)} a {formatarDataIso(painel.periodo.fim)}. O recebido soma as
+        faturas pagas nesse intervalo.
       </p>
       {vazio ? (
         <p className="rounded-2xl border border-dashed border-line bg-card px-4 py-3 text-sm text-muted">
@@ -283,7 +271,7 @@ export function PainelFinanceiroView({ painel }: { painel: PainelFinanceiro }) {
         <Cartao
           rotulo="Em atraso"
           valor={formatarReais(painel.emAtraso.valor)}
-          detalhe={textoAtraso(painel.emAtraso.quantidade, painel.emAtraso.diasMaisAntigo)}
+          detalhe="Valor das faturas vencidas e não pagas"
           dica={DICAS.atraso}
           dicaId="dica-atraso"
           tom="atraso"
@@ -291,7 +279,11 @@ export function PainelFinanceiroView({ painel }: { painel: PainelFinanceiro }) {
         <Cartao
           rotulo={painel.rotuloRecebido}
           valor={formatarReais(painel.recebido.valor)}
-          detalhe="Pelo dia em que a fatura foi atualizada"
+          detalhe={
+            painel.periodo.chave === "este_mes"
+              ? "Valor das faturas pagas no mês corrente"
+              : "Valor das faturas pagas no período selecionado"
+          }
           dica={DICAS.recebido}
           dicaId="dica-recebido"
           tom="recebido"
@@ -299,14 +291,18 @@ export function PainelFinanceiroView({ painel }: { painel: PainelFinanceiro }) {
         <Cartao
           rotulo={painel.rotuloAReceber}
           valor={formatarReais(painel.aReceber.valor)}
-          detalhe="Em aberto e ainda no prazo"
+          detalhe={
+            painel.periodo.chave === "este_mes"
+              ? "Valor das faturas em aberto que vencem neste mês"
+              : "Valor das faturas em aberto que vencem no período"
+          }
           dica={DICAS.receber}
           dicaId="dica-receber"
         />
         <Cartao
           rotulo={`Previsto em ${painel.previstoProximoMes.rotulo}`}
           valor={formatarReais(painel.previstoProximoMes.total)}
-          detalhe={`${formatarReais(painel.previstoProximoMes.emitido)} em faturas já emitidas · ${formatarReais(painel.previstoProximoMes.previsao)} previsão de recorrência`}
+          detalhe={`Valor previsto para o próximo mês (faturas já emitidas + recorrências). ${formatarReais(painel.previstoProximoMes.emitido)} já emitido · ${formatarReais(painel.previstoProximoMes.previsao)} de recorrência`}
           dica={DICAS.previsto}
           dicaId="dica-previsto"
           tom="previsao"
@@ -314,7 +310,7 @@ export function PainelFinanceiroView({ painel }: { painel: PainelFinanceiro }) {
         <Cartao
           rotulo="Taxa de inadimplência"
           valor={formatarTaxa(painel.inadimplencia)}
-          detalhe="Atraso sobre o faturado no período"
+          detalhe="Percentual do valor do período que está em atraso"
           dica={DICAS.taxa}
           dicaId="dica-taxa"
         />
