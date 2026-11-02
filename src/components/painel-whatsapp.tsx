@@ -88,7 +88,7 @@ export function PainelWhatsapp({
   }
 
   return (
-    <section className="mt-6 rounded-3xl border border-line bg-card p-6">
+    <section id="whatsapp" className="mt-6 scroll-mt-24 rounded-3xl border border-line bg-card p-6">
       <h2 className="font-display text-3xl">WhatsApp</h2>
       <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
         Cada empresa ganha uma subconta e um Sender na Twilio. O e-mail continua pela Resend. O WhatsApp sai no mesmo passo, se estiver marcado, usando template UTILITY. No modo teste nada vai para o cliente.

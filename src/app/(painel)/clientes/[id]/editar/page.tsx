@@ -10,6 +10,7 @@ import { ErroAplicacao } from "@/server/erros";
 import { obterCliente } from "@/server/services/cliente-service";
 import { listarServicosDoCliente } from "@/server/services/cliente-servico-service";
 import { obterPreferenciasCobranca } from "@/server/services/preferencia-cobranca-service";
+import { listarSegmentos } from "@/server/services/segmento-service";
 import { listarServicos } from "@/server/services/servico-service";
 
 export const metadata = { title: "Editar cliente" };
@@ -26,11 +27,13 @@ export default async function PaginaEditarCliente({
   let cliente: ClienteDetalhe;
   let vinculos: ClienteServicoDTO[];
   let catalogo: ServicoDTO[];
+  let segmentos: Awaited<ReturnType<typeof listarSegmentos>>;
   try {
-    [cliente, vinculos, catalogo] = await Promise.all([
+    [cliente, vinculos, catalogo, segmentos] = await Promise.all([
       obterCliente(acesso.empresaId, id),
       listarServicosDoCliente(acesso.empresaId, id, verCusto, podeCobrar),
       listarServicos(acesso.empresaId, verCusto),
+      listarSegmentos(acesso.empresaId),
     ]);
   } catch (erro) {
     if (erro instanceof ErroAplicacao && erro.status === 404) notFound();
@@ -53,7 +56,7 @@ export default async function PaginaEditarCliente({
         titulo={cliente.nomeFantasia}
         descricao="Altere os dados do cliente. Os serviços vendidos ficam nesta página e na ficha. As unidades continuam na ficha."
       />
-      <FormularioCliente cliente={cliente} podeBloquear={acesso.papel === "DONO"} />
+      <FormularioCliente cliente={cliente} podeBloquear={acesso.papel === "DONO"} segmentos={segmentos} />
       <PainelServicosCliente
         clienteId={cliente.id}
         vinculos={vinculos}

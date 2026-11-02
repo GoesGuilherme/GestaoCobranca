@@ -8,7 +8,7 @@ import { enviarJson } from "@/lib/api-cliente";
 import { dataHojeIso } from "@/lib/data";
 import { mascararDocumentoDigitando, mascararTelefoneDigitando } from "@/lib/mascaras";
 import { SEGMENTOS, STATUS_CLIENTE } from "@/lib/rotulos";
-import type { ClienteResumo } from "@/lib/tipos";
+import type { ClienteResumo, SegmentoDTO } from "@/lib/tipos";
 import { UFS } from "@/lib/ufs";
 import { esquemaCliente, mensagemDoCampo, mensagensDoZod } from "@/lib/validacao";
 import { Campo, classeCampo } from "./campo";
@@ -20,6 +20,7 @@ type Valores = {
   razaoSocial: string;
   documento: string;
   segmento: string;
+  segmentoId: string;
   contatoNome: string;
   whatsapp: string;
   email: string;
@@ -35,9 +36,11 @@ const vazio: Valores = CLIENTE_VAZIO;
 export function FormularioCliente({
   cliente,
   podeBloquear = false,
+  segmentos = [],
 }: {
   cliente?: ClienteResumo;
   podeBloquear?: boolean;
+  segmentos?: SegmentoDTO[];
 }) {
   const router = useRouter();
   const bloqueadoTravado = cliente?.status === "BLOQUEADO" && !podeBloquear;
@@ -51,6 +54,7 @@ export function FormularioCliente({
           razaoSocial: cliente.razaoSocial,
           documento: mascararDocumentoDigitando(cliente.documento),
           segmento: cliente.segmento,
+          segmentoId: cliente.segmentoId ?? "",
           contatoNome: cliente.contatoNome,
           whatsapp: mascararTelefoneDigitando(cliente.whatsapp),
           email: cliente.email,
@@ -64,6 +68,7 @@ export function FormularioCliente({
   );
   const [campos, setCampos] = useState<Record<string, string>>({});
   const [enviando, setEnviando] = useState(false);
+  const opcoesSegmento = segmentos.filter((item) => item.ativo || item.id === valores.segmentoId);
 
   function alterar(nome: keyof Valores, valor: string) {
     setValores((atual) => ({ ...atual, [nome]: valor }));
@@ -157,6 +162,26 @@ export function FormularioCliente({
             {SEGMENTOS.map((item) => (
               <option key={item.valor} value={item.valor}>
                 {item.rotulo}
+              </option>
+            ))}
+          </select>
+        </Campo>
+        <Campo
+          label="Segmento da empresa"
+          htmlFor="segmentoId"
+          erro={campos.segmentoId}
+          dica="Opcional. Vem do cadastro de segmentos desta empresa."
+        >
+          <select
+            id="segmentoId"
+            className={classeCampo}
+            value={valores.segmentoId}
+            onChange={(evento) => alterar("segmentoId", evento.target.value)}
+          >
+            <option value="">Sem segmento da empresa</option>
+            {opcoesSegmento.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.ativo ? item.nome : `${item.nome} (inativo)`}
               </option>
             ))}
           </select>

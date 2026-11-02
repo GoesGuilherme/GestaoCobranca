@@ -159,6 +159,19 @@ export async function middleware(request: NextRequest) {
     );
   }
 
+  const rotaPlataforma =
+    pathname === "/admin" ||
+    pathname.startsWith("/admin/") ||
+    pathname === "/api/admin/empresas" ||
+    pathname.startsWith("/api/admin/empresas/");
+  if (rotaPlataforma && !sessao.superadministrador) {
+    return paginaProibida(
+      pathname,
+      "Só a plataforma entra aqui",
+      "Empresas e as ferramentas da Taguaro ficam com o superadministrador. O dono da empresa assinante não acessa esta área.",
+    );
+  }
+
   return NextResponse.next();
 }
 

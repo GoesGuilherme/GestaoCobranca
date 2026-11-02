@@ -8,12 +8,14 @@ import { SEGMENTOS, STATUS_CLIENTE } from "@/lib/rotulos";
 import { acessoDaPagina } from "@/server/auth/pagina";
 import { classificarPagadoresDaEmpresa } from "@/server/services/classificacao-pagador-service";
 import { listarClientes } from "@/server/services/cliente-service";
+import { listarSegmentos } from "@/server/services/segmento-service";
 
 export const metadata = { title: "Clientes" };
 
 type Busca = {
   q?: string;
   segmento?: string;
+  segmentoId?: string;
   status?: string;
 };
 
@@ -26,15 +28,19 @@ export default async function PaginaClientes({
   const acesso = await acessoDaPagina();
   const q = params.q?.trim() ?? "";
   const segmento = params.segmento ?? "";
+  const segmentoId = params.segmentoId ?? "";
   const status = params.status ?? "";
-  const clientes = await listarClientes(acesso.empresaId, { q, segmento, status });
+  const [clientes, segmentos] = await Promise.all([
+    listarClientes(acesso.empresaId, { q, segmento, segmentoId, status }),
+    listarSegmentos(acesso.empresaId),
+  ]);
   const selos = Object.fromEntries(
     await classificarPagadoresDaEmpresa(
       acesso.empresaId,
       clientes.map((cliente) => cliente.id),
     ),
   );
-  const filtrando = Boolean(q || segmento || status);
+  const filtrando = Boolean(q || segmento || segmentoId || status);
 
   return (
     <>
@@ -49,7 +55,7 @@ export default async function PaginaClientes({
         }
       />
 
-      <form method="get" className="mb-6 grid gap-3 rounded-3xl border border-line bg-card p-4 md:grid-cols-[1fr_180px_180px_auto] md:items-end">
+      <form method="get" className="mb-6 grid gap-3 rounded-3xl border border-line bg-card p-4 md:grid-cols-2 xl:grid-cols-[1.2fr_11rem_13rem_10rem_auto] md:items-end">
         <label className="grid gap-1 text-sm">
           <span className="font-medium">Busca</span>
           <input
@@ -70,6 +76,17 @@ export default async function PaginaClientes({
             </option>
           ))}
         </select>
+        </label>
+        <label className="grid gap-1 text-sm">
+          <span className="font-medium">Segmento da empresa</span>
+          <select name="segmentoId" defaultValue={segmentoId} aria-label="Segmento da empresa" className={classeCampo}>
+            <option value="">Todos os segmentos</option>
+            {segmentos.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.ativo ? item.nome : `${item.nome} (inativo)`}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="grid gap-1 text-sm">
           <span className="font-medium">Status</span>

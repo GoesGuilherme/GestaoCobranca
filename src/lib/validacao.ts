@@ -51,6 +51,24 @@ export const esquemaCliente = z.object({
     .min(1, "Informe o CPF ou CNPJ.")
     .refine((valor) => identificarDocumento(valor) !== null, "Informe um CPF ou CNPJ válido."),
   segmento: z.enum(["RESTAURANTE", "MERCADO_AUTONOMO", "OUTRO"], "Escolha o segmento."),
+  segmentoId: z.preprocess(
+    (valor) => {
+      if (valor === undefined) return undefined;
+      if (valor === null) return null;
+      if (typeof valor === "string" && valor.trim() === "") return null;
+      return valor;
+    },
+    z
+      .union([
+        z.null(),
+        z
+          .string()
+          .trim()
+          .min(1, "Escolha um segmento desta empresa.")
+          .max(64, "Escolha um segmento desta empresa."),
+      ])
+      .optional(),
+  ),
   contatoNome: z
     .string()
     .trim()
@@ -281,6 +299,41 @@ export const esquemaAliquotaOpcional = z.preprocess(
   ]),
 );
 
+const esquemaAtivoSegmento = z.preprocess(
+  (valor) => {
+    if (valor === true || valor === "true") return true;
+    if (valor === false || valor === "false") return false;
+    return valor;
+  },
+  z.boolean("Informe se o segmento está ativo."),
+);
+
+const esquemaCorSegmento = z.preprocess(
+  vazioComoNulo,
+  z.union([
+    z.null(),
+    z
+      .string()
+      .trim()
+      .regex(/^#[0-9A-Fa-f]{6}$/, "Use uma cor no formato #RRGGBB."),
+  ]),
+);
+
+export const esquemaSegmento = z.object({
+  nome: z
+    .string()
+    .trim()
+    .min(2, "Informe o nome do segmento.")
+    .max(80, "O nome do segmento pode ter no máximo 80 caracteres."),
+  descricao: z
+    .string()
+    .trim()
+    .max(500, "A descrição pode ter no máximo 500 caracteres.")
+    .optional(),
+  cor: esquemaCorSegmento.optional(),
+  ativo: esquemaAtivoSegmento,
+});
+
 export const esquemaServico = z.object({
   nome: z
     .string()
@@ -369,6 +422,7 @@ export type EntradaFilial = z.infer<typeof esquemaFilial>;
 export type EntradaDadosEmpresa = z.infer<typeof esquemaDadosEmpresa>;
 export type EntradaCadastroEmpresa = z.infer<typeof esquemaCadastroEmpresa>;
 export type EntradaNovoUsuario = z.infer<typeof esquemaNovoUsuario>;
+export type EntradaSegmento = z.infer<typeof esquemaSegmento>;
 export type EntradaServico = z.infer<typeof esquemaServico>;
 export type EntradaClienteServico = z.infer<typeof esquemaClienteServico>;
 export type EntradaConfiguracaoAsaas = z.infer<typeof esquemaConfiguracaoAsaas>;

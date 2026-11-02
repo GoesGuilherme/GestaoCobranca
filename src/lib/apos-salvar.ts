@@ -10,6 +10,7 @@ export const CLIENTE_VAZIO = {
   razaoSocial: "",
   documento: "",
   segmento: "RESTAURANTE",
+  segmentoId: "",
   contatoNome: "",
   whatsapp: "",
   email: "",

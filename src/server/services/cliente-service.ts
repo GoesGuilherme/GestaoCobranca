@@ -13,6 +13,7 @@ const STATUS = new Set<StatusCliente>(["ATIVO", "INATIVO", "EM_IMPLANTACAO", "BL
 export type FiltroClientes = {
   q?: string;
   segmento?: string;
+  segmentoId?: string;
   status?: string;
 };
 
@@ -40,6 +41,7 @@ function dadosPersistidos(entrada: EntradaCliente) {
     documento: documento.normalizado,
     tipoDocumento: documento.tipo,
     segmento: entrada.segmento,
+    ...(entrada.segmentoId !== undefined ? { segmentoId: entrada.segmentoId } : {}),
     contatoNome: entrada.contatoNome,
     whatsapp: somenteDigitos(entrada.whatsapp),
     email: entrada.email.toLowerCase(),
@@ -70,7 +72,21 @@ function incluirResumo() {
       where: { status: "ATIVO" as const, recorrencia: "MENSAL" as const },
       select: { valor: true },
     },
+    segmentoCadastrado: { select: { nome: true, cor: true } },
   };
+}
+
+async function garantirSegmentoDaEmpresa(empresaId: string, segmentoId: string | null | undefined) {
+  if (!segmentoId) return;
+  const segmento = await prisma.segmentoCliente.findFirst({
+    where: { id: segmentoId, empresaId },
+    select: { id: true },
+  });
+  if (!segmento) {
+    throw new ErroAplicacao("Escolha um segmento desta empresa.", 400, "segmento_invalido", {
+      segmentoId: "Escolha um segmento desta empresa.",
+    });
+  }
 }
 
 export async function listarClientes(
@@ -81,10 +97,12 @@ export async function listarClientes(
   const documento = termo ? somenteDocumento(termo) : "";
   const segmento = comoSegmento(filtro.segmento);
   const status = comoStatus(filtro.status);
+  const segmentoId = filtro.segmentoId?.trim();
 
   const onde: Prisma.ClienteWhereInput = {
     empresaId,
     ...(segmento ? { segmento } : {}),
+    ...(segmentoId ? { segmentoId } : {}),
     ...(status ? { status } : {}),
   };
 
@@ -132,6 +150,7 @@ export async function criarCliente(
   const dados = dadosPersistidos(lerEsquema(esquemaCliente, entrada));
   exigirDonoParaBloqueio(null, dados.status, papel);
   await garantirDocumentoLivre(empresaId, dados.documento);
+  await garantirSegmentoDaEmpresa(empresaId, dados.segmentoId);
 
   try {
     const cliente = await prisma.cliente.create({
@@ -166,6 +185,7 @@ export async function atualizarCliente(
   const dados = dadosPersistidos(lerEsquema(esquemaCliente, entrada));
   exigirDonoParaBloqueio(atual.status, dados.status, papel);
   await garantirDocumentoLivre(empresaId, dados.documento, id);
+  await garantirSegmentoDaEmpresa(empresaId, dados.segmentoId);
 
   const alterado = await prisma.cliente.updateMany({
     where: { id, empresaId },

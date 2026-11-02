@@ -1,4 +1,4 @@
-import type { Cliente, ClienteServico, Filial, Servico } from "@/generated/prisma/client";
+import type { Cliente, ClienteServico, Filial, SegmentoCliente, Servico } from "@/generated/prisma/client";
 import { isoDeData } from "@/lib/data";
 import { calcularMargem, somarDinheiro } from "@/lib/dinheiro";
 import { formatarDocumento, formatarWhatsapp } from "@/lib/documento";
@@ -8,6 +8,7 @@ import type {
   ClienteServicoDTO,
   FilialDTO,
   ModoReguaCliente,
+  SegmentoDTO,
   ServicoDTO,
   SituacaoCartao,
 } from "@/lib/tipos";
@@ -17,6 +18,7 @@ type ValorDecimal = { toFixed(casas: number): string };
 type ClienteComContagem = Omit<Cliente, "servicos"> & {
   _count?: { filiais: number };
   servicos?: { valor: ValorDecimal }[];
+  segmentoCadastrado?: { nome: string; cor: string | null } | null;
 };
 
 export function paraFilial(filial: Filial): FilialDTO {
@@ -44,6 +46,9 @@ export function paraCliente(cliente: ClienteComContagem): ClienteResumo {
     documento: formatarDocumento(cliente.documento, cliente.tipoDocumento),
     tipoDocumento: cliente.tipoDocumento,
     segmento: cliente.segmento,
+    segmentoId: cliente.segmentoId,
+    segmentoNome: cliente.segmentoCadastrado?.nome ?? null,
+    segmentoCor: cliente.segmentoCadastrado?.cor ?? null,
     contatoNome: cliente.contatoNome,
     whatsapp: formatarWhatsapp(cliente.whatsapp),
     email: cliente.email,
@@ -79,6 +84,21 @@ export function paraClienteDetalhe(
 
 function textoDecimal(valor: { toFixed(casas: number): string } | null): string | null {
   return valor ? valor.toFixed(2) : null;
+}
+
+export function paraSegmento(
+  segmento: SegmentoCliente & { _count?: { clientes: number } },
+): SegmentoDTO {
+  return {
+    id: segmento.id,
+    nome: segmento.nome,
+    descricao: segmento.descricao,
+    cor: segmento.cor,
+    ativo: segmento.ativo,
+    quantidadeClientes: segmento._count?.clientes ?? 0,
+    criadoEm: segmento.criadoEm.toISOString(),
+    atualizadoEm: segmento.atualizadoEm.toISOString(),
+  };
 }
 
 export function paraServico(
