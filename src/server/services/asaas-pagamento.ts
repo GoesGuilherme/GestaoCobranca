@@ -1,5 +1,6 @@
 import { bandeiraCartaoSegura, finalCartaoSeguro } from "@/lib/cobranca";
 import { dataIsoValida } from "@/lib/data";
+import { dataPagamentoAsaas } from "@/server/asaas/data-pagamento";
 import { normalizarDinheiro } from "@/lib/dinheiro";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db";
@@ -35,6 +36,13 @@ function statusDoEvento(tipo: string, pagamento: Record<string, unknown>) {
 }
 
 const CONFIRMADOS = new Set(["CONFIRMED", "RECEIVED", "RECEIVED_IN_CASH", "DUNNING_RECEIVED"]);
+
+function pagoEmDoPagamento(status: string, pagamento: Record<string, unknown>): Date | null | undefined {
+  if (!CONFIRMADOS.has(status)) return null;
+  const iso = dataPagamentoAsaas(pagamento);
+  if (!iso) return undefined;
+  return new Date(`${iso}T00:00:00.000Z`);
+}
 
 function cartaoDoPagamento(pagamento: Record<string, unknown>) {
   const bruto = pagamento.creditCard;
@@ -120,6 +128,7 @@ export async function espelharPagamentoAsaas(
   const faturaUrl = texto(pagamento.invoiceUrl, 2000);
   const descricao = texto(pagamento.description, 500);
   const cartao = cartaoDoPagamento(pagamento);
+  const pagoEm = pagoEmDoPagamento(status, pagamento);
   const subscriptionId = idAsaas(texto(pagamento.subscription, 80));
   const vinculo = subscriptionId
     ? await tx.clienteServico.findFirst({
@@ -144,6 +153,7 @@ export async function espelharPagamentoAsaas(
         ...(boletoUrl ? { boletoUrl } : {}),
         ...(faturaUrl ? { faturaUrl } : {}),
         ...(descricao ? { descricao } : {}),
+        ...(pagoEm !== undefined ? { pagoEm } : {}),
         ...(!existente.clienteServicoId && vinculo ? { clienteServicoId: vinculo.id } : {}),
       },
     });
@@ -183,6 +193,7 @@ export async function espelharPagamentoAsaas(
       faturaUrl,
       descricao,
       excluida: excluida ?? false,
+      pagoEm: pagoEm ?? null,
     },
   });
   await refletirCartao(tx, empresaId, vinculo?.id ?? null, {

@@ -15,6 +15,7 @@ import {
   type NovoClienteAsaas,
   type PaginaCobrancasAsaas,
 } from "./contrato";
+import { dataPagamentoAsaas } from "./data-pagamento";
 import { lerVisualizacaoAsaas } from "./visualizacao";
 
 const AGENTE = "GestaoCobranca";
@@ -81,6 +82,7 @@ function lerCobranca(json: unknown): CobrancaAsaas {
     faturaUrl: textoDe(corpo.invoiceUrl),
     descricao: textoDe(corpo.description),
     excluida: corpo.deleted === true,
+    pagoEm: dataPagamentoAsaas(corpo),
     referencia: textoDe(corpo.externalReference),
     cartao: cartaoSeguro(corpo.creditCard),
   };
@@ -383,6 +385,18 @@ export function criarClienteHttpAsaas(opcoes: {
         offset: String(offset),
         limit: String(limit),
       });
+      const { json } = await pedir("GET", `/payments?${consulta.toString()}`);
+      return lerPagina(json);
+    },
+
+    async listarCobrancas(filtro) {
+      const limite = Math.min(100, Math.max(1, Math.floor(filtro.limit)));
+      const inicio = Math.max(0, Math.floor(filtro.offset));
+      const consulta = new URLSearchParams({
+        offset: String(inicio),
+        limit: String(limite),
+      });
+      if (filtro.status) consulta.set("status", filtro.status);
       const { json } = await pedir("GET", `/payments?${consulta.toString()}`);
       return lerPagina(json);
     },

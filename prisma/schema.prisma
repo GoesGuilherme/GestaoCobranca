@@ -350,6 +350,9 @@ model Fatura {
   chaveIdempotencia String?   @map("chave_idempotencia")
   valor             Decimal   @db.Decimal(12, 2)
   vencimento        DateTime  @map("vencimento") @db.Date
+  // Dia em que o cliente pagou. clientPaymentDate do Asaas, senão paymentDate.
+  // Nulo em fatura em aberto, estornada, ou paga cuja data ainda não chegou.
+  pagoEm            DateTime? @map("pago_em") @db.Date
   status            String
   formaCobranca     String    @map("forma_cobranca")
   boletoUrl         String?   @map("boleto_url") @db.Text

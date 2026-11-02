@@ -7,10 +7,12 @@ import { opcoesDaReguaAplicavel, rotuloReguaDaFatura, type OpcaoPassoRegua, type
 import { linhaDoTempoDaFatura } from "@/lib/linha-tempo-fatura";
 import type { EnvioReguaLista, ReguaParaProgresso } from "@/lib/regua-progresso";
 import { rotuloFormaCobranca } from "@/lib/rotulos";
+import type { ResultadoClassificacaoPagador } from "@/lib/classificacao-pagador";
 import type { ClienteServicoDTO, FaturaDTO, PreferenciasCobrancaDTO } from "@/lib/tipos";
 import { AcoesFatura } from "./acoes-fatura";
 import { LinhaDoTempoFatura } from "./linha-tempo-fatura";
 import { SeloFatura } from "./selo";
+import { SeloPagador } from "./selo-pagador";
 import { SemaforoRegua } from "./semaforo-regua";
 
 const COLUNAS = "md:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_auto]";
@@ -45,6 +47,7 @@ export function TabelaFaturas({
   enviosRegua = [],
   modoTeste = false,
   emailLogado = "",
+  selos = {},
 }: {
   faturas: FaturaDTO[];
   podeCancelar: boolean;
@@ -60,6 +63,7 @@ export function TabelaFaturas({
   enviosRegua?: EnvioReguaLista[];
   modoTeste?: boolean;
   emailLogado?: string;
+  selos?: Record<string, ResultadoClassificacaoPagador | null>;
 }) {
   if (faturas.length === 0) {
     return (
@@ -121,9 +125,12 @@ export function TabelaFaturas({
             <div className="flex min-w-0 items-start justify-between gap-3 md:block">
               <div className="min-w-0">
                 {mostrarCliente ? (
-                  <Link href={`/clientes/${fatura.clienteId}`} className="font-medium text-canopy hover:underline">
-                    {fatura.nomeCliente}
-                  </Link>
+                  <span className="inline-flex flex-wrap items-center gap-2">
+                    <Link href={`/clientes/${fatura.clienteId}`} className="font-medium text-canopy hover:underline">
+                      {fatura.nomeCliente}
+                    </Link>
+                    <SeloPagador resultado={selos[fatura.clienteId]} tamanho="lista" />
+                  </span>
                 ) : null}
                 <p className={mostrarCliente ? "mt-1 text-sm" : "text-sm font-medium"}>
                   {formatarDataIso(fatura.vencimento)} · {formatarReais(fatura.valor)}

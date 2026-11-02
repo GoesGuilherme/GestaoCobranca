@@ -25,6 +25,7 @@ export type CobrancaAsaas = {
   faturaUrl: string | null;
   descricao: string | null;
   excluida: boolean;
+  pagoEm: string | null;
   referencia: string | null;
   cartao?: { bandeira: string | null; final: string | null } | null;
 };
@@ -113,6 +114,7 @@ export interface ClienteHttpAsaas {
   cancelarAssinatura(id: string): Promise<void>;
   listarCobrancasDoCliente(customer: string, offset: number, limit: number): Promise<PaginaCobrancasAsaas>;
   listarCobrancasDaAssinatura(assinatura: string, offset: number, limit: number): Promise<PaginaCobrancasAsaas>;
+  listarCobrancas(filtro: { status?: string; offset: number; limit: number }): Promise<PaginaCobrancasAsaas>;
 }
 
 export class ErroAsaas extends Error {
