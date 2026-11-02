@@ -1,9 +1,12 @@
+import { dataIsoValida } from "./data";
 import { tomFatura } from "./fatura-situacao";
+import { formatarData, formatarDataIso } from "./formatacao";
 import { somarDias } from "./regua";
 import type { EnvioReguaLista, PassoDaRegua, ReguaParaProgresso } from "./regua-progresso";
 import type { ModoReguaCliente } from "./tipos";
 import {
   marcadoresDaLinhaTempo,
+  nomeAcaoLinhaTempo,
   textoQuandoMarcador,
   type CanalMarcador,
   type FaseLinhaTempo,
@@ -17,6 +20,8 @@ export type MarcoFatura = {
   aceso: boolean;
   canais: CanalMarcador[];
   dica: string;
+  titulo: string;
+  detalhe: string | null;
 };
 
 export type LinhaDoTempoFatura = {
@@ -34,7 +39,7 @@ type EntradaLinhaFatura = {
   modo?: ModoReguaCliente;
   reguaId?: string | null;
   reguas?: ReguaParaProgresso[];
-  envios?: Pick<EnvioReguaLista, "passoId" | "canal" | "status">[];
+  envios?: Pick<EnvioReguaLista, "passoId" | "canal" | "status" | "criadoEm">[];
 };
 
 function reguaAplicavel(modo: ModoReguaCliente, reguaId: string | null, reguas: ReguaParaProgresso[]): ReguaParaProgresso | null {
@@ -60,17 +65,75 @@ function canalDeEnvio(canal: string): CanalMarcador | null {
   return null;
 }
 
-function enviosPorPasso(envios: Pick<EnvioReguaLista, "passoId" | "canal" | "status">[]): Map<string, Set<CanalMarcador>> {
-  const mapa = new Map<string, Set<CanalMarcador>>();
+type EnvioEfetivo = {
+  canal: CanalMarcador;
+  enviadoEm: string | null;
+};
+
+function enviosPorPasso(envios: Pick<EnvioReguaLista, "passoId" | "canal" | "status" | "criadoEm">[]): Map<string, EnvioEfetivo[]> {
+  const mapa = new Map<string, Map<CanalMarcador, string | null>>();
   for (const envio of envios) {
     if (envio.status !== "ENVIADO" || !envio.passoId) continue;
     const canal = canalDeEnvio(envio.canal);
     if (!canal) continue;
-    const lista = mapa.get(envio.passoId) ?? new Set<CanalMarcador>();
-    lista.add(canal);
-    mapa.set(envio.passoId, lista);
+    const porCanal = mapa.get(envio.passoId) ?? new Map<CanalMarcador, string | null>();
+    const quando = envio.criadoEm?.trim() ? envio.criadoEm : null;
+    const atual = porCanal.get(canal);
+    if (!porCanal.has(canal) || (quando && (!atual || quando > atual))) {
+      porCanal.set(canal, quando);
+    }
+    mapa.set(envio.passoId, porCanal);
   }
-  return mapa;
+
+  const resultado = new Map<string, EnvioEfetivo[]>();
+  for (const [passoId, porCanal] of mapa) {
+    const lista: EnvioEfetivo[] = [];
+    for (const canal of ["email", "whatsapp"] as const) {
+      if (!porCanal.has(canal)) continue;
+      lista.push({ canal, enviadoEm: porCanal.get(canal) ?? null });
+    }
+    resultado.set(passoId, lista);
+  }
+  return resultado;
+}
+
+function horaDoEnvio(iso: string): string | null {
+  const data = new Date(iso);
+  if (Number.isNaN(data.getTime())) return null;
+  return formatarData(iso);
+}
+
+function detalheDoEnvio(envios: EnvioEfetivo[]): string | null {
+  if (envios.length === 0) return null;
+  return envios
+    .map((envio) => {
+      const hora = envio.enviadoEm ? horaDoEnvio(envio.enviadoEm) : null;
+      return hora ? `${nomeCanal(envio.canal)} · ${hora}` : nomeCanal(envio.canal);
+    })
+    .join(" · ");
+}
+
+function dataPrevista(dias: number | null, vencimento: string): string | null {
+  if (dias === null || !dataIsoValida(vencimento)) return null;
+  return formatarDataIso(somarDias(vencimento, dias));
+}
+
+function tituloDaAcao(fase: FaseLinhaTempo, enviado: boolean, previsto: boolean): string {
+  if (fase === "pago") return "Pago";
+  if (fase === "emissao") return "Boleto emitido";
+  if (fase === "antes") {
+    if (enviado) return "Lembrete enviado";
+    if (previsto) return "Lembrete previsto";
+  }
+  if (fase === "noDia") {
+    if (enviado) return "Aviso enviado";
+    if (previsto) return "Aviso previsto";
+  }
+  if (fase === "depois") {
+    if (enviado) return "Cobrança enviada";
+    if (previsto) return "Cobrança prevista";
+  }
+  return nomeAcaoLinhaTempo(fase);
 }
 
 function diaChegou(fase: FaseLinhaTempo, dias: number | null, vencimento: string, hoje: string): boolean {
@@ -109,7 +172,10 @@ export function ariaLinhaDoTempoFatura(linha: LinhaDoTempoFatura): string {
     if (linha.paga) return "Sem régua. Fatura paga.";
     return "Sem régua. Fatura em aberto.";
   }
-  const partes = linha.marcadores.map((marco) => `${marco.dica}, ${marco.aceso ? "aceso" : "apagado"}`);
+  const partes = linha.marcadores.map((marco) => {
+    const label = marco.detalhe ? `${marco.titulo}, ${marco.detalhe}` : marco.titulo;
+    return `${label}. ${marco.dica}, ${marco.aceso ? "aceso" : "apagado"}`;
+  });
   return `Régua de cobrança. ${partes.join(". ")}`;
 }
 
@@ -138,12 +204,21 @@ export function linhaDoTempoDaFatura(entrada: EntradaLinhaFatura): LinhaDoTempoF
         aceso,
         canais: [],
         dica: `Pago · ${status}`,
+        titulo: "Pago",
+        detalhe: neutra ? "Encerrada" : null,
       };
     }
     const ocorrido = diaChegou(marco.fase, marco.dias, entrada.vencimento, entrada.hoje);
-    const canaisEnviados = marco.chave ? enviados.get(marco.chave) : undefined;
-    const enviado = marco.canais.some((canal) => canaisEnviados?.has(canal));
+    const efetivos = marco.chave ? enviados.get(marco.chave) ?? [] : [];
+    const enviado = efetivos.length > 0;
     const aceso = !neutra && (ocorrido || enviado);
+    const previsto = !neutra && !ocorrido && !enviado;
+    const titulo = tituloDaAcao(marco.fase, enviado, previsto);
+    let detalhe: string | null = null;
+    if (enviado) detalhe = detalheDoEnvio(efetivos);
+    else if (neutra) detalhe = "Encerrada";
+    else if (previsto) detalhe = dataPrevista(marco.dias, entrada.vencimento);
+    else detalhe = "Não enviado";
     return {
       chave: marco.chave,
       fase: marco.fase,
@@ -151,6 +226,8 @@ export function linhaDoTempoDaFatura(entrada: EntradaLinhaFatura): LinhaDoTempoF
       aceso,
       canais: marco.canais,
       dica: dicaDoPasso(marco.fase, marco.dias, marco.canais, statusDoPasso(ocorrido, enviado, neutra)),
+      titulo,
+      detalhe,
     };
   });
 
