@@ -17,7 +17,7 @@ export default async function PaginaResultado() {
       <CabecalhoPagina
         olho={acesso.nomeEmpresa}
         titulo="Resultado"
-        descricao="Custo e faturamento dos serviços vendidos que estão ativos, de clientes ativos ou em implantação. A alíquota do catálogo incide sobre o valor combinado."
+        descricao="Custo e faturamento dos serviços ativos, de clientes ativos ou em implantação. O imposto segue o percentual cadastrado no serviço."
       />
       <PainelResultado mensal={resultado.mensal} avulso={resultado.avulso} />
     </>

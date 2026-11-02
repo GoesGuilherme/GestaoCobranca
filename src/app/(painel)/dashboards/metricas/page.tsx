@@ -17,7 +17,7 @@ export default async function PaginaMetricas() {
       <CabecalhoPagina
         olho={acesso.nomeEmpresa}
         titulo="Métricas"
-        descricao="Receita recorrente, saída de clientes e valor ao longo do tempo. O churn e o LTV usam a data de ativação do cliente. Cada empresa vê só as próprias mensalidades. Serviço avulso fica de fora."
+        descricao="Valor mensal recorrente, saída de clientes e quanto um cliente vale ao longo do tempo. A conta usa a data de ativação. Cada empresa vê só as próprias mensalidades. Cobrança única fica de fora."
       />
       <PainelMetricas metricas={metricas} />
     </>

@@ -21,6 +21,7 @@ function fatura(parcial: Partial<FaturaPainel> & Pick<FaturaPainel, "status" | "
     excluida: parcial.excluida ?? false,
     valor: parcial.valor,
     vencimento: parcial.vencimento,
+    pagoEm: parcial.pagoEm ?? null,
     atualizadoEm: parcial.atualizadoEm ?? parcial.vencimento,
     formaCobranca: parcial.formaCobranca ?? "BOLETO",
     clienteServicoId: parcial.clienteServicoId ?? null,
@@ -117,7 +118,7 @@ describe("classificação financeira", () => {
     ).toBeNull();
   });
 
-  it("monta o painel pelo vencimento e o recebido pela atualização", () => {
+  it("monta as barras pelo vencimento e o recebido pela data de pagamento", () => {
     const painel = montarPainelFinanceiro({
       hoje: HOJE,
       periodo: "este_mes",
@@ -144,7 +145,8 @@ describe("classificação financeira", () => {
           id: "3",
           status: "RECEIVED",
           vencimento: "2026-09-15",
-          atualizadoEm: "2026-10-05",
+          pagoEm: "2026-10-05",
+          atualizadoEm: "2026-11-02",
           valor: "200.00",
           clienteNome: "Ana",
         }),
@@ -170,6 +172,60 @@ describe("classificação financeira", () => {
     expect(novembro?.previsao).toBe("140.00");
     expect(outubro?.atraso).toBe("150.00");
     expect(painel.meses.find((mes) => mes.mes === "2026-09")?.recebido).toBe("200.00");
+  });
+
+  it("não traz para novembro um pagamento de outubro só porque a fatura foi atualizada agora", () => {
+    const faturas = [
+      fatura({
+        id: "outubro",
+        status: "RECEIVED",
+        vencimento: "2026-10-10",
+        pagoEm: "2026-10-15",
+        atualizadoEm: "2026-11-02",
+        valor: "500.00",
+      }),
+      fatura({
+        id: "novembro",
+        status: "RECEIVED",
+        vencimento: "2026-10-10",
+        pagoEm: "2026-11-01",
+        atualizadoEm: "2026-11-02",
+        valor: "200.00",
+      }),
+      fatura({
+        id: "sem-data",
+        status: "RECEIVED",
+        vencimento: "2026-09-01",
+        pagoEm: null,
+        atualizadoEm: "2026-11-02",
+        valor: "50.00",
+      }),
+      fatura({
+        id: "sem-data-outubro",
+        status: "DUNNING_RECEIVED",
+        vencimento: "2026-08-01",
+        pagoEm: null,
+        atualizadoEm: "2026-10-20",
+        valor: "80.00",
+      }),
+    ];
+    const novembro = montarPainelFinanceiro({
+      hoje: "2026-11-02",
+      periodo: "este_mes",
+      assinaturas: [],
+      faturas,
+    });
+    const outubro = montarPainelFinanceiro({
+      hoje: "2026-11-02",
+      periodo: "mes_passado",
+      assinaturas: [],
+      faturas,
+    });
+
+    expect(novembro.recebido.valor).toBe("250.00");
+    expect(outubro.recebido.valor).toBe("580.00");
+    expect(novembro.meses.find((mes) => mes.mes === "2026-10")?.recebido).toBe("700.00");
+    expect(novembro.meses.find((mes) => mes.mes === "2026-09")?.recebido).toBe("50.00");
   });
 
   it("ignora filtro desconhecido", () => {

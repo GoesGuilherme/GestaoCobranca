@@ -41,10 +41,41 @@ export function EsqueletoBocaJacare() {
   );
 }
 
-function Cartao({ rotulo, valor, detalhe }: { rotulo: string; valor: string; detalhe: string }) {
+function Cartao({
+  rotulo,
+  valor,
+  detalhe,
+  dica,
+  dicaId,
+}: {
+  rotulo: string;
+  valor: string;
+  detalhe: string;
+  dica: string;
+  dicaId: string;
+}) {
   return (
     <article className="rounded-3xl border border-line bg-white px-5 py-5">
-      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">{rotulo}</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+        {rotulo}
+        <span className="group relative ml-1 inline-flex align-middle">
+          <button
+            type="button"
+            className="inline-flex size-4 cursor-help items-center justify-center rounded-full border border-current/30 text-[10px] font-semibold leading-none"
+            aria-describedby={dicaId}
+          >
+            ?
+            <span className="sr-only">O que este número significa</span>
+          </button>
+          <span
+            id={dicaId}
+            role="tooltip"
+            className="invisible absolute top-full left-0 z-30 mt-2 w-64 rounded-xl border border-line bg-white px-3 py-2 text-left text-xs font-normal normal-case tracking-normal text-ink opacity-0 shadow-lg group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
+          >
+            {dica}
+          </span>
+        </span>
+      </p>
       <p className="mt-2 font-display text-3xl tabular-nums text-ink">{valor}</p>
       <p className="mt-2 text-sm text-muted">{detalhe}</p>
     </article>
@@ -103,12 +134,16 @@ export function BocaJacareView({ dados, filtros }: { dados: BocaJacare; filtros:
         <Cartao
           rotulo="Inadimplência atual"
           valor={formatarReais(dados.resumo.inadimplente)}
-          detalhe="Tudo que está em aberto e já venceu, até hoje, nesta empresa."
+          detalhe="Valor das faturas vencidas e não pagas, até hoje"
+          dica="Soma de tudo que já venceu e ainda não foi pago, nesta empresa, até hoje."
+          dicaId="dica-boca-inadimplencia"
         />
         <Cartao
           rotulo="Taxa atual"
           valor={formatarTaxa(dados.resumo.taxa)}
-          detalhe="A inadimplência atual dividida pelo que já venceu até hoje. Sem faturamento vencido, a taxa não aparece."
+          detalhe="Percentual do que já venceu e ainda não foi pago"
+          dica="O valor vencido e não pago dividido pelo que já venceu até hoje. Sem valor vencido, a taxa não aparece."
+          dicaId="dica-boca-taxa"
         />
       </div>
 

@@ -2,14 +2,13 @@ import { formatarReais } from "@/lib/dinheiro";
 import { formatarMicrosPercentual, type MetricasSaas } from "@/lib/metricas-saas";
 
 const DICAS = {
-  mrr: "Soma do valor mensal das mensalidades que ainda estão valendo hoje. Serviço avulso não entra. Pausa, cancelamento, cliente inativo ou bloqueado também não entram.",
-  variacao: "Compara o MRR de hoje com o MRR do fim do mês passado. Se o mês passado era zero, a variação percentual não aparece.",
+  mrr: "Soma do valor mensal dos serviços recorrentes que ainda valem hoje. Cobrança única não entra. Serviço pausado, encerrado ou de cliente inativo também não entra.",
+  variacao: "Compara o valor mensal de hoje com o do fim do mês passado. Se o mês passado era zero, o percentual não aparece.",
   churnClientes:
-    "Quem já era cliente no fim do mês passado, pela data de ativação, e deixou de ser até o fechamento deste mês. Sem a data, usamos o início da mensalidade mais antiga.",
-  churnReceita:
-    "O MRR que saiu, dividido pelo MRR do começo do mês. É a receita recorrente perdida, não o que entrou de cliente novo.",
-  ticket: "MRR de hoje dividido pelo número de clientes que ainda têm pelo menos uma mensalidade ativa.",
-  ltv: "Ticket médio vezes o tempo médio desde a data de ativação. Sem essa data, o tempo conta a partir da mensalidade mais antiga. Se não houver base, aparece dados insuficientes.",
+    "Dos clientes que já estavam no fim do mês passado, a parte que saiu até hoje. Sem data de ativação, a entrada usa o início da mensalidade mais antiga.",
+  churnReceita: "Do valor mensal do começo do mês, a parte que saiu. Cliente novo não entra nessa conta.",
+  ticket: "Valor mensal de hoje dividido pelo número de clientes com pelo menos um serviço recorrente ativo.",
+  ltv: "Valor mensal médio por cliente vezes o tempo médio que ele fica. Sem data de ativação, o tempo começa na mensalidade mais antiga. Sem base, não dá para estimar.",
 };
 
 export function PainelMetricas({ metricas }: { metricas: MetricasSaas }) {
@@ -30,30 +29,37 @@ export function PainelMetricas({ metricas }: { metricas: MetricasSaas }) {
           {metricas.clientesSemAtivacao === 1
             ? "1 cliente com mensalidade ainda não tem data de ativação."
             : `${metricas.clientesSemAtivacao} clientes com mensalidade ainda não têm data de ativação.`}{" "}
-          Para esses, a entrada na base do churn e do LTV usa o início da mensalidade mais antiga.
+          Para esses, a entrada na conta de saída e do valor ao longo do tempo usa o início da mensalidade mais antiga.
         </p>
       ) : null}
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Cartao rotulo="MRR" valor={formatarReais(metricas.mrr)} detalhe={`${metricas.clientesAtivos} ${metricas.clientesAtivos === 1 ? "cliente ativo" : "clientes ativos"}`} dica={DICAS.mrr} dicaId="dica-mrr" destaque />
+        <Cartao
+          rotulo="MRR"
+          valor={formatarReais(metricas.mrr)}
+          detalhe="Valor mensal dos serviços recorrentes ativos"
+          dica={DICAS.mrr}
+          dicaId="dica-mrr"
+          destaque
+        />
         <Cartao
           rotulo="Variação"
           valor={formatarMicrosPercentual(metricas.variacao)}
-          detalhe={detalheVariacao(metricas)}
+          detalhe={`Diferença do valor mensal em relação ao mês passado. ${detalheVariacao(metricas)}`}
           dica={DICAS.variacao}
           dicaId="dica-variacao"
         />
         <Cartao
           rotulo="Churn de clientes"
           valor={formatarMicrosPercentual(metricas.churnClientes)}
-          detalhe="Neste mês, até hoje"
+          detalhe="Percentual de clientes que saíram neste mês"
           dica={DICAS.churnClientes}
           dicaId="dica-churn-clientes"
         />
         <Cartao
           rotulo="Churn de receita"
           valor={formatarMicrosPercentual(metricas.churnReceita)}
-          detalhe="MRR perdido sobre o início do mês"
+          detalhe="Percentual do valor mensal perdido neste mês"
           dica={DICAS.churnReceita}
           dicaId="dica-churn-receita"
         />
@@ -61,7 +67,7 @@ export function PainelMetricas({ metricas }: { metricas: MetricasSaas }) {
 
       <section className="rounded-3xl border border-line bg-card p-5">
         <h2 className="font-display text-2xl">MRR nos últimos 12 meses</h2>
-        <p className="mt-1 text-sm text-muted">Cada barra é o fim daquele mês. A última é o valor de hoje.</p>
+        <p className="mt-1 text-sm text-muted">Cada barra é o valor mensal no fim daquele mês. A última é o de hoje.</p>
         <div className="mt-6 flex h-48 items-end gap-2">
           {metricas.meses.map((mes) => {
             const altura = maximo === BigInt(0) ? 0 : Number((centavosDe(mes.mrr) * BigInt(100)) / maximo);
@@ -79,26 +85,30 @@ export function PainelMetricas({ metricas }: { metricas: MetricasSaas }) {
 
       <section className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
         <article className="rounded-3xl border border-line bg-card p-5">
-          <h2 className="font-display text-2xl">Como o churn é calculado</h2>
+          <h2 className="font-display text-2xl">Como a saída de cliente é calculada</h2>
           <p className="mt-3 text-sm leading-6 text-muted">
-            O cliente entra na base no dia da data de ativação. Sem essa data, entra no início da mensalidade mais antiga. Sai se a mensalidade acabou, foi pausada ou cancelada, ou se o cliente ficou inativo ou bloqueado. Quem cancela no dia 15 conta naquele mês, não no seguinte. O churn de receita olha o dinheiro das mensalidades que deixaram de valer.
+            O cliente entra no dia em que foi ativado. Sem essa data, entra no início da mensalidade mais antiga. Sai quando a mensalidade acaba, é pausada ou cancelada, ou quando o cliente fica inativo ou bloqueado. Quem sai no dia 15 conta naquele mês. A saída de receita olha o valor mensal que deixou de valer.
           </p>
           <p className="mt-3 text-sm leading-6 text-muted">
-            Não há histórico separado de cada mudança. A data de saída é a última atualização da mensalidade ou do cliente. Por isso, editar um cadastro antigo pode mudar o mês em que o churn aparece.
+            Não há um histórico separado de cada mudança. A data de saída é o dia em que a mensalidade ou o cliente foi encerrado. Por isso, alterar um cadastro antigo pode mudar o mês em que a saída aparece.
           </p>
         </article>
         <div className="grid gap-4">
           <Cartao
             rotulo="Ticket médio"
             valor={metricas.ticket ? formatarReais(metricas.ticket) : "—"}
-            detalhe="Receita mensal por cliente ativo"
+            detalhe="Valor mensal médio por cliente ativo"
             dica={DICAS.ticket}
             dicaId="dica-ticket"
           />
           <Cartao
             rotulo="LTV"
             valor={metricas.ltv ? formatarReais(metricas.ltv) : "Dados insuficientes"}
-            detalhe={metricas.vidaMeses ? `Cerca de ${metricas.vidaMeses.replace(".", ",")} meses de vida` : "Sem base para estimar a vida do cliente"}
+            detalhe={
+              metricas.vidaMeses
+                ? `Valor estimado que um cliente gera ao longo do tempo · cerca de ${metricas.vidaMeses.replace(".", ",")} meses`
+                : "Valor estimado que um cliente gera ao longo do tempo. Ainda não dá para estimar."
+            }
             dica={DICAS.ltv}
             dicaId="dica-ltv"
           />

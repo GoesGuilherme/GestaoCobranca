@@ -19,6 +19,7 @@ type LinhaFatura = {
   excluida: boolean;
   valor: string;
   vencimento: string;
+  pago_em: string | null;
   atualizado_em: string;
   forma_cobranca: string;
   cliente_servico_id: string | null;
@@ -62,6 +63,10 @@ export async function obterPainelFinanceiro(
     ? Prisma.sql`AND cs.forma_cobranca_recorrente = ${filtros.forma}`
     : Prisma.empty;
 
+  // Dia do recebimento: pago_em, o que o Taguaro gravou. Sem buscar histórico fora.
+  // Não há outra coluna de data de pagamento. Se pago_em é nulo (fatura antiga),
+  // último recurso é o dia de atualizado_em em São Paulo.
+  const diaRecebimento = Prisma.sql`COALESCE(f.pago_em, (f.atualizado_em AT TIME ZONE 'America/Sao_Paulo')::date)`;
   const faturas = await prisma.$queryRaw<LinhaFatura[]>(Prisma.sql`
       SELECT
         f.id,
@@ -69,6 +74,7 @@ export async function obterPainelFinanceiro(
         f.excluida,
         f.valor::text AS valor,
         to_char(f.vencimento, 'YYYY-MM-DD') AS vencimento,
+        to_char(f.pago_em, 'YYYY-MM-DD') AS pago_em,
         to_char(f.atualizado_em AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD') AS atualizado_em,
         f.forma_cobranca,
         f.cliente_servico_id,
@@ -85,8 +91,8 @@ export async function obterPainelFinanceiro(
         AND (
           (f.vencimento >= ${inicioGrafico}::date AND f.vencimento <= ${fimGrafico}::date)
           OR (
-            (f.atualizado_em AT TIME ZONE 'America/Sao_Paulo')::date >= ${periodo.inicio}::date
-            AND (f.atualizado_em AT TIME ZONE 'America/Sao_Paulo')::date <= ${periodo.fim}::date
+            ${diaRecebimento} >= ${periodo.inicio}::date
+            AND ${diaRecebimento} <= ${periodo.fim}::date
           )
         )
     `);
@@ -132,6 +138,7 @@ export async function obterPainelFinanceiro(
     excluida: Boolean(linha.excluida),
     valor: texto(linha.valor),
     vencimento: texto(linha.vencimento),
+    pagoEm: texto(linha.pago_em) || null,
     atualizadoEm: texto(linha.atualizado_em),
     formaCobranca: texto(linha.forma_cobranca),
     clienteServicoId: linha.cliente_servico_id ? texto(linha.cliente_servico_id) : null,

@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { PREFERENCIAS_COBRANCA_PADRAO } from "@/lib/cobranca";
+import { pagoNesteMes } from "@/lib/data-recebimento";
 import { formatarReais, somarDinheiro } from "@/lib/dinheiro";
 import { faturasNaSituacao, faturaNaSituacao } from "@/lib/fatura-situacao";
 import { formatarDataIso } from "@/lib/formatacao";
-import { dataSaoPaulo, type OpcaoPassoRegua, type PassoParaRotulo } from "@/lib/regua";
+import { type OpcaoPassoRegua, type PassoParaRotulo } from "@/lib/regua";
 import type { EnvioReguaLista, ReguaParaProgresso } from "@/lib/regua-progresso";
 import type { ClienteServicoDTO, FaturaDTO, PreferenciasCobrancaDTO, SituacaoFatura } from "@/lib/tipos";
 import { AcoesCompartilhar } from "./acoes-compartilhar";
@@ -52,9 +53,7 @@ function textoDoLink(forma: string, boleto: boolean) {
 function resumo(faturas: FaturaDTO[], hoje: string) {
   const abertas = faturas.filter((fatura) => faturaNaSituacao(fatura, "em_aberto"));
   const vencidas = faturas.filter((fatura) => faturaNaSituacao(fatura, "vencidas"));
-  const pagasNoMes = faturas.filter(
-    (fatura) => faturaNaSituacao(fatura, "pagas") && dataSaoPaulo(new Date(fatura.atualizadoEm)).slice(0, 7) === hoje.slice(0, 7),
-  );
+  const pagasNoMes = faturas.filter((fatura) => pagoNesteMes(fatura, hoje));
   const futuras = abertas
     .filter((fatura) => fatura.vencimento >= hoje)
     .sort((a, b) => (a.vencimento < b.vencimento ? -1 : a.vencimento > b.vencimento ? 1 : 0));
