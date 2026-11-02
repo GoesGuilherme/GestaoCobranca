@@ -3,6 +3,7 @@ import {
   COR_FASE_LINHA_TEMPO,
   VERDE_LINHA_TEMPO,
   marcadoresDaLinhaTempo,
+  nomeAcaoLinhaTempo,
   textoOffsetMarcador,
   type PassoLinhaTempo,
 } from "./linha-tempo-regua";
@@ -23,6 +24,14 @@ describe("marcadores da linha do tempo", () => {
     expect(COR_FASE_LINHA_TEMPO.noDia.marca).toBe(VERDE_LINHA_TEMPO);
     expect(COR_FASE_LINHA_TEMPO.pago.marca).toBe(VERDE_LINHA_TEMPO);
     expect(VERDE_LINHA_TEMPO).toBe("#146c43");
+  });
+
+  it("nomeia a ação de cada fase", () => {
+    expect(nomeAcaoLinhaTempo("emissao")).toBe("Boleto emitido");
+    expect(nomeAcaoLinhaTempo("antes")).toBe("Lembrete antes do vencimento");
+    expect(nomeAcaoLinhaTempo("noDia")).toBe("Aviso no dia do vencimento");
+    expect(nomeAcaoLinhaTempo("depois")).toBe("Cobrança após vencimento");
+    expect(nomeAcaoLinhaTempo("pago")).toBe("Pago");
   });
 
   it("formata o offset sem copiar uma régua de exemplo", () => {
