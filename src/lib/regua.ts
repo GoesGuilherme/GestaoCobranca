@@ -59,6 +59,13 @@ function trocar(texto: string, token: string, valor: string) {
   return texto.split(token).join(valor);
 }
 
+/** Troca `{dias_atraso}` pelo atraso real. Se a palavra "dias" vem em seguida, usa o singular. */
+export function aplicarDiasAtraso(texto: string, dias: number): string {
+  const quantidade = Number.isFinite(dias) ? Math.max(0, Math.trunc(dias)) : 0;
+  const frase = quantidade === 1 ? "1 dia" : `${quantidade} dias`;
+  return texto.replaceAll(/\{dias_atraso\}\s+dias\b/gi, frase).replaceAll("{dias_atraso}", String(quantidade));
+}
+
 export function textoRegua(
   modelo: string,
   dados: {
@@ -71,27 +78,25 @@ export function textoRegua(
     empresa: string;
   },
 ): string {
-  return trocar(
+  const comCampos = trocar(
     trocar(
       trocar(
         trocar(
-          trocar(
-            trocar(trocar(modelo, "{cliente}", dados.cliente), "{servico}", dados.servico),
-            "{valor}",
-            dados.valor,
-          ),
-          "{vencimento}",
-          dados.vencimento,
+          trocar(trocar(modelo, "{cliente}", dados.cliente), "{servico}", dados.servico),
+          "{valor}",
+          dados.valor,
         ),
-        "{link}",
-        dados.link,
+        "{vencimento}",
+        dados.vencimento,
       ),
-      "{dias_atraso}",
-      dados.diasAtraso,
+      "{link}",
+      dados.link,
     ),
     "{empresa}",
     dados.empresa,
-  ).slice(0, 2000);
+  );
+  const atraso = Number(dados.diasAtraso);
+  return aplicarDiasAtraso(comCampos, Number.isFinite(atraso) ? atraso : 0).slice(0, 2000);
 }
 
 export function assuntoRegua(assunto: string, modoTeste: boolean): string {
@@ -219,37 +224,38 @@ export function rotuloReguaDaFatura(entrada: {
 
   const diff = diferencaDias(entrada.vencimento, entrada.hoje);
   const fase: Exclude<FaseRegua, "encerrada"> = diff < 0 ? "antes" : diff === 0 ? "hoje" : "atraso";
-  const texto = textoDoPasso(entrada.passos, diff, fase);
+  const texto = textoDoPasso(entrada.passos, diff, fase, Math.max(0, diff));
   return { fase, texto, aria: `${FASE_ARIA[fase]}: ${texto}` };
 }
 
-function textoDoPasso(passos: PassoParaRotulo[], diff: number, fase: Exclude<FaseRegua, "encerrada">): string {
+function textoDoPasso(passos: PassoParaRotulo[], diff: number, fase: Exclude<FaseRegua, "encerrada">, atraso: number): string {
   const comDias = passos.filter((passo) => !passo.naEmissao && typeof passo.dias === "number");
   if (fase === "hoje") {
     const noDia = comDias.find((passo) => passo.dias === 0);
-    return noDia ? nomeDoPasso(noDia) : rotuloPasso({ naEmissao: false, dias: 0 });
+    return noDia ? nomeDoPasso(noDia, atraso) : rotuloPasso({ naEmissao: false, dias: 0 });
   }
   if (fase === "antes") {
     const anteriores = comDias.filter((passo) => (passo.dias as number) < 0);
     const alcancado = maiorDias(anteriores.filter((passo) => (passo.dias as number) <= diff));
-    if (alcancado) return nomeDoPasso(alcancado);
+    if (alcancado) return nomeDoPasso(alcancado, atraso);
     const proximo = menorDias(anteriores.filter((passo) => (passo.dias as number) > diff));
-    if (proximo) return nomeDoPasso(proximo);
+    if (proximo) return nomeDoPasso(proximo, atraso);
   } else {
     const posteriores = comDias.filter((passo) => (passo.dias as number) > 0);
     const alcancado = maiorDias(posteriores.filter((passo) => (passo.dias as number) <= diff));
-    if (alcancado) return nomeDoPasso(alcancado);
+    if (alcancado) return nomeDoPasso(alcancado, atraso);
     const proximo = menorDias(posteriores.filter((passo) => (passo.dias as number) > diff));
-    if (proximo) return nomeDoPasso(proximo);
+    if (proximo) return nomeDoPasso(proximo, atraso);
   }
   const emissao = passos.find((passo) => passo.naEmissao);
-  if (emissao) return nomeDoPasso(emissao);
+  if (emissao) return nomeDoPasso(emissao, atraso);
   return rotuloPasso({ naEmissao: false, dias: diff });
 }
 
-function nomeDoPasso(passo: PassoParaRotulo): string {
+function nomeDoPasso(passo: PassoParaRotulo, atraso: number): string {
   const assunto = passo.assunto.trim();
-  return assunto || rotuloPasso(passo);
+  if (!assunto) return rotuloPasso(passo);
+  return aplicarDiasAtraso(assunto, atraso);
 }
 
 function maiorDias(passos: PassoParaRotulo[]): PassoParaRotulo | null {

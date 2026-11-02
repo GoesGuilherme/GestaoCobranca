@@ -29,6 +29,18 @@ const ROTULO_FASE: Record<FaseLinhaTempo, string> = {
   pago: "Pago",
 };
 
+const NOME_ACAO: Record<FaseLinhaTempo, string> = {
+  emissao: "Boleto emitido",
+  antes: "Lembrete antes do vencimento",
+  noDia: "Aviso no dia do vencimento",
+  depois: "Cobrança após vencimento",
+  pago: "Pago",
+};
+
+export function nomeAcaoLinhaTempo(fase: FaseLinhaTempo): string {
+  return NOME_ACAO[fase];
+}
+
 const ORDEM_FASE: Record<Exclude<FaseLinhaTempo, "pago">, number> = {
   emissao: 0,
   antes: 1,

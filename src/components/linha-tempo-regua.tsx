@@ -5,6 +5,7 @@ import { useState } from "react";
 import {
   COR_FASE_LINHA_TEMPO,
   marcadoresDaLinhaTempo,
+  nomeAcaoLinhaTempo,
   type FaseLinhaTempo,
   type PassoLinhaTempo,
 } from "@/lib/linha-tempo-regua";
@@ -77,25 +78,25 @@ export function LinhaDoTempoRegua({
                 const circulo = marcador.fase === "pago" || marcador.texto.length <= 1;
                 const abrePasso = marcador.indice !== null && Boolean(onSelecionar);
                 return (
-                  <li key={marcador.chave} className="w-[6.75rem] shrink-0">
-                    <div className="relative flex h-9 w-full items-center justify-center">
+                  <li key={marcador.chave} className="w-36 shrink-0 sm:w-[9.5rem]">
+                    <div className="relative flex h-12 w-full items-center justify-center">
                       {proximo ? (
                         <span
                           aria-hidden="true"
-                          className="absolute top-1/2 left-1/2 h-[3px] w-full -translate-y-1/2"
+                          className="absolute top-1/2 left-1/2 h-1 w-full -translate-y-1/2"
                           style={{ background: degrade(marcador.fase, proximo.fase) }}
                         />
                       ) : null}
                       <button
                         type="button"
-                        className={`relative z-10 inline-flex h-9 items-center justify-center rounded-full text-sm font-semibold tabular-nums transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold ${circulo ? "w-9" : "min-w-9 px-3"} ${abrePasso ? "cursor-pointer" : "cursor-default"}`}
+                        className={`relative z-10 inline-flex h-12 items-center justify-center rounded-full text-base font-semibold tabular-nums transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold ${circulo ? "w-12" : "min-w-12 px-3.5"} ${abrePasso ? "cursor-pointer" : "cursor-default"}`}
                         style={{
                           backgroundColor: cor.marca,
                           color: cor.texto,
                           boxShadow: selecionado ? `0 0 0 2px #ffffff, 0 0 0 4px ${cor.marca}` : undefined,
                         }}
                         title={marcador.dica}
-                        aria-label={marcador.dica}
+                        aria-label={`${nomeAcaoLinhaTempo(marcador.fase)}. ${marcador.dica}`}
                         aria-current={selecionado ? "step" : undefined}
                         onMouseEnter={() => mostrar(marcador.chave)}
                         onMouseLeave={(evento) => esconder(evento.currentTarget, marcador.chave)}
@@ -105,18 +106,18 @@ export function LinhaDoTempoRegua({
                           if (marcador.indice !== null) onSelecionar?.(marcador.indice);
                         }}
                       >
-                        {marcador.fase === "pago" ? <Check className="size-5" strokeWidth={2.75} aria-hidden /> : marcador.texto}
+                        {marcador.fase === "pago" ? <Check className="size-6" strokeWidth={2.75} aria-hidden /> : marcador.texto}
                       </button>
                     </div>
-                    <p
-                      className="mt-3 min-h-10 px-1 text-center text-xs font-semibold leading-tight"
-                      style={{ color: marcador.rotuloFase ? cor.apoio : undefined }}
-                    >
-                      {marcador.rotuloFase ?? ""}
+                    <p className="mt-3 min-h-10 px-1.5 text-center text-[13px] font-semibold leading-snug" style={{ color: cor.apoio }}>
+                      {nomeAcaoLinhaTempo(marcador.fase)}
                     </p>
-                    <div className="mt-1 flex h-5 items-center justify-center gap-1" style={{ color: cor.apoio }}>
-                      {marcador.canais.includes("email") ? <Mail className="size-4" strokeWidth={1.75} aria-hidden /> : null}
-                      {marcador.canais.includes("whatsapp") ? <IconeWhatsapp className="size-4" /> : null}
+                    {marcador.assunto.trim() && marcador.assunto.trim() !== nomeAcaoLinhaTempo(marcador.fase) ? (
+                      <p className="mt-1 px-1.5 text-center text-[13px] leading-snug text-muted">{marcador.assunto.trim()}</p>
+                    ) : null}
+                    <div className="mt-1.5 flex h-5 items-center justify-center gap-1.5" style={{ color: cor.apoio }}>
+                      {marcador.canais.includes("email") ? <Mail className="size-5" strokeWidth={1.75} aria-hidden /> : null}
+                      {marcador.canais.includes("whatsapp") ? <IconeWhatsapp className="size-5" /> : null}
                     </div>
                   </li>
                 );

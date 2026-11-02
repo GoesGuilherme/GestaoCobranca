@@ -191,6 +191,98 @@ describe("linha do tempo da fatura", () => {
     expect(paga.marcadores[0]?.dica).toBe("Pago · paga");
   });
 
+  it("mostra a ação, o envio real e a data prevista sem inventar hora nem canal", () => {
+    const futura = linha({
+      status: "PENDING",
+      excluida: false,
+      vencimento: "2026-11-20",
+      hoje: HOJE,
+      envios: [
+        { passoId: "emissao", canal: "EMAIL", status: "ENVIADO", criadoEm: "2026-11-01T12:14:00.000Z" },
+        { passoId: "antes", canal: "WHATSAPP", status: "FALHOU", criadoEm: "2026-11-01T12:20:00.000Z" },
+        { passoId: "hoje", canal: "EMAIL", status: "IGNORADO" },
+      ],
+    });
+    expect(futura.marcadores.map((marco) => marco.titulo)).toEqual([
+      "Boleto emitido",
+      "Lembrete previsto",
+      "Aviso previsto",
+      "Cobrança prevista",
+      "Cobrança prevista",
+      "Pago",
+    ]);
+    expect(futura.marcadores.map((marco) => marco.detalhe)).toEqual([
+      "E-mail · 01/11/2026, 09:14",
+      "15/11/2026",
+      "20/11/2026",
+      "23/11/2026",
+      "27/11/2026",
+      null,
+    ]);
+    expect(futura.marcadores[1]?.aceso).toBe(false);
+    expect(futura.marcadores[1]?.detalhe).not.toContain("WhatsApp");
+    expect(futura.marcadores[1]?.detalhe).not.toContain("09:20");
+    expect(futura.marcadores.at(-1)?.aceso).toBe(false);
+
+    const enviado = linha({
+      status: "PENDING",
+      excluida: false,
+      vencimento: "2026-11-20",
+      hoje: HOJE,
+      envios: [
+        { passoId: "antes", canal: "EMAIL", status: "ENVIADO", criadoEm: "2026-10-30T15:00:00.000Z" },
+        { passoId: "antes", canal: "WHATSAPP", status: "ENVIADO", criadoEm: "2026-10-30T18:30:00.000Z" },
+        { passoId: "depois3", canal: "EMAIL", status: "ENVIADO" },
+      ],
+    });
+    expect(enviado.marcadores[1]?.titulo).toBe("Lembrete enviado");
+    expect(enviado.marcadores[1]?.detalhe).toBe("E-mail · 30/10/2026, 12:00 · WhatsApp · 30/10/2026, 15:30");
+    expect(enviado.marcadores[1]?.aceso).toBe(true);
+    expect(enviado.marcadores[3]?.titulo).toBe("Cobrança enviada");
+    expect(enviado.marcadores[3]?.detalhe).toBe("E-mail");
+    expect(enviado.marcadores[3]?.detalhe).not.toMatch(/\d{2}\/\d{2}\/\d{4}/);
+
+    const paga = linha({
+      status: "RECEIVED",
+      excluida: false,
+      vencimento: "2026-10-20",
+      hoje: HOJE,
+    });
+    expect(paga.marcadores.at(-1)?.titulo).toBe("Pago");
+    expect(paga.marcadores.at(-1)?.detalhe).toBeNull();
+    expect(paga.marcadores.at(-1)?.aceso).toBe(true);
+
+    const cancelada = linha({
+      status: "RECEIVED",
+      excluida: true,
+      vencimento: "2026-10-01",
+      hoje: HOJE,
+      envios: [{ passoId: "emissao", canal: "EMAIL", status: "ENVIADO", criadoEm: "2026-09-20T11:00:00.000Z" }],
+    });
+    expect(cancelada.marcadores[0]?.titulo).toBe("Boleto emitido");
+    expect(cancelada.marcadores[0]?.detalhe).toBe("E-mail · 20/09/2026, 08:00");
+    expect(cancelada.marcadores[0]?.aceso).toBe(false);
+    expect(cancelada.marcadores[1]?.titulo).toBe("Lembrete antes do vencimento");
+    expect(cancelada.marcadores[1]?.detalhe).toBe("Encerrada");
+    expect(cancelada.marcadores.at(-1)?.titulo).toBe("Pago");
+    expect(cancelada.marcadores.at(-1)?.detalhe).toBe("Encerrada");
+    expect(ariaLinhaDoTempoFatura(cancelada)).toContain("Lembrete antes do vencimento, Encerrada");
+    expect(ariaLinhaDoTempoFatura(cancelada)).not.toContain("aceso");
+
+    const vencida = linha({
+      status: "OVERDUE",
+      excluida: false,
+      vencimento: "2026-10-28",
+      hoje: HOJE,
+    });
+    expect(vencida.marcadores[3]?.titulo).toBe("Cobrança após vencimento");
+    expect(vencida.marcadores[3]?.detalhe).toBe("Não enviado");
+    expect(vencida.marcadores[3]?.aceso).toBe(true);
+    expect(vencida.marcadores[4]?.titulo).toBe("Cobrança prevista");
+    expect(vencida.marcadores[4]?.detalhe).toBe("04/11/2026");
+    expect(vencida.marcadores[4]?.aceso).toBe(false);
+  });
+
   it("régua específica não usa os dias da padrão, e faturas da mesma régua compartilham as colunas", () => {
     const especifica = linha({
       status: "PENDING",

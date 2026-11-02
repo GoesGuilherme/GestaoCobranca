@@ -19,4 +19,5 @@ export type EnvioReguaLista = {
   passoId: string | null;
   canal: string;
   status: string;
+  criadoEm?: string | null;
 };

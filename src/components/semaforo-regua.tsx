@@ -24,7 +24,7 @@ export function SemaforoRegua({ fase, texto, aria }: { fase: FaseRegua; texto: s
           />
         ))}
       </span>
-      <span aria-hidden="true" className={`text-sm font-medium leading-5 ${TEXTO[fase]}`}>
+      <span aria-hidden="true" className={`min-w-0 text-sm font-medium leading-5 ${TEXTO[fase]}`}>
         {texto}
       </span>
     </span>

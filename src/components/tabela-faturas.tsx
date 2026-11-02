@@ -15,7 +15,7 @@ import { SeloFatura } from "./selo";
 import { SeloPagador } from "./selo-pagador";
 import { SemaforoRegua } from "./semaforo-regua";
 
-const COLUNAS = "md:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_auto]";
+const COLUNAS = "md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.3fr)_auto] lg:grid-cols-[minmax(0,9.5rem)_minmax(0,1fr)_auto] lg:gap-x-3";
 
 function OlhoVisualizada() {
   return (
@@ -125,8 +125,8 @@ export function TabelaFaturas({
             <div className="flex min-w-0 items-start justify-between gap-3 md:block">
               <div className="min-w-0">
                 {mostrarCliente ? (
-                  <span className="inline-flex flex-wrap items-center gap-2">
-                    <Link href={`/clientes/${fatura.clienteId}`} className="font-medium text-canopy hover:underline">
+                  <span className="inline-flex max-w-full flex-wrap items-center gap-2">
+                    <Link href={`/clientes/${fatura.clienteId}`} className="min-w-0 break-words font-medium text-canopy hover:underline">
                       {fatura.nomeCliente}
                     </Link>
                     <SeloPagador resultado={selos[fatura.clienteId]} tamanho="lista" />
