@@ -234,6 +234,11 @@ export class AsaasMemoria implements ClienteHttpAsaas {
     );
   }
 
+  async listarCobrancas(filtro: { status?: string; offset: number; limit: number }) {
+    const lista = [...this.cobrancas.values()].filter((cobranca) => !filtro.status || cobranca.status === filtro.status);
+    return this.paginar(lista, filtro.offset, filtro.limit);
+  }
+
   async listarCobrancasDaAssinatura(assinatura: string, offset: number, limit: number) {
     if (!this.assinaturas.has(assinatura)) throw new ErroAsaas("Assinatura não encontrada.", 404);
     return this.paginar(

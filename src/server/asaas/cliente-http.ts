@@ -389,6 +389,18 @@ export function criarClienteHttpAsaas(opcoes: {
       return lerPagina(json);
     },
 
+    async listarCobrancas(filtro) {
+      const limite = Math.min(100, Math.max(1, Math.floor(filtro.limit)));
+      const inicio = Math.max(0, Math.floor(filtro.offset));
+      const consulta = new URLSearchParams({
+        offset: String(inicio),
+        limit: String(limite),
+      });
+      if (filtro.status) consulta.set("status", filtro.status);
+      const { json } = await pedir("GET", `/payments?${consulta.toString()}`);
+      return lerPagina(json);
+    },
+
     async listarCobrancasDaAssinatura(assinatura, offset, limit) {
       const consulta = new URLSearchParams({
         offset: String(offset),
