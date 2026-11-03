@@ -1,7 +1,8 @@
 import { bandeiraCartaoSegura, finalCartaoSeguro } from "@/lib/cobranca";
 import { dataIsoValida } from "@/lib/data";
-import { dataPagamentoAsaas } from "@/server/asaas/data-pagamento";
 import { normalizarDinheiro } from "@/lib/dinheiro";
+import { normalizarStatus } from "@/lib/status-cobranca";
+import { dataPagamentoAsaas } from "@/server/asaas/data-pagamento";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db";
 
@@ -35,10 +36,8 @@ function statusDoEvento(tipo: string, pagamento: Record<string, unknown>) {
   return STATUS_POR_EVENTO[tipo] ?? "PENDING";
 }
 
-const CONFIRMADOS = new Set(["CONFIRMED", "RECEIVED", "RECEIVED_IN_CASH", "DUNNING_RECEIVED"]);
-
 function pagoEmDoPagamento(status: string, pagamento: Record<string, unknown>): Date | null | undefined {
-  if (!CONFIRMADOS.has(status)) return null;
+  if (normalizarStatus(status, "ASAAS") !== "PAGA") return null;
   const iso = dataPagamentoAsaas(pagamento);
   if (!iso) return undefined;
   return new Date(`${iso}T00:00:00.000Z`);
@@ -85,7 +84,9 @@ async function refletirCartao(
   }
   const recusado = dados.tipo === "PAYMENT_CREDIT_CARD_CAPTURE_REFUSED";
   const confirmado =
-    dados.tipo === "PAYMENT_CONFIRMED" || dados.tipo === "PAYMENT_RECEIVED" || CONFIRMADOS.has(dados.status);
+    dados.tipo === "PAYMENT_CONFIRMED" ||
+    dados.tipo === "PAYMENT_RECEIVED" ||
+    normalizarStatus(dados.status, "ASAAS") === "PAGA";
   let cartaoStatus = atual.cartaoStatus;
   if (recusado) cartaoStatus = "RECUSADO";
   else if (confirmado) cartaoStatus = "CADASTRADO";

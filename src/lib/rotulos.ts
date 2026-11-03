@@ -107,6 +107,11 @@ export const FILTROS_VISUALIZACAO: { valor: FiltroVisualizacao; rotulo: string }
 ];
 
 const STATUS_FATURA: Record<string, string> = {
+  PENDENTE: "Em aberto",
+  VENCIDA: "Vencida",
+  PAGA: "Paga",
+  CANCELADA: "Cancelada",
+  ESTORNADA: "Estornada",
   PENDING: "Em aberto",
   AWAITING_RISK_ANALYSIS: "Em análise",
   CONFIRMED: "Confirmada",

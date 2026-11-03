@@ -96,6 +96,10 @@ export class AsaasMemoria implements ClienteHttpAsaas {
     return cliente;
   }
 
+  async obterCobranca(id: string) {
+    return this.cobrancas.get(id) ?? null;
+  }
+
   async criarCobranca(dados: NovaCobrancaAsaas) {
     if (this.segurarCriacao) await this.segurarCriacao;
     if (!this.clientes.some((cliente) => cliente.id === dados.customer)) {

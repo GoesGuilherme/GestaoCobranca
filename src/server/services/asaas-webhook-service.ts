@@ -1,5 +1,6 @@
 import { hashTokenWebhook, tokensWebhookIguais } from "@/lib/asaas-cripto";
 import { Prisma } from "@/generated/prisma/client";
+import { normalizarCorpoWebhookAsaas } from "@/server/pagamentos/asaas-adaptador";
 import { prisma } from "@/server/db";
 import { ErroAplicacao } from "@/server/erros";
 import { espelharPagamentoAsaas } from "./asaas-pagamento";
@@ -86,6 +87,19 @@ export async function processarWebhookAsaas(token: string | null, corpo: unknown
       await tx.eventoAsaas.create({
         data: { empresaId: config.empresaId, asaasEventId, tipo },
       });
+      const [normalizado] = normalizarCorpoWebhookAsaas(corpo);
+      if (normalizado) {
+        await tx.eventoPagamento.create({
+          data: {
+            empresaId: config.empresaId,
+            provedor: "ASAAS",
+            idEvento: normalizado.idEvento,
+            tipo: normalizado.tipo,
+            idExterno: normalizado.idExterno,
+            statusNormalizado: normalizado.status,
+          },
+        });
+      }
       if (EVENTOS_VISUALIZACAO.has(tipo)) {
         await marcarFaturaVisualizada(tx, config.empresaId, pagamento, instanteVisualizacao(evento.dateCreated));
         return;

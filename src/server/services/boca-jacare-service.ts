@@ -7,7 +7,6 @@ import {
   type HorizonteBoca,
   type LinhaBoca,
 } from "@/lib/boca-jacare";
-import { STATUS_ABERTO, STATUS_ATRASO, STATUS_ESTORNO, STATUS_RECEBIDO } from "@/lib/painel-financeiro";
 import { exigirVerFaturas, type AutorEmpresa } from "@/server/auth/papeis";
 import { prisma } from "@/server/db";
 
@@ -44,22 +43,18 @@ function fimDoMes(mes: string): string {
 // Uma leitura por empresa. CRIANDO ainda não é cobrança emitida.
 // Estorno e fatura excluída ficam de fora do faturado.
 function trechos(hoje: string) {
-  const estornos = Prisma.join([...STATUS_ESTORNO]);
-  const pagos = Prisma.join([...STATUS_RECEBIDO]);
-  const atraso = Prisma.join([...STATUS_ATRASO]);
-  const abertos = Prisma.join([...STATUS_ABERTO]);
-  const faturavel = Prisma.sql`f.excluida = false AND f.status <> 'CRIANDO' AND f.status NOT IN (${estornos})`;
+  const faturavel = Prisma.sql`f.excluida = false AND f.status_normalizado <> 'CRIANDO' AND f.status_normalizado <> 'ESTORNADA'`;
   // Parte paga da coorte do vencimento, não o caixa do mês. pago_em não muda
   // o mês da linha: o cartão "Recebido no mês" é que soma pela data de pagamento.
-  const recebido = Prisma.sql`${faturavel} AND f.status IN (${pagos})`;
+  const recebido = Prisma.sql`${faturavel} AND f.status_normalizado = 'PAGA'`;
   const inadimplente = Prisma.sql`f.excluida = false AND (
-    f.status IN (${atraso})
-    OR (f.status IN (${abertos}) AND f.vencimento < ${hoje}::date)
+    f.status_normalizado = 'VENCIDA'
+    OR (f.status_normalizado = 'PENDENTE' AND f.vencimento < ${hoje}::date)
   )`;
-  const aVencer = Prisma.sql`f.excluida = false AND f.status IN (${abertos}) AND f.vencimento >= ${hoje}::date`;
+  const aVencer = Prisma.sql`f.excluida = false AND f.status_normalizado = 'PENDENTE' AND f.vencimento >= ${hoje}::date`;
   const base = Prisma.sql`${faturavel} AND (
     f.vencimento < ${hoje}::date
-    OR f.status IN (${atraso})
+    OR f.status_normalizado = 'VENCIDA'
   )`;
   return { faturavel, recebido, inadimplente, aVencer, base };
 }

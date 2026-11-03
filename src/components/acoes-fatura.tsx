@@ -4,6 +4,7 @@ import { useState } from "react";
 import { PREFERENCIAS_COBRANCA_PADRAO } from "@/lib/cobranca";
 import { formatarDiaMes } from "@/lib/formatacao";
 import { faturaAceitaPromessa } from "@/lib/promessa";
+import { faturaElegivelRegua } from "@/lib/status-cobranca";
 import type { OpcaoPassoRegua } from "@/lib/regua";
 import type { ClienteServicoDTO, FaturaDTO, PreferenciasCobrancaDTO } from "@/lib/tipos";
 import { AcoesCompartilhar } from "./acoes-compartilhar";
@@ -101,7 +102,7 @@ export function AcoesFatura({
           faturaId={fatura.id}
           lembretes={fatura.lembretes ?? []}
           passos={passosRegua}
-          podeEnviar={podeEnviarRegua && (fatura.status === "PENDING" || fatura.status === "OVERDUE")}
+          podeEnviar={podeEnviarRegua && faturaElegivelRegua(fatura)}
           modoTeste={modoTeste}
           emailCliente={fatura.email}
           emailLogado={emailLogado}

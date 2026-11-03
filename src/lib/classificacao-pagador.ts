@@ -1,5 +1,5 @@
 import { dataIsoValida } from "./data";
-import { STATUS_PAGAS } from "./fatura-situacao";
+import { normalizarStatus } from "./status-cobranca";
 
 /**
  * Classificação de pontualidade de um cliente, só com as faturas da própria
@@ -26,19 +26,7 @@ export const MAX_VENCIDAS_ABERTO_REGULAR = 1;
 /** Vencida em aberto há este número de dias ou mais deixa de ser atraso leve. */
 export const DIAS_VENCIDA_ABERTO_GRAVE = 15;
 
-const PAGAS = new Set<string>(STATUS_PAGAS);
-
 /** Canceladas, estornadas e rascunhos locais não entram na conta. */
-const IGNORADAS = new Set([
-  "REFUNDED",
-  "REFUND_REQUESTED",
-  "REFUND_IN_PROGRESS",
-  "CHARGEBACK_REQUESTED",
-  "CHARGEBACK_DISPUTE",
-  "AWAITING_CHARGEBACK_REVERSAL",
-  "CRIANDO",
-  "ERRO_EMISSAO",
-]);
 
 export type ClassificacaoPagador = "bom" | "regular" | "mau";
 
@@ -147,11 +135,14 @@ export function classificarPagador(
   const abertas: number[] = [];
 
   for (const fatura of faturas) {
-    if (fatura.excluida || IGNORADAS.has(fatura.status)) continue;
+    const status = normalizarStatus(fatura.status);
+    if (fatura.excluida || status === "ESTORNADA" || status === "CRIANDO" || status === "FALHA" || status === "CANCELADA") {
+      continue;
+    }
     if (!dataIsoValida(fatura.vencimento)) continue;
     if (fatura.vencimento < inicio || fatura.vencimento > hoje) continue;
 
-    if (PAGAS.has(fatura.status)) {
+    if (status === "PAGA") {
       if (!fatura.pagoEm || !dataIsoValida(fatura.pagoEm)) continue;
       const atraso = diasEntre(fatura.vencimento, fatura.pagoEm) - TOLERANCIA_DIAS;
       pagas.push(Math.max(0, atraso));

@@ -50,6 +50,7 @@ export async function middleware(request: NextRequest) {
     pathname === "/api/auth/redefinir-senha" ||
     pathname === "/api/cadastro" ||
     pathname === "/api/webhooks/asaas" ||
+    pathname.startsWith("/api/webhooks/pagamento/") ||
     pathname === "/api/webhooks/twilio" ||
     pathname === "/api/cron/regua" ||
     pathname === "/api/cron/visualizacoes";

@@ -14,6 +14,7 @@ import { ErroTwilio } from "@/server/twilio/contrato";
 import type { ClienteTwilio } from "@/server/twilio/contrato";
 import { numeroTesteWhatsapp } from "@/server/twilio/fabrica";
 import { decifrarSegredoAsaas } from "@/lib/asaas-cripto";
+import { normalizarStatus } from "@/lib/status-cobranca";
 import { conciliarPromessas } from "@/server/services/promessa-service";
 
 const ESPERA_MAX_MS = 7 * 24 * 60 * 60 * 1000;
@@ -179,13 +180,12 @@ export async function enfileirarWhatsappDoPasso(
   return gravar(db, await montar(db, fatura, tipo, passo.id, passo.dias, modoTeste, agora));
 }
 
-const PAGOS = new Set(["PAYMENT_RECEIVED", "PAYMENT_CONFIRMED", "PAYMENT_DUNNING_RECEIVED"]);
-const STATUS_PAGO = new Set(["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH", "DUNNING_RECEIVED"]);
+const EVENTOS_PAGOS = new Set(["PAYMENT_RECEIVED", "PAYMENT_CONFIRMED", "PAYMENT_DUNNING_RECEIVED"]);
 
 export function eventoConfirmaPagamento(tipo: string, pagamento: Record<string, unknown> | null): boolean {
-  if (PAGOS.has(tipo)) return true;
-  const status = typeof pagamento?.status === "string" ? pagamento.status.toUpperCase() : "";
-  return STATUS_PAGO.has(status) && tipo.startsWith("PAYMENT_");
+  if (EVENTOS_PAGOS.has(tipo)) return true;
+  const status = typeof pagamento?.status === "string" ? pagamento.status : "";
+  return status !== "" && normalizarStatus(status) === "PAGA" && tipo.startsWith("PAYMENT_");
 }
 
 export async function enfileirarPagoWhatsapp(

@@ -7,8 +7,11 @@ import {
   esquemaLoteRecorrencia,
   esquemaRetomarRecorrencia,
 } from "@/lib/validacao";
-import { abrirClienteAsaas, asaasRespondeu, traduzirErroAsaas } from "@/server/asaas/abrir";
-import type { ClienteHttpAsaas, EncargosAsaas } from "@/server/asaas/contrato";
+import { asaasRespondeu, traduzirErroAsaas } from "@/server/asaas/abrir";
+import type { AssinaturaAsaas, ClienteHttpAsaas, EncargosAsaas } from "@/server/asaas/contrato";
+import type { AdaptadorAsaas } from "@/server/pagamentos/asaas-adaptador";
+import { ehAdaptadorAsaas } from "@/server/pagamentos/asaas-adaptador";
+import { provedorDaEmpresa } from "@/server/pagamentos/fabrica";
 import { logAsaas, logAsaasErro, mensagemLogAsaas } from "@/server/asaas/log";
 import type { AutorEmpresa } from "@/server/auth/papeis";
 import { exigirCobranca } from "@/server/auth/papeis";
@@ -126,9 +129,26 @@ async function reivindicarEmissao(empresaId: string, vinculoId: string) {
   return gravado.count === 1;
 }
 
-async function cancelarAssinaturaDeVerdade(http: ClienteHttpAsaas, empresaId: string, vinculoId: string, assinaturaId: string) {
+async function abrirProvedor(empresaId: string, clienteHttp?: ClienteHttpAsaas) {
+  const contexto = await provedorDaEmpresa(empresaId, clienteHttp);
+  if (!contexto.http || !ehAdaptadorAsaas(contexto.provedor) || !contexto.provedor.capacidades().assinaturaNativa) {
+    throw new ErroAplicacao(
+      "Este provedor não tem assinatura nativa. A recorrência pelo Taguaro entra com o próximo conector.",
+      409,
+      "assinatura_indisponivel",
+    );
+  }
+  return { http: contexto.http, provedor: contexto.provedor };
+}
+
+function assinaturaAsaas(bruto: unknown): AssinaturaAsaas | null {
+  if (!bruto || typeof bruto !== "object") return null;
+  return bruto as AssinaturaAsaas;
+}
+
+async function cancelarAssinaturaDeVerdade(provedor: AdaptadorAsaas, empresaId: string, vinculoId: string, assinaturaId: string) {
   try {
-    await http.cancelarAssinatura(assinaturaId);
+    await provedor.cancelarAssinatura(assinaturaId);
   } catch (erro) {
     if (asaasRespondeu(erro, 404)) return;
     logAsaasErro("falha ao cancelar assinatura órfã", {
@@ -187,10 +207,10 @@ export async function ativarRecorrencia(
   const forma = formaCobrancaDe(dados.formaCobranca ?? prefs.formaCobranca);
 
   try {
-    const { http } = await abrirClienteAsaas(autor.empresaId, clienteHttp);
+    const { http, provedor } = await abrirProvedor(autor.empresaId, clienteHttp);
     const customer = await garantirClienteAsaas(autor.empresaId, vinculo.cliente, http);
     const dono = await reivindicarEmissao(autor.empresaId, vinculo.id);
-    let assinatura = await http.buscarAssinaturaPorReferencia(vinculo.id);
+    let assinatura = assinaturaAsaas((await provedor.buscarAssinaturaPorIdempotencia(vinculo.id))?.bruto ?? null);
     if (!assinatura && !dono) {
       throw new ErroAplicacao(
         "Já existe uma cobrança recorrente sendo criada para esta venda. Espere ela terminar antes de gerar outra.",
@@ -200,17 +220,23 @@ export async function ativarRecorrencia(
     }
     if (!assinatura) {
       try {
-        assinatura = await http.criarAssinatura({
-          customer,
-          formaCobranca: forma,
-          valor,
-          proximoVencimento: vencimento,
-          descricao,
-          referencia: vinculo.id,
-          encargos: encargosInformados(dados, prefs),
-        });
+        assinatura = assinaturaAsaas(
+          (
+            await provedor.criarAssinatura({
+              idClienteExterno: customer,
+              formaCobranca: forma,
+              valor,
+              proximoVencimento: vencimento,
+              descricao,
+              chaveIdempotencia: vinculo.id,
+              encargos: encargosInformados(dados, prefs),
+            })
+          ).bruto,
+        );
       } catch (erro) {
-        assinatura = await http.buscarAssinaturaPorReferencia(vinculo.id).catch(() => null);
+        assinatura = assinaturaAsaas(
+          (await provedor.buscarAssinaturaPorIdempotencia(vinculo.id).catch(() => null))?.bruto ?? null,
+        );
         if (!assinatura) {
           const incerto = asaasRespondeu(erro, 502) || asaasRespondeu(erro, 504);
           if (!incerto) {
@@ -230,6 +256,7 @@ export async function ativarRecorrencia(
         }
       }
     }
+    if (!assinatura) throw new ErroAplicacao("O Asaas não devolveu a assinatura.", 502, "asaas");
     const dadosGravados = {
       valor: assinatura.valor,
       asaasSubscriptionId: assinatura.id,
@@ -252,7 +279,7 @@ export async function ativarRecorrencia(
       if (atual?.asaasSubscriptionId === assinatura.id) {
         // A outra requisição já gravou a mesma assinatura.
       } else if (atual?.asaasSubscriptionId) {
-        await cancelarAssinaturaDeVerdade(http, autor.empresaId, vinculo.id, assinatura.id);
+        await cancelarAssinaturaDeVerdade(provedor, autor.empresaId, vinculo.id, assinatura.id);
         throw new ErroAplicacao("Esta venda já tem cobrança recorrente.", 409, "assinatura_existente");
       } else {
         const forcado = await prisma.clienteServico.updateMany({
@@ -260,7 +287,7 @@ export async function ativarRecorrencia(
           data: dadosGravados,
         });
         if (forcado.count !== 1) {
-          await cancelarAssinaturaDeVerdade(http, autor.empresaId, vinculo.id, assinatura.id);
+          await cancelarAssinaturaDeVerdade(provedor, autor.empresaId, vinculo.id, assinatura.id);
           throw new ErroAplicacao(
             "A cobrança recorrente foi criada no Asaas e o Taguaro não conseguiu gravá-la. O cancelamento foi pedido. Confira no Asaas antes de ativar de novo.",
             502,
@@ -325,15 +352,20 @@ export async function editarRecorrencia(
   const atualizarPendentes = dados.atualizarPendentes ?? prefs.atualizarPendentes;
 
   try {
-    const { http } = await abrirClienteAsaas(autor.empresaId, clienteHttp);
-    const assinatura = await http.atualizarAssinatura(vinculo.asaasSubscriptionId, {
-      formaCobranca: forma,
-      valor: dados.valor,
-      proximoVencimento: vencimento,
-      descricao,
-      atualizarPendentes,
-      encargos: encargosInformados(dados, prefs),
-    });
+    const { provedor } = await abrirProvedor(autor.empresaId, clienteHttp);
+    const assinatura = assinaturaAsaas(
+      (
+        await provedor.atualizarAssinatura(vinculo.asaasSubscriptionId, {
+          formaCobranca: forma,
+          valor: dados.valor,
+          proximoVencimento: vencimento,
+          descricao,
+          atualizarPendentes,
+          encargos: encargosInformados(dados, prefs),
+        })
+      ).bruto,
+    );
+    if (!assinatura) throw new ErroAplicacao("O Asaas não devolveu a assinatura.", 502, "asaas");
     await prisma.clienteServico.updateMany({
       where: { id: vinculo.id, empresaId: autor.empresaId },
       data: {
@@ -380,8 +412,11 @@ export async function pausarRecorrencia(
     throw new ErroAplicacao("Só uma recorrência ativa pode ser pausada.", 409, "assinatura_ausente");
   }
   try {
-    const { http } = await abrirClienteAsaas(autor.empresaId, clienteHttp);
-    const assinatura = await http.atualizarAssinatura(vinculo.asaasSubscriptionId, { status: "INACTIVE" });
+    const { provedor } = await abrirProvedor(autor.empresaId, clienteHttp);
+    const assinatura = assinaturaAsaas(
+      (await provedor.atualizarAssinatura(vinculo.asaasSubscriptionId, { status: "INACTIVE" })).bruto,
+    );
+    if (!assinatura) throw new ErroAplicacao("O Asaas não devolveu a assinatura.", 502, "asaas");
     await prisma.clienteServico.updateMany({
       where: { id: vinculo.id, empresaId: autor.empresaId },
       data: { asaasAssinaturaStatus: assinatura.status },
@@ -418,11 +453,16 @@ export async function retomarRecorrencia(
   if (!dia) throw new ErroAplicacao("Informe o dia de vencimento entre 1 e 31.", 400, "dia_invalido");
   const vencimento = resolverVencimento(dia, dados.proximoVencimento, dataHojeIso());
   try {
-    const { http } = await abrirClienteAsaas(autor.empresaId, clienteHttp);
-    const assinatura = await http.atualizarAssinatura(vinculo.asaasSubscriptionId, {
-      status: "ACTIVE",
-      proximoVencimento: vencimento,
-    });
+    const { provedor } = await abrirProvedor(autor.empresaId, clienteHttp);
+    const assinatura = assinaturaAsaas(
+      (
+        await provedor.atualizarAssinatura(vinculo.asaasSubscriptionId, {
+          status: "ACTIVE",
+          proximoVencimento: vencimento,
+        })
+      ).bruto,
+    );
+    if (!assinatura) throw new ErroAplicacao("O Asaas não devolveu a assinatura.", 502, "asaas");
     await prisma.clienteServico.updateMany({
       where: { id: vinculo.id, empresaId: autor.empresaId },
       data: {
@@ -458,9 +498,9 @@ export async function cancelarRecorrencia(
     throw new ErroAplicacao("Esta venda não tem cobrança recorrente para cancelar.", 409, "assinatura_ausente");
   }
   try {
-    const { http } = await abrirClienteAsaas(autor.empresaId, clienteHttp);
+    const { provedor } = await abrirProvedor(autor.empresaId, clienteHttp);
     try {
-      await http.cancelarAssinatura(vinculo.asaasSubscriptionId);
+      await provedor.cancelarAssinatura(vinculo.asaasSubscriptionId);
     } catch (erro) {
       if (!asaasRespondeu(erro, 404)) throw erro;
     }

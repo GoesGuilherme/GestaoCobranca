@@ -2,8 +2,11 @@
 // Servico é o catálogo da empresa (o que ela vende aos clientes dela).
 // ClienteServico guarda o valor combinado daquele cliente. O plano da Empresa
 // (string `plano`) é a assinatura dela na plataforma e não se mistura com este catálogo.
-// A cobrança nova é do Asaas: configuração e preferências por empresa, cliente,
-// fatura e assinatura mensal no vínculo MENSAL. A Cora não entra neste modelo.
+// A cobrança passa por um provedor por empresa (`provedor_pagamento`). Hoje só
+// o Asaas está ligado: as colunas asaas_* continuam sendo a fonte do que já
+// existe. Provedor, id externo e status normalizado são acréscimos. O cofre
+// `configuracoes_pagamento` guarda credencial de banco futuro, cifrada com a
+// mesma ASAAS_ENCRYPTION_KEY. Nada aqui apaga coluna antiga.
 
 generator client {
   provider = "prisma-client"
@@ -121,6 +124,8 @@ model Empresa {
   telefone         String
   status           StatusEmpresa    @default(ATIVA)
   plano            String           @default("basico")
+  // ASAAS hoje. CORA, INTER, EFI, SICOOB e os demais entram sem mudar esta coluna de tipo.
+  provedorPagamento String          @default("ASAAS") @map("provedor_pagamento")
   criadoEm         DateTime         @default(now()) @map("criado_em") @db.Timestamptz(3)
   atualizadoEm     DateTime         @updatedAt @map("atualizado_em") @db.Timestamptz(3)
   usuarios         Usuario[]
@@ -128,6 +133,8 @@ model Empresa {
   servicos         Servico[]
   servicosVendidos ClienteServico[]
   asaas            ConfiguracaoAsaas?
+  configuracoesPagamento ConfiguracaoPagamento[]
+  eventosPagamento EventoPagamento[]
   preferenciaCobranca PreferenciaCobranca?
   faturas          Fatura[]
   eventosAsaas     EventoAsaas[]
@@ -213,6 +220,8 @@ model Cliente {
   ativadoEm       DateTime?        @map("ativado_em") @db.Date
   observacoes     String?          @db.Text
   asaasCustomerId String?          @map("asaas_customer_id")
+  provedor        String           @default("ASAAS")
+  idExterno       String?          @map("id_externo")
   reguaId         String?          @map("regua_id")
   reguaModo       String           @default("PADRAO") @map("regua_modo")
   reguaPausada    Boolean          @default(false) @map("regua_pausada")
@@ -232,6 +241,7 @@ model Cliente {
   promessas          PromessaPagamento[]
 
   @@index([asaasCustomerId])
+  @@index([empresaId, provedor, idExterno])
   @@index([reguaId])
 
   @@unique([empresaId, documento])
@@ -324,6 +334,8 @@ model ClienteServico {
   status       StatusServicoCliente @default(ATIVO)
   observacoes              String?              @db.Text
   asaasSubscriptionId      String?              @unique @map("asaas_subscription_id")
+  provedor                 String               @default("ASAAS")
+  idAssinaturaExterna      String?              @map("id_assinatura_externa")
   asaasAssinaturaStatus    String?              @map("asaas_assinatura_status")
   formaCobrancaRecorrente  String?              @map("forma_cobranca_recorrente")
   diaVencimento            Int?                 @map("dia_vencimento")
@@ -400,6 +412,8 @@ model Fatura {
   clienteId         String    @map("cliente_id")
   clienteServicoId  String?   @map("cliente_servico_id")
   asaasPaymentId    String?   @map("asaas_payment_id")
+  provedor          String    @default("ASAAS")
+  idExterno         String?   @map("id_externo")
   chaveIdempotencia String?   @map("chave_idempotencia")
   valor             Decimal   @db.Decimal(12, 2)
   vencimento        DateTime  @map("vencimento") @db.Date
@@ -407,6 +421,10 @@ model Fatura {
   // Nulo em fatura em aberto, estornada, ou paga cuja data ainda não chegou.
   pagoEm            DateTime? @map("pago_em") @db.Date
   status            String
+  // PENDENTE, VENCIDA, PAGA, ESTORNADA, CANCELADA, CRIANDO, FALHA ou DESCONHECIDO.
+  // No Asaas o gatilho preenche a partir de `status`. A régua, a promessa e os
+  // painéis leem esta coluna, não o texto cru do banco.
+  statusNormalizado String    @default("PENDENTE") @map("status_normalizado")
   formaCobranca     String    @map("forma_cobranca")
   boletoUrl         String?   @map("boleto_url") @db.Text
   linhaDigitavel    String?   @map("linha_digitavel") @db.Text
@@ -432,6 +450,7 @@ model Fatura {
   @@unique([empresaId, asaasPaymentId])
   @@unique([empresaId, chaveIdempotencia])
   @@index([empresaId, excluida, status])
+  @@index([empresaId, excluida, statusNormalizado])
   @@index([empresaId, visualizada])
   @@index([clienteId])
   @@index([clienteServicoId])
@@ -450,6 +469,48 @@ model EventoAsaas {
   @@unique([empresaId, asaasEventId])
   @@index([empresaId])
   @@map("eventos_asaas")
+}
+
+// Cofre genérico. O Asaas continua em configuracoes_asaas para não regravar
+// chave que já está cifrada. Banco novo (Cora, Inter, Efí, Sicoob) usa esta
+// linha: client_id/secret no JSON cifrado, certificado e chave privada em
+// colunas separadas, também cifrados com ASAAS_ENCRYPTION_KEY.
+model ConfiguracaoPagamento {
+  id                    String    @id @default(cuid())
+  empresaId             String    @map("empresa_id")
+  provedor              String
+  ambiente              String
+  credenciaisCifradas   String    @map("credenciais_cifradas") @db.Text
+  certificadoCifrado    String?   @map("certificado_cifrado") @db.Text
+  chavePrivadaCifrada   String?   @map("chave_privada_cifrada") @db.Text
+  certificadoValidoAte  DateTime? @map("certificado_valido_ate") @db.Timestamptz(3)
+  segredoWebhookCifrado String?   @map("segredo_webhook_cifrado") @db.Text
+  segredoWebhookHash    String?   @unique @map("segredo_webhook_hash")
+  criadoEm              DateTime  @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm          DateTime  @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  empresa               Empresa   @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+
+  @@unique([empresaId, provedor])
+  @@index([empresaId])
+  @@map("configuracoes_pagamento")
+}
+
+// Evento já traduzido para o vocabulário do Taguaro. O Asaas também grava
+// aqui, além de eventos_asaas, que segue sendo a trava de idempotência dele.
+model EventoPagamento {
+  id                String   @id @default(cuid())
+  empresaId         String   @map("empresa_id")
+  provedor          String
+  idEvento          String   @map("id_evento")
+  tipo              String
+  idExterno         String?  @map("id_externo")
+  statusNormalizado String?  @map("status_normalizado")
+  recebidoEm        DateTime @default(now()) @map("recebido_em") @db.Timestamptz(3)
+  empresa           Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+
+  @@unique([empresaId, provedor, idEvento])
+  @@index([empresaId])
+  @@map("eventos_pagamento")
 }
 
 // Liga e desliga a régua da empresa e guarda o remetente. A chave da Resend
