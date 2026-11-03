@@ -4,37 +4,10 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { enviarJson } from "@/lib/api-cliente";
+import { idGrupoAtual, itemAtivo, montarGruposMenu, type ItemMenu } from "@/lib/menu-lateral";
 import { LogoTaguaro } from "./logo-taguaro";
 
 const CHAVE_MENU = "taguaro.menu-lateral.v2";
-
-type ItemMenu = {
-  href: string;
-  rotulo: string;
-};
-
-type GrupoMenu = {
-  id: string;
-  titulo: string;
-  itens: ItemMenu[];
-};
-
-function itemAtivo(pathname: string, hash: string, href: string) {
-  const [caminho, ancora] = href.split("#");
-  const noCaminho =
-    caminho === "/dashboards/painel"
-      ? pathname === "/" ||
-        pathname === "/dashboards" ||
-        pathname === "/dashboards/painel" ||
-        pathname.startsWith("/dashboards/painel/") ||
-        pathname.startsWith("/dashboards/resultado") ||
-        pathname.startsWith("/dashboards/metricas")
-      : pathname === caminho || pathname.startsWith(`${caminho}/`);
-  if (!noCaminho) return false;
-  if (ancora) return hash === `#${ancora}`;
-  if (caminho === "/regua") return hash !== "#whatsapp";
-  return true;
-}
 
 function lerAbertos(): Record<string, boolean> {
   try {
@@ -78,50 +51,15 @@ export function BarraLateral({
   const [hash, setHash] = useState("");
   const [abertos, setAbertos] = useState<Record<string, boolean>>({});
 
-  const grupos: GrupoMenu[] = [
-    {
-      id: "visao",
-      titulo: "Visão geral",
-      itens: [
-        { href: "/dashboards/painel", rotulo: "Dashboards" },
-        ...(mostrarFaturas ? [{ href: "/dashboards/financeiro", rotulo: "Financeiro" }] : []),
-      ],
-    },
-    {
-      id: "cobranca",
-      titulo: "Cobrança",
-      itens: [
-        ...(mostrarFaturas ? [{ href: "/faturas", rotulo: "Faturas" }] : []),
-        ...(mostrarFaturas ? [{ href: "/promessas", rotulo: "Promessas" }] : []),
-        ...(mostrarRegua ? [{ href: "/regua", rotulo: "Régua de cobrança" }] : []),
-        ...(mostrarAssessor ? [{ href: "/assessor", rotulo: "Assessor" }] : []),
-      ],
-    },
-    {
-      id: "cadastros",
-      titulo: "Cadastros",
-      itens: [
-        { href: "/clientes", rotulo: "Clientes" },
-        { href: "/segmentos", rotulo: "Segmentos" },
-        { href: "/servicos", rotulo: "Serviços" },
-      ],
-    },
-    {
-      id: "configuracoes",
-      titulo: "Configurações",
-      itens: [
-        ...(mostrarUsuarios ? [{ href: "/empresa", rotulo: "Empresa" }] : []),
-        ...(mostrarAsaas ? [{ href: "/asaas", rotulo: "Asaas" }] : []),
-        ...(mostrarRegua ? [{ href: "/regua#whatsapp", rotulo: "WhatsApp" }] : []),
-        ...(mostrarUsuarios ? [{ href: "/usuarios", rotulo: "Usuários" }] : []),
-      ],
-    },
-  ].filter((grupo) => grupo.itens.length > 0);
+  const grupos = montarGruposMenu({
+    mostrarUsuarios,
+    mostrarFaturas,
+    mostrarRegua,
+    mostrarAssessor,
+    mostrarAsaas,
+  });
 
-  const grupoAtual =
-    pathname === "/admin" || pathname.startsWith("/admin/")
-      ? "plataforma"
-      : grupos.find((grupo) => grupo.itens.some((item) => itemAtivo(pathname, hash, item.href)))?.id;
+  const grupoAtual = idGrupoAtual(pathname, hash, grupos);
 
   useEffect(() => {
     const lerHash = () => setHash(window.location.hash);
