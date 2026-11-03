@@ -9,6 +9,7 @@ import {
   whatsappE164,
   type TipoTemplateWhatsapp,
 } from "@/lib/whatsapp-cobranca";
+import { sinalAsaasConfirmaPagamento } from "@/server/pagamentos/webhook-asaas";
 import { prisma } from "@/server/db";
 import { ErroTwilio } from "@/server/twilio/contrato";
 import type { ClienteTwilio } from "@/server/twilio/contrato";
@@ -179,13 +180,8 @@ export async function enfileirarWhatsappDoPasso(
   return gravar(db, await montar(db, fatura, tipo, passo.id, passo.dias, modoTeste, agora));
 }
 
-const PAGOS = new Set(["PAYMENT_RECEIVED", "PAYMENT_CONFIRMED", "PAYMENT_DUNNING_RECEIVED"]);
-const STATUS_PAGO = new Set(["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH", "DUNNING_RECEIVED"]);
-
 export function eventoConfirmaPagamento(tipo: string, pagamento: Record<string, unknown> | null): boolean {
-  if (PAGOS.has(tipo)) return true;
-  const status = typeof pagamento?.status === "string" ? pagamento.status.toUpperCase() : "";
-  return STATUS_PAGO.has(status) && tipo.startsWith("PAYMENT_");
+  return sinalAsaasConfirmaPagamento(tipo, pagamento);
 }
 
 export async function enfileirarPagoWhatsapp(

@@ -2,12 +2,21 @@ import { hashTokenWebhook, tokensWebhookIguais } from "@/lib/asaas-cripto";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db";
 import { ErroAplicacao } from "@/server/erros";
+import { CAPACIDADES_ASAAS } from "@/server/pagamentos/capacidades";
+import { confirmarEventoParaBaixa } from "@/server/pagamentos/baixa";
+import { provedorDaEmpresa } from "@/server/pagamentos/fabrica";
+import { normalizarWebhookAsaas } from "@/server/pagamentos/webhook-asaas";
 import { espelharPagamentoAsaas } from "./asaas-pagamento";
 import { conciliarPromessas } from "./promessa-service";
-import { enfileirarPagoWhatsapp, eventoConfirmaPagamento } from "./whatsapp-fila";
+import { enfileirarPagoWhatsapp } from "./whatsapp-fila";
 
-// Página da fatura e PDF do boleto. Não mudam o status nem disparam mensagem.
-const EVENTOS_VISUALIZACAO = new Set(["PAYMENT_CHECKOUT_VIEWED", "PAYMENT_BANK_SLIP_VIEWED"]);
+function brutoJson(valor: unknown): Prisma.InputJsonValue | undefined {
+  try {
+    return JSON.parse(JSON.stringify(valor)) as Prisma.InputJsonValue;
+  } catch {
+    return undefined;
+  }
+}
 
 function conflitoDeEvento(erro: unknown) {
   if (typeof erro !== "object" || erro === null || !("code" in erro) || erro.code !== "P2002") return false;
@@ -80,20 +89,46 @@ export async function processarWebhookAsaas(token: string | null, corpo: unknown
 
   const pagamento =
     evento.payment && typeof evento.payment === "object" ? (evento.payment as Record<string, unknown>) : null;
+  const normalizado = normalizarWebhookAsaas(corpo);
+  if (!normalizado) {
+    throw new ErroAplicacao("Evento do Asaas inválido.", 400, "webhook_invalido");
+  }
+  const confirmado = await confirmarEventoParaBaixa(
+    {
+      capacidades: () => CAPACIDADES_ASAAS,
+      async consultarCobranca(idExterno: string) {
+        const provedor = await provedorDaEmpresa(config.empresaId);
+        return provedor.consultarCobranca(idExterno);
+      },
+    },
+    normalizado,
+  );
+  if (!confirmado.baixar) return { duplicado: false as const };
 
   try {
     await prisma.$transaction(async (tx) => {
       await tx.eventoAsaas.create({
         data: { empresaId: config.empresaId, asaasEventId, tipo },
       });
-      if (EVENTOS_VISUALIZACAO.has(tipo)) {
+      await tx.eventoPagamento.create({
+        data: {
+          empresaId: config.empresaId,
+          provedor: "ASAAS",
+          idEventoExterno: asaasEventId,
+          idExterno: normalizado.idExterno,
+          tipo,
+          statusNormalizado: normalizado.status,
+          bruto: brutoJson(corpo),
+        },
+      });
+      if (normalizado.visualizacao) {
         await marcarFaturaVisualizada(tx, config.empresaId, pagamento, instanteVisualizacao(evento.dateCreated));
         return;
       }
-      if (!pagamento || !tipo.startsWith("PAYMENT_")) return;
+      if (!normalizado.alteraCobranca || !pagamento) return;
 
       await espelharPagamentoAsaas(tx, config.empresaId, pagamento, tipo);
-      if (eventoConfirmaPagamento(tipo, pagamento)) {
+      if (normalizado.confirmaPagamento) {
         const asaasPaymentId = texto(pagamento.id, 80);
         if (asaasPaymentId) {
           const fatura = await tx.fatura.findFirst({
@@ -107,7 +142,7 @@ export async function processarWebhookAsaas(token: string | null, corpo: unknown
         }
       }
     });
-    if (pagamento && tipo.startsWith("PAYMENT_") && !EVENTOS_VISUALIZACAO.has(tipo)) {
+    if (normalizado.alteraCobranca) {
       await conciliarPromessas(config.empresaId);
     }
     return { duplicado: false as const };

@@ -1,6 +1,8 @@
 import { bandeiraCartaoSegura, finalCartaoSeguro } from "@/lib/cobranca";
 import { dataIsoValida } from "@/lib/data";
 import { dataPagamentoAsaas } from "@/server/asaas/data-pagamento";
+import { statusNormalizado, STATUS_NORMALIZADO } from "@/lib/status-pagamento";
+import { espelhoFaturaAsaas } from "@/server/pagamentos/gravacao";
 import { normalizarDinheiro } from "@/lib/dinheiro";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db";
@@ -35,10 +37,8 @@ function statusDoEvento(tipo: string, pagamento: Record<string, unknown>) {
   return STATUS_POR_EVENTO[tipo] ?? "PENDING";
 }
 
-const CONFIRMADOS = new Set(["CONFIRMED", "RECEIVED", "RECEIVED_IN_CASH", "DUNNING_RECEIVED"]);
-
 function pagoEmDoPagamento(status: string, pagamento: Record<string, unknown>): Date | null | undefined {
-  if (!CONFIRMADOS.has(status)) return null;
+  if (statusNormalizado(status) !== STATUS_NORMALIZADO.PAGO) return null;
   const iso = dataPagamentoAsaas(pagamento);
   if (!iso) return undefined;
   return new Date(`${iso}T00:00:00.000Z`);
@@ -85,7 +85,9 @@ async function refletirCartao(
   }
   const recusado = dados.tipo === "PAYMENT_CREDIT_CARD_CAPTURE_REFUSED";
   const confirmado =
-    dados.tipo === "PAYMENT_CONFIRMED" || dados.tipo === "PAYMENT_RECEIVED" || CONFIRMADOS.has(dados.status);
+    dados.tipo === "PAYMENT_CONFIRMED" ||
+    dados.tipo === "PAYMENT_RECEIVED" ||
+    statusNormalizado(dados.status) === STATUS_NORMALIZADO.PAGO;
   let cartaoStatus = atual.cartaoStatus;
   if (recusado) cartaoStatus = "RECUSADO";
   else if (confirmado) cartaoStatus = "CADASTRADO";
@@ -146,6 +148,7 @@ export async function espelharPagamentoAsaas(
       where: { id: existente.id },
       data: {
         status,
+        ...espelhoFaturaAsaas({ status, asaasPaymentId }),
         ...(valor ? { valor } : {}),
         ...(vencimentoValido ? { vencimento: new Date(`${vencimentoValido}T00:00:00.000Z`) } : {}),
         formaCobranca: forma,
@@ -185,6 +188,7 @@ export async function espelharPagamentoAsaas(
       clienteId,
       clienteServicoId: vinculo?.id ?? null,
       asaasPaymentId,
+      ...espelhoFaturaAsaas({ status, asaasPaymentId }),
       valor,
       vencimento: new Date(`${vencimentoValido}T00:00:00.000Z`),
       status,

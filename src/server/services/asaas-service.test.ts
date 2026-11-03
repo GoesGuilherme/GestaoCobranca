@@ -206,9 +206,17 @@ describe("Asaas por empresa", () => {
     const segundo = await processarWebhookAsaas(token, evento);
     expect(segundo.duplicado).toBe(true);
     expect(await prisma.eventoAsaas.count({ where: { empresaId } })).toBe(1);
+    const eventoComum = await prisma.eventoPagamento.findMany({ where: { empresaId } });
+    expect(eventoComum).toHaveLength(1);
+    expect(eventoComum[0]?.provedor).toBe("ASAAS");
+    expect(eventoComum[0]?.statusNormalizado).toBe("PAGO");
+    expect(eventoComum[0]?.idEventoExterno).toBe("evt_pagamento_recebido_teste_0001");
 
     const recebida = await prisma.fatura.findUniqueOrThrow({ where: { id: fatura.id } });
     expect(recebida.status).toBe("RECEIVED");
+    expect(recebida.provedor).toBe("ASAAS");
+    expect(recebida.idExterno).toBe(fatura.asaasPaymentId);
+    expect(recebida.statusNormalizado).toBe("PAGO");
     expect(recebida.pagoEm ? isoDeData(recebida.pagoEm) : null).toBe("2026-11-14");
     expect(recebida.valor.toFixed(2)).toBe("189.90");
     expect(recebida.faturaUrl).toBe("https://sandbox.asaas.com/i/recebido");

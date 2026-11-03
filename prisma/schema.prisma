@@ -2,8 +2,9 @@
 // Servico é o catálogo da empresa (o que ela vende aos clientes dela).
 // ClienteServico guarda o valor combinado daquele cliente. O plano da Empresa
 // (string `plano`) é a assinatura dela na plataforma e não se mistura com este catálogo.
-// A cobrança nova é do Asaas: configuração e preferências por empresa, cliente,
-// fatura e assinatura mensal no vínculo MENSAL. A Cora não entra neste modelo.
+// A cobrança nasce no provedor da empresa. Hoje só o Asaas está disponível.
+// Colunas asaas_* permanecem. provedor, id externo e status normalizado
+// são o caminho comum para Cora, Inter, Efí, Sicoob e Sicredi.
 
 generator client {
   provider = "prisma-client"
@@ -86,6 +87,17 @@ enum AmbienteAsaas {
   @@map("ambiente_asaas")
 }
 
+enum ProvedorPagamento {
+  ASAAS
+  CORA
+  INTER
+  EFI
+  SICOOB
+  SICREDI
+
+  @@map("provedor_pagamento")
+}
+
 enum CanalPromessa {
   WHATSAPP
   TELEFONE
@@ -127,10 +139,13 @@ model Empresa {
   clientes         Cliente[]
   servicos         Servico[]
   servicosVendidos ClienteServico[]
+  provedorPagamento ProvedorPagamento @default(ASAAS) @map("provedor_pagamento")
   asaas            ConfiguracaoAsaas?
+  configuracoesPagamento ConfiguracaoPagamento[]
   preferenciaCobranca PreferenciaCobranca?
   faturas          Fatura[]
   eventosAsaas     EventoAsaas[]
+  eventosPagamento EventoPagamento[]
   configuracaoRegua ConfiguracaoRegua?
   reguasCobranca   ReguaCobranca[]
   passosRegua      PassoRegua[]
@@ -213,6 +228,7 @@ model Cliente {
   ativadoEm       DateTime?        @map("ativado_em") @db.Date
   observacoes     String?          @db.Text
   asaasCustomerId String?          @map("asaas_customer_id")
+  idExterno       String?          @map("id_externo")
   reguaId         String?          @map("regua_id")
   reguaModo       String           @default("PADRAO") @map("regua_modo")
   reguaPausada    Boolean          @default(false) @map("regua_pausada")
@@ -232,6 +248,7 @@ model Cliente {
   promessas          PromessaPagamento[]
 
   @@index([asaasCustomerId])
+  @@index([idExterno])
   @@index([reguaId])
 
   @@unique([empresaId, documento])
@@ -324,6 +341,7 @@ model ClienteServico {
   status       StatusServicoCliente @default(ATIVO)
   observacoes              String?              @db.Text
   asaasSubscriptionId      String?              @unique @map("asaas_subscription_id")
+  idAssinaturaExterna      String?              @unique @map("id_assinatura_externa")
   asaasAssinaturaStatus    String?              @map("asaas_assinatura_status")
   formaCobrancaRecorrente  String?              @map("forma_cobranca_recorrente")
   diaVencimento            Int?                 @map("dia_vencimento")
@@ -400,6 +418,8 @@ model Fatura {
   clienteId         String    @map("cliente_id")
   clienteServicoId  String?   @map("cliente_servico_id")
   asaasPaymentId    String?   @map("asaas_payment_id")
+  provedor          ProvedorPagamento @default(ASAAS)
+  idExterno         String?   @map("id_externo")
   chaveIdempotencia String?   @map("chave_idempotencia")
   valor             Decimal   @db.Decimal(12, 2)
   vencimento        DateTime  @map("vencimento") @db.Date
@@ -407,6 +427,9 @@ model Fatura {
   // Nulo em fatura em aberto, estornada, ou paga cuja data ainda não chegou.
   pagoEm            DateTime? @map("pago_em") @db.Date
   status            String
+  // Espelho de status no vocabulário do Taguaro (PENDENTE, PAGO, VENCIDO...).
+  // A coluna status continua com o texto do provedor.
+  statusNormalizado String?   @map("status_normalizado")
   formaCobranca     String    @map("forma_cobranca")
   boletoUrl         String?   @map("boleto_url") @db.Text
   linhaDigitavel    String?   @map("linha_digitavel") @db.Text
@@ -432,6 +455,7 @@ model Fatura {
   @@unique([empresaId, asaasPaymentId])
   @@unique([empresaId, chaveIdempotencia])
   @@index([empresaId, excluida, status])
+  @@index([empresaId, excluida, statusNormalizado])
   @@index([empresaId, visualizada])
   @@index([clienteId])
   @@index([clienteServicoId])
@@ -450,6 +474,50 @@ model EventoAsaas {
   @@unique([empresaId, asaasEventId])
   @@index([empresaId])
   @@map("eventos_asaas")
+}
+
+// Cofre genérico por empresa e provedor. A cifra é a mesma ASAAS_ENCRYPTION_KEY.
+// O Asaas segue em configuracoes_asaas; esta tabela espera os próximos bancos
+// (client_id, segredo, certificado e chave privada).
+model ConfiguracaoPagamento {
+  id                    String            @id @default(cuid())
+  empresaId             String            @map("empresa_id")
+  provedor              ProvedorPagamento
+  ambiente              String
+  credenciaisCifradas   String            @map("credenciais_cifradas") @db.Text
+  certificadoCifrado    String?           @map("certificado_cifrado") @db.Text
+  chavePrivadaCifrada   String?           @map("chave_privada_cifrada") @db.Text
+  certificadoValidoAte  DateTime?         @map("certificado_valido_ate") @db.Timestamptz(3)
+  segredoWebhookCifrado String?           @map("segredo_webhook_cifrado") @db.Text
+  segredoWebhookHash    String?           @unique @map("segredo_webhook_hash")
+  ativo                 Boolean           @default(true)
+  criadoEm              DateTime          @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm          DateTime          @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  empresa               Empresa           @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+
+  @@unique([empresaId, provedor])
+  @@index([empresaId])
+  @@map("configuracoes_pagamento")
+}
+
+// Evento já traduzido para o status do Taguaro. eventos_asaas continua
+// sendo a trava de idempotência do webhook atual.
+model EventoPagamento {
+  id                String            @id @default(cuid())
+  empresaId         String            @map("empresa_id")
+  provedor          ProvedorPagamento
+  idEventoExterno   String            @map("id_evento_externo")
+  idExterno         String?           @map("id_externo")
+  tipo              String
+  statusNormalizado String?           @map("status_normalizado")
+  bruto             Json?
+  recebidoEm        DateTime          @default(now()) @map("recebido_em") @db.Timestamptz(3)
+  empresa           Empresa           @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+
+  @@unique([empresaId, provedor, idEventoExterno])
+  @@index([empresaId])
+  @@index([empresaId, idExterno])
+  @@map("eventos_pagamento")
 }
 
 // Liga e desliga a régua da empresa e guarda o remetente. A chave da Resend

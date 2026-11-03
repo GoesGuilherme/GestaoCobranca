@@ -4,7 +4,6 @@ import {
   intervaloPeriodo,
   mesesDoGrafico,
   montarPainelFinanceiro,
-  STATUS_ESTORNO,
   type AssinaturaPainel,
   type FaturaPainel,
   type FiltrosPainel,
@@ -87,7 +86,7 @@ export async function obterPainelFinanceiro(
       WHERE f.empresa_id = ${autor.empresaId}
         AND c.empresa_id = ${autor.empresaId}
         AND f.excluida = false
-        AND f.status NOT IN (${Prisma.join([...STATUS_ESTORNO])})
+        AND f.status_normalizado IS DISTINCT FROM 'ESTORNADO'
         ${formaSql}
         ${statusSql}
         AND (

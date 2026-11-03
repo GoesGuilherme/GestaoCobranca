@@ -1,5 +1,5 @@
 import { dataHojeIso, isoDeData } from "./data";
-import { STATUS_PAGAS } from "./fatura-situacao";
+import { statusNormalizado, STATUS_NORMALIZADO } from "./status-pagamento";
 import type { ModoReguaCliente } from "./tipos";
 
 export const NOME_REGUA_SUGERIDA = "Padrão";
@@ -217,7 +217,7 @@ export function rotuloReguaDaFatura(entrada: {
   hoje: string;
   passos: PassoParaRotulo[] | null;
 }): RotuloReguaFatura | null {
-  if (entrada.excluida || STATUS_PAGAS.some((status) => status === entrada.status)) {
+  if (entrada.excluida || statusNormalizado(entrada.status) === STATUS_NORMALIZADO.PAGO) {
     return { fase: "encerrada", texto: "Encerrada", aria: "Régua encerrada" };
   }
   if (!entrada.passos || entrada.passos.length === 0) return null;

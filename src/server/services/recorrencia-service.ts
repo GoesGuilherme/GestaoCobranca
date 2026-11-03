@@ -7,9 +7,11 @@ import {
   esquemaLoteRecorrencia,
   esquemaRetomarRecorrencia,
 } from "@/lib/validacao";
-import { abrirClienteAsaas, asaasRespondeu, traduzirErroAsaas } from "@/server/asaas/abrir";
+import { asaasRespondeu, traduzirErroAsaas } from "@/server/asaas/abrir";
 import type { ClienteHttpAsaas, EncargosAsaas } from "@/server/asaas/contrato";
 import { logAsaas, logAsaasErro, mensagemLogAsaas } from "@/server/asaas/log";
+import { clienteAsaasDaEmpresa } from "@/server/pagamentos/fabrica";
+import { espelhoAssinaturaAsaas } from "@/server/pagamentos/gravacao";
 import type { AutorEmpresa } from "@/server/auth/papeis";
 import { exigirCobranca } from "@/server/auth/papeis";
 import { prisma } from "@/server/db";
@@ -139,7 +141,7 @@ async function cancelarAssinaturaDeVerdade(http: ClienteHttpAsaas, empresaId: st
     });
     await prisma.clienteServico.updateMany({
       where: { id: vinculoId, empresaId },
-      data: { asaasSubscriptionId: assinaturaId, asaasAssinaturaStatus: "ACTIVE" },
+      data: { ...espelhoAssinaturaAsaas(assinaturaId), asaasAssinaturaStatus: "ACTIVE" },
     });
     throw new ErroAplicacao(
       `A assinatura ${assinaturaId} foi criada no Asaas e não pôde ser cancelada. Ela ficou registrada para não gerar outra.`,
@@ -187,7 +189,7 @@ export async function ativarRecorrencia(
   const forma = formaCobrancaDe(dados.formaCobranca ?? prefs.formaCobranca);
 
   try {
-    const { http } = await abrirClienteAsaas(autor.empresaId, clienteHttp);
+    const http = await clienteAsaasDaEmpresa(autor.empresaId, clienteHttp);
     const customer = await garantirClienteAsaas(autor.empresaId, vinculo.cliente, http);
     const dono = await reivindicarEmissao(autor.empresaId, vinculo.id);
     let assinatura = await http.buscarAssinaturaPorReferencia(vinculo.id);
@@ -232,7 +234,7 @@ export async function ativarRecorrencia(
     }
     const dadosGravados = {
       valor: assinatura.valor,
-      asaasSubscriptionId: assinatura.id,
+      ...espelhoAssinaturaAsaas(assinatura.id),
       asaasAssinaturaStatus: assinatura.status,
       formaCobrancaRecorrente: formaCobrancaDe(assinatura.formaCobranca),
       diaVencimento: dia,
@@ -325,7 +327,7 @@ export async function editarRecorrencia(
   const atualizarPendentes = dados.atualizarPendentes ?? prefs.atualizarPendentes;
 
   try {
-    const { http } = await abrirClienteAsaas(autor.empresaId, clienteHttp);
+    const http = await clienteAsaasDaEmpresa(autor.empresaId, clienteHttp);
     const assinatura = await http.atualizarAssinatura(vinculo.asaasSubscriptionId, {
       formaCobranca: forma,
       valor: dados.valor,
@@ -380,7 +382,7 @@ export async function pausarRecorrencia(
     throw new ErroAplicacao("Só uma recorrência ativa pode ser pausada.", 409, "assinatura_ausente");
   }
   try {
-    const { http } = await abrirClienteAsaas(autor.empresaId, clienteHttp);
+    const http = await clienteAsaasDaEmpresa(autor.empresaId, clienteHttp);
     const assinatura = await http.atualizarAssinatura(vinculo.asaasSubscriptionId, { status: "INACTIVE" });
     await prisma.clienteServico.updateMany({
       where: { id: vinculo.id, empresaId: autor.empresaId },
@@ -418,7 +420,7 @@ export async function retomarRecorrencia(
   if (!dia) throw new ErroAplicacao("Informe o dia de vencimento entre 1 e 31.", 400, "dia_invalido");
   const vencimento = resolverVencimento(dia, dados.proximoVencimento, dataHojeIso());
   try {
-    const { http } = await abrirClienteAsaas(autor.empresaId, clienteHttp);
+    const http = await clienteAsaasDaEmpresa(autor.empresaId, clienteHttp);
     const assinatura = await http.atualizarAssinatura(vinculo.asaasSubscriptionId, {
       status: "ACTIVE",
       proximoVencimento: vencimento,
@@ -458,7 +460,7 @@ export async function cancelarRecorrencia(
     throw new ErroAplicacao("Esta venda não tem cobrança recorrente para cancelar.", 409, "assinatura_ausente");
   }
   try {
-    const { http } = await abrirClienteAsaas(autor.empresaId, clienteHttp);
+    const http = await clienteAsaasDaEmpresa(autor.empresaId, clienteHttp);
     try {
       await http.cancelarAssinatura(vinculo.asaasSubscriptionId);
     } catch (erro) {
