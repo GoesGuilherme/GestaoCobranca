@@ -1,7 +1,7 @@
 import { dataIsoValida } from "@/lib/data";
-import { STATUS_PAGAS } from "@/lib/fatura-situacao";
+import { STATUS_BRUTOS_PAGOS_ASAAS } from "@/lib/status-cobranca";
 import { type ClienteHttpAsaas, type CobrancaAsaas, ErroAsaas } from "@/server/asaas/contrato";
-import { abrirClienteAsaas } from "@/server/asaas/abrir";
+import { provedorDaEmpresa } from "@/server/pagamentos/fabrica";
 import { prisma } from "@/server/db";
 import { ErroAplicacao } from "@/server/erros";
 
@@ -12,7 +12,7 @@ export const PAUSA_ENTRE_PAGINAS_MS = 700;
 /** Teto de páginas por status numa execução. O que faltar entra na próxima, porque pago_em nulo continua pendente. */
 export const MAX_PAGINAS_POR_STATUS = 5;
 
-const STATUS = [...STATUS_PAGAS];
+const STATUS = [...STATUS_BRUTOS_PAGOS_ASAAS];
 
 export type ResultadoPagoEm = {
   empresaId: string;
@@ -39,7 +39,7 @@ function ondePendente(empresaId: string) {
     excluida: false,
     pagoEm: null,
     asaasPaymentId: { not: null },
-    status: { in: STATUS },
+    statusNormalizado: "PAGA",
   };
 }
 
@@ -90,7 +90,9 @@ export async function preencherPagoEmDaEmpresa(
 
   let http: Pick<ClienteHttpAsaas, "listarCobrancas">;
   try {
-    http = opcoes.http ?? (await abrirClienteAsaas(empresaId)).http;
+    const aberto = opcoes.http ?? (await provedorDaEmpresa(empresaId)).http;
+    if (!aberto) return vazio(empresaId, candidatas, true);
+    http = aberto;
   } catch (erro) {
     if (erro instanceof ErroAplicacao && erro.codigo === "asaas_nao_configurado") {
       return vazio(empresaId, candidatas, true);
@@ -168,7 +170,7 @@ async function aplicarPagina(
         asaasPaymentId: cobranca.id,
         pagoEm: null,
         excluida: false,
-        status: { in: STATUS },
+        statusNormalizado: "PAGA",
       },
       data: { pagoEm: new Date(`${cobranca.pagoEm}T00:00:00.000Z`) },
     });

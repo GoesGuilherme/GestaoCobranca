@@ -1,10 +1,11 @@
 import { formaCobrancaDe } from "@/lib/cobranca";
 import { isoDeData } from "@/lib/data";
-import { STATUS_ABERTAS, STATUS_PAGAS, STATUS_VENCIDAS } from "@/lib/fatura-situacao";
+import { filtroAbertasOuVencidas, filtroListaFaturas } from "@/lib/status-cobranca";
 import { somenteDocumento } from "@/lib/documento";
 import type { FaturaDTO, FiltroVisualizacao, LembreteReguaDTO, ModoReguaCliente, PromessaPendenteDTO, SituacaoFatura, StatusLembrete } from "@/lib/tipos";
 import { esquemaFatura } from "@/lib/validacao";
-import { abrirClienteAsaas, asaasRespondeu, traduzirErroAsaas } from "@/server/asaas/abrir";
+import { asaasRespondeu, traduzirErroAsaas } from "@/server/asaas/abrir";
+import { provedorDaEmpresa } from "@/server/pagamentos/fabrica";
 import { type ClienteHttpAsaas, type CobrancaAsaas, type PaginaCobrancasAsaas } from "@/server/asaas/contrato";
 import { logAsaas, logAsaasErro, mensagemLogAsaas } from "@/server/asaas/log";
 import type { AutorEmpresa } from "@/server/auth/papeis";
@@ -147,11 +148,7 @@ function filtroVisualizada(vista: FiltroVisualizacao | undefined) {
 }
 
 function filtroSituacao(situacao: SituacaoFatura) {
-  if (situacao === "todas") return { status: { not: "CRIANDO" } };
-  if (situacao === "canceladas") return { excluida: true, status: { not: "CRIANDO" } };
-  if (situacao === "vencidas") return { excluida: false, status: { in: [...STATUS_VENCIDAS] } };
-  if (situacao === "pagas") return { excluida: false, status: { in: [...STATUS_PAGAS] } };
-  return { excluida: false, status: { in: [...STATUS_ABERTAS, ...STATUS_VENCIDAS] } };
+  return filtroListaFaturas(situacao);
 }
 
 export async function listarFaturas(
@@ -422,7 +419,8 @@ export async function emitirFatura(
   const descricao = dados.descricao?.trim() ? dados.descricao.trim() : null;
 
   try {
-    const { http } = await abrirClienteAsaas(autor.empresaId, clienteHttp);
+    const { http, provedor } = await provedorDaEmpresa(autor.empresaId, clienteHttp);
+    if (!http) throw new ErroAplicacao("Este provedor ainda não está disponível.", 409, "provedor_indisponivel");
     await garantirClienteAsaas(autor.empresaId, cliente, http);
     const { fatura: reservada, dono } = await reservarFatura({
       empresaId: autor.empresaId,
@@ -440,7 +438,7 @@ export async function emitirFatura(
     }
 
     const customer = await garantirClienteAsaas(autor.empresaId, cliente, http);
-    let cobranca = await http.buscarCobrancaPorReferencia(reservada.id);
+    let cobranca = (await provedor.buscarCobrancaPorIdempotencia?.(reservada.id))?.bruto as CobrancaAsaas | undefined;
     if (!cobranca && !dono) {
       throw new ErroAplicacao(
         "Já existe uma cobrança sendo emitida para este cliente. Espere ela terminar antes de gerar outra.",
@@ -450,17 +448,20 @@ export async function emitirFatura(
     }
     if (!cobranca) {
       try {
-        cobranca = await http.criarCobranca({
-          customer,
-          formaCobranca: forma,
-          valor: dados.valor,
-          vencimento: dados.vencimento,
-          descricao: descricao ?? undefined,
-          referencia: reservada.id,
-          encargos: encargosDaPreferencia(prefs),
-        });
+        cobranca = (
+          await provedor.criarCobranca({
+            idClienteExterno: customer,
+            formaCobranca: forma,
+            valor: dados.valor,
+            vencimento: dados.vencimento,
+            descricao: descricao ?? undefined,
+            chaveIdempotencia: reservada.id,
+            encargos: encargosDaPreferencia(prefs),
+          })
+        ).bruto as CobrancaAsaas;
       } catch (erro) {
-        cobranca = await http.buscarCobrancaPorReferencia(reservada.id).catch(() => null);
+        cobranca = ((await provedor.buscarCobrancaPorIdempotencia?.(reservada.id).catch(() => null))?.bruto ??
+          undefined) as CobrancaAsaas | undefined;
         if (!cobranca) {
           const incerto = asaasRespondeu(erro, 502) || asaasRespondeu(erro, 504);
           if (!incerto) {
@@ -495,7 +496,7 @@ export async function emitirFatura(
       } catch {
         let cancelou = false;
         try {
-          await http.cancelarCobranca(cobranca.id);
+          await provedor.cancelarCobranca(cobranca.id);
           cancelou = true;
         } catch (erroCancelamento) {
           logAsaasErro("falha ao cancelar cobrança órfã", {
@@ -591,9 +592,9 @@ export async function cancelarFatura(
   }
 
   try {
-    const { http } = await abrirClienteAsaas(autor.empresaId, clienteHttp);
+    const { provedor } = await provedorDaEmpresa(autor.empresaId, clienteHttp);
     try {
-      await http.cancelarCobranca(atual.asaasPaymentId);
+      await provedor.cancelarCobranca(atual.asaasPaymentId);
     } catch (erro) {
       if (!asaasRespondeu(erro, 404)) throw erro;
     }
@@ -611,7 +612,6 @@ export async function cancelarFatura(
 
 const LIMITE_PAGINA = 100;
 const MAX_PAGINAS = 5;
-const ABERTAS_RECORRENTES = ["PENDING", "OVERDUE", "AWAITING_RISK_ANALYSIS", "DUNNING_REQUESTED"];
 
 function registroDeCobranca(cobranca: CobrancaAsaas): Record<string, unknown> {
   return {
@@ -667,7 +667,8 @@ export async function gravarCobrancasEspelhadas(empresaId: string, cobrancas: Co
 export async function importarFaturas(autor: AutorEmpresa, clienteHttp?: ClienteHttpAsaas) {
   exigirCobranca(autor);
   try {
-    const { http } = await abrirClienteAsaas(autor.empresaId, clienteHttp);
+    const { http } = await provedorDaEmpresa(autor.empresaId, clienteHttp);
+    if (!http) throw new ErroAplicacao("Este provedor ainda não está disponível.", 409, "provedor_indisponivel");
     const clientes = await prisma.cliente.findMany({
       where: { empresaId: autor.empresaId, asaasCustomerId: { not: null } },
       select: { asaasCustomerId: true },
@@ -717,8 +718,7 @@ export async function marcarFaturasAbertasExcluidas(empresaId: string, clienteSe
     where: {
       empresaId,
       clienteServicoId,
-      excluida: false,
-      status: { in: ABERTAS_RECORRENTES },
+      ...filtroAbertasOuVencidas(),
     },
     data: { excluida: true },
   });
@@ -733,8 +733,7 @@ export async function atualizarFaturasAbertasDaAssinatura(
     where: {
       empresaId,
       clienteServicoId,
-      excluida: false,
-      status: { in: ABERTAS_RECORRENTES },
+      ...filtroAbertasOuVencidas(),
     },
     data: {
       valor: dados.valor,

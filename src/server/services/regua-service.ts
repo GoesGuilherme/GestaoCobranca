@@ -1,4 +1,5 @@
 import { cifrarSegredoAsaas, decifrarSegredoAsaas } from "@/lib/asaas-cripto";
+import { faturaElegivelRegua } from "@/lib/status-cobranca";
 import { isoDeData } from "@/lib/data";
 import { formatarReais } from "@/lib/dinheiro";
 import { formatarDataIso } from "@/lib/formatacao";
@@ -435,7 +436,7 @@ export async function enviarLembreteAgora(
     prisma.empresa.findUnique({ where: { id: autor.empresaId }, select: { nomeFantasia: true } }),
   ]);
   if (!fatura) throw new ErroAplicacao("Fatura não encontrada.", 404, "nao_encontrado");
-  if (fatura.excluida || (fatura.status !== "PENDING" && fatura.status !== "OVERDUE")) {
+  if (!faturaElegivelRegua(fatura)) {
     throw new ErroAplicacao("Esta cobrança não está em aberto.", 400, "fatura_fechada");
   }
   if (!passo) throw new ErroAplicacao("Passo não encontrado.", 404, "nao_encontrado");

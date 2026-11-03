@@ -4,19 +4,8 @@ import { compararDinheiro, normalizarDinheiro, somarDinheiro } from "@/lib/dinhe
 import { metricasPromessaVazias, type MetricasPromessas } from "@/lib/promessa";
 import { diferencaDias } from "@/lib/regua";
 import { FORMAS_COBRANCA, STATUS_CLIENTE } from "@/lib/rotulos";
+import { normalizarStatus } from "@/lib/status-cobranca";
 import type { FormaCobranca, StatusCliente } from "@/lib/tipos";
-
-export const STATUS_RECEBIDO = ["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH", "DUNNING_RECEIVED"] as const;
-export const STATUS_ATRASO = ["OVERDUE", "DUNNING_REQUESTED"] as const;
-export const STATUS_ABERTO = ["PENDING", "AWAITING_RISK_ANALYSIS"] as const;
-export const STATUS_ESTORNO = [
-  "REFUNDED",
-  "REFUND_REQUESTED",
-  "REFUND_IN_PROGRESS",
-  "CHARGEBACK_REQUESTED",
-  "CHARGEBACK_DISPUTE",
-  "AWAITING_CHARGEBACK_REVERSAL",
-] as const;
 
 export const PERIODOS_PAINEL = [
   { valor: "este_mes", rotulo: "Este mês" },
@@ -101,10 +90,6 @@ const MESES_LONGO = [
 const LIMITE_TOP = 8;
 const LIMITE_PROXIMOS = 12;
 
-function inclui(lista: readonly string[], status: string): boolean {
-  return lista.some((item) => item === status);
-}
-
 function centavos(texto: string): bigint | null {
   const normal = normalizarDinheiro(texto);
   if (!normal) return null;
@@ -122,10 +107,11 @@ export function classificarFaturaFinanceira(fatura: {
   vencimento: string;
   hoje: string;
 }): ClasseFinanceira {
-  if (fatura.excluida || inclui(STATUS_ESTORNO, fatura.status)) return "fora";
-  if (inclui(STATUS_RECEBIDO, fatura.status)) return "recebido";
-  if (inclui(STATUS_ATRASO, fatura.status)) return "atraso";
-  if (inclui(STATUS_ABERTO, fatura.status)) {
+  const status = normalizarStatus(fatura.status);
+  if (fatura.excluida || status === "ESTORNADA") return "fora";
+  if (status === "PAGA") return "recebido";
+  if (status === "VENCIDA") return "atraso";
+  if (status === "PENDENTE") {
     return fatura.vencimento < fatura.hoje ? "atraso" : "a_receber";
   }
   return "fora";

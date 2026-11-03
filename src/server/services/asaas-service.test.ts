@@ -209,6 +209,10 @@ describe("Asaas por empresa", () => {
 
     const recebida = await prisma.fatura.findUniqueOrThrow({ where: { id: fatura.id } });
     expect(recebida.status).toBe("RECEIVED");
+    expect(recebida.statusNormalizado).toBe("PAGA");
+    expect(recebida.provedor).toBe("ASAAS");
+    expect(recebida.idExterno).toBe(recebida.asaasPaymentId);
+    expect(await prisma.eventoPagamento.count({ where: { empresaId, provedor: "ASAAS", idEvento: evento.id } })).toBe(1);
     expect(recebida.pagoEm ? isoDeData(recebida.pagoEm) : null).toBe("2026-11-14");
     expect(recebida.valor.toFixed(2)).toBe("189.90");
     expect(recebida.faturaUrl).toBe("https://sandbox.asaas.com/i/recebido");

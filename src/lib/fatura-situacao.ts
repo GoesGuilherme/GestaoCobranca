@@ -1,17 +1,5 @@
+import { normalizarStatus } from "./status-cobranca";
 import type { FiltroVisualizacao, SituacaoFatura } from "./tipos";
-
-export const STATUS_ABERTAS = ["PENDING", "AWAITING_RISK_ANALYSIS"] as const;
-export const STATUS_VENCIDAS = ["OVERDUE", "DUNNING_REQUESTED"] as const;
-export const STATUS_PAGAS = ["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH", "DUNNING_RECEIVED"] as const;
-
-const ESTORNO = new Set([
-  "REFUNDED",
-  "REFUND_REQUESTED",
-  "REFUND_IN_PROGRESS",
-  "CHARGEBACK_REQUESTED",
-  "CHARGEBACK_DISPUTE",
-  "AWAITING_CHARGEBACK_REVERSAL",
-]);
 
 export type TomFatura = "aberto" | "vencida" | "paga" | "cancelada" | "estorno";
 
@@ -21,16 +9,18 @@ export function faturaNaSituacao(fatura: FaturaSituacao, situacao: SituacaoFatur
   if (situacao === "todas") return true;
   if (situacao === "canceladas") return fatura.excluida;
   if (fatura.excluida) return false;
-  if (situacao === "vencidas") return inclui(STATUS_VENCIDAS, fatura.status);
-  if (situacao === "pagas") return inclui(STATUS_PAGAS, fatura.status);
-  return inclui(STATUS_ABERTAS, fatura.status) || inclui(STATUS_VENCIDAS, fatura.status);
+  const status = normalizarStatus(fatura.status);
+  if (situacao === "vencidas") return status === "VENCIDA";
+  if (situacao === "pagas") return status === "PAGA";
+  return status === "PENDENTE" || status === "VENCIDA";
 }
 
 export function tomFatura(status: string, excluida: boolean): TomFatura {
   if (excluida) return "cancelada";
-  if (inclui(STATUS_VENCIDAS, status)) return "vencida";
-  if (inclui(STATUS_PAGAS, status)) return "paga";
-  if (ESTORNO.has(status)) return "estorno";
+  const normalizado = normalizarStatus(status);
+  if (normalizado === "VENCIDA") return "vencida";
+  if (normalizado === "PAGA") return "paga";
+  if (normalizado === "ESTORNADA") return "estorno";
   return "aberto";
 }
 
@@ -57,10 +47,6 @@ export function faturasNaVisualizacao<T extends { visualizada: boolean }>(
   filtro: FiltroVisualizacao,
 ): T[] {
   return faturas.filter((fatura) => faturaNaVisualizacao(fatura, filtro));
-}
-
-function inclui(lista: readonly string[], status: string): boolean {
-  return lista.some((item) => item === status);
 }
 
 function comparar(a: string, b: string): number {

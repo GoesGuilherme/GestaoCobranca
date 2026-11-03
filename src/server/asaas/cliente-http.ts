@@ -274,6 +274,16 @@ export function criarClienteHttpAsaas(opcoes: {
       return lerCliente(json);
     },
 
+    async obterCobranca(id) {
+      try {
+        const { json } = await pedir("GET", `/payments/${idAsaasSeguro(id)}`);
+        return lerCobranca(json);
+      } catch (erro) {
+        if (erro instanceof ErroAsaas && erro.status === 404) return null;
+        throw erro;
+      }
+    },
+
     async criarCobranca(dados: NovaCobrancaAsaas) {
       const corpo: Record<string, unknown> = {
         customer: idAsaasSeguro(dados.customer),

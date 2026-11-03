@@ -1,6 +1,5 @@
-import { STATUS_ABERTAS, STATUS_VENCIDAS } from "@/lib/fatura-situacao";
 import type { ResultadoVisualizacoesFaturas } from "@/lib/tipos";
-import { abrirClienteAsaas } from "@/server/asaas/abrir";
+import { provedorDaEmpresa } from "@/server/pagamentos/fabrica";
 import { type ClienteHttpAsaas, ErroAsaas } from "@/server/asaas/contrato";
 import { logAsaas, logAsaasErro, mensagemLogAsaas } from "@/server/asaas/log";
 import { instanteMaisAntigo } from "@/server/asaas/visualizacao";
@@ -14,8 +13,6 @@ const CONCORRENCIA = 4;
 const LOTE_MANUAL = 80;
 const LOTE_CRON = 40;
 const DIAS_RECENTES = 120;
-
-const ABERTAS_OU_VENCIDAS = [...STATUS_ABERTAS, ...STATUS_VENCIDAS];
 
 export type OpcoesVisualizacao = {
   http?: ClienteHttpAsaas;
@@ -38,8 +35,8 @@ function filtroPendentes(empresaId: string, agora: Date) {
     visualizada: false,
     asaasPaymentId: { not: null },
     OR: [
-      { status: { in: ABERTAS_OU_VENCIDAS } },
-      { status: { not: "CRIANDO" }, criadoEm: { gte: desde } },
+      { statusNormalizado: { in: ["PENDENTE", "VENCIDA"] } },
+      { NOT: { statusNormalizado: "CRIANDO" }, criadoEm: { gte: desde } },
     ],
   };
 }
@@ -53,7 +50,11 @@ export async function sincronizarVisualizacoesEmpresa(
   empresaId: string,
   opcoes: OpcoesVisualizacao = {},
 ): Promise<ResultadoVisualizacoesFaturas> {
-  const { http } = await abrirClienteAsaas(empresaId, opcoes.http);
+  const contexto = await provedorDaEmpresa(empresaId, opcoes.http);
+  if (!contexto.http || !contexto.provedor.capacidades().visualizacao) {
+    return { marcadas: 0, consultadas: 0, falhas: 0, restantes: 0, interrompida: false };
+  }
+  const http = contexto.http;
   const agora = opcoes.agora ?? new Date();
   const limite = opcoes.limite ?? LOTE_MANUAL;
   const concorrencia = concorrenciaDe(opcoes.concorrencia);

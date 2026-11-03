@@ -103,6 +103,7 @@ export interface ClienteHttpAsaas {
   obterCliente(id: string): Promise<ClienteAsaas | null>;
   criarCliente(dados: NovoClienteAsaas): Promise<ClienteAsaas>;
   criarCobranca(dados: NovaCobrancaAsaas): Promise<CobrancaAsaas>;
+  obterCobranca(id: string): Promise<CobrancaAsaas | null>;
   buscarCobrancaPorReferencia(referencia: string): Promise<CobrancaAsaas | null>;
   cancelarCobranca(id: string): Promise<void>;
   obterLinhaDigitavel(id: string): Promise<string | null>;
