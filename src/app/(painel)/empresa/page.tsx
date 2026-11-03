@@ -1,5 +1,6 @@
 import { CabecalhoPagina } from "@/components/cabecalho";
 import { FormularioEmpresa } from "@/components/formulario-empresa";
+import { FormularioSeloPromessa } from "@/components/formulario-selo-promessa";
 import { cnpjCollabPendente } from "@/lib/collab";
 import { acessoDaPagina } from "@/server/auth/pagina";
 import { obterEmpresa } from "@/server/services/empresa-service";
@@ -26,6 +27,7 @@ export default async function PaginaEmpresa() {
         </p>
       ) : null}
       <FormularioEmpresa empresa={empresa} />
+      <FormularioSeloPromessa ligado={empresa.promessasContamNoSelo} />
     </>
   );
 }

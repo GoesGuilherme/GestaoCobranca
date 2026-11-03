@@ -3,11 +3,13 @@
 import { useState } from "react";
 import { PREFERENCIAS_COBRANCA_PADRAO } from "@/lib/cobranca";
 import { formatarDiaMes } from "@/lib/formatacao";
+import { faturaAceitaPromessa } from "@/lib/promessa";
 import type { OpcaoPassoRegua } from "@/lib/regua";
 import type { ClienteServicoDTO, FaturaDTO, PreferenciasCobrancaDTO } from "@/lib/tipos";
 import { AcoesCompartilhar } from "./acoes-compartilhar";
 import { AcoesLembrete } from "./acoes-lembrete";
 import { BotaoCancelarFatura } from "./botao-cancelar-fatura";
+import { DialogoPromessa } from "./dialogo-promessa";
 import { classeBotaoSecundario } from "./estilos";
 
 export function recorrenciaAtivaDaFatura(fatura: FaturaDTO, vinculos: ClienteServicoDTO[]) {
@@ -40,6 +42,7 @@ export function AcoesFatura({
   emailLogado?: string;
 }) {
   const [codigos, setCodigos] = useState(false);
+  const [promessaAberta, setPromessaAberta] = useState(false);
   if (fatura.excluida) {
     return <p className="text-sm text-muted">Cancelada em {formatarDiaMes(fatura.atualizadoEm)}</p>;
   }
@@ -47,6 +50,7 @@ export function AcoesFatura({
   const via = fatura.boletoUrl ?? fatura.faturaUrl;
   const temCodigo = Boolean(fatura.linhaDigitavel || fatura.pixCopiaCola);
   const recorrencia = recorrenciaAtivaDaFatura(fatura, vinculos);
+  const podePrometer = podeCancelar && faturaAceitaPromessa(fatura.status, fatura.excluida);
 
   return (
     <details className="relative">
@@ -88,6 +92,11 @@ export function AcoesFatura({
             ) : null}
           </div>
         ) : null}
+        {podePrometer ? (
+          <button type="button" className="text-left text-sm font-medium text-canopy hover:underline" onClick={() => setPromessaAberta(true)}>
+            {fatura.promessaPendente ? "Editar promessa" : "Registrar promessa"}
+          </button>
+        ) : null}
         <AcoesLembrete
           faturaId={fatura.id}
           lembretes={fatura.lembretes ?? []}
@@ -99,6 +108,15 @@ export function AcoesFatura({
         />
         {podeCancelar ? <BotaoCancelarFatura id={fatura.id} recorrencia={recorrencia} /> : null}
       </div>
+      {podePrometer ? (
+        <DialogoPromessa
+          aberto={promessaAberta}
+          faturaId={fatura.id}
+          valorFatura={fatura.valor}
+          promessa={fatura.promessaPendente}
+          onFechar={() => setPromessaAberta(false)}
+        />
+      ) : null}
     </details>
   );
 }

@@ -20,6 +20,7 @@ import { dispararLembrete, registrarIgnorado, textoErroEnvio } from "@/server/re
 import { clienteResendPadrao, remetenteResend, type ClienteResend } from "@/server/regua/resend";
 import type { ClienteTwilio } from "@/server/twilio/contrato";
 import { clienteTwilioPadrao } from "@/server/twilio/fabrica";
+import { conciliarPromessas, faturaIdsComPromessaAtiva } from "@/server/services/promessa-service";
 import { enfileirarWhatsappDoPasso, processarFilaWhatsapp } from "@/server/services/whatsapp-fila";
 
 const ABERTAS = ["PENDING", "OVERDUE"];
@@ -63,6 +64,8 @@ export async function executarRegua(
     whatsappFalhas: 0,
   };
 
+  await conciliarPromessas(opcoes.empresaId ?? null, hoje);
+
   const configs = await prisma.configuracaoRegua.findMany({
     where: { ativa: true, ...(opcoes.empresaId ? { empresaId: opcoes.empresaId } : {}) },
   });
@@ -91,6 +94,7 @@ export async function executarRegua(
     ]);
 
     const padrao = reguas.find((regua) => regua.padrao) ?? null;
+    const promessasAtivas = await faturaIdsComPromessaAtiva(config.empresaId, hoje);
     const segredo = chaveOuNula(config.chaveResendCifrada);
     const remetente = emailDeCobranca(config.remetenteEmail);
     const remetentePronto = Boolean(segredo.chave && remetente);
@@ -139,6 +143,20 @@ export async function executarRegua(
         if (!passoCombina(hoje, alvo, regua.enviarFimDeSemana)) continue;
 
         const rotulo = rotuloPasso(passo);
+        if (promessasAtivas.has(fatura.id)) {
+          if (passo.canal === "EMAIL") {
+            if (await registrarIgnorado({
+              empresaId: config.empresaId,
+              faturaId: fatura.id,
+              clienteId: cliente.id,
+              passoId: passo.id,
+              modoTeste: config.modoTeste,
+              rotulo,
+              motivo: "promessa de pagamento",
+            })) resultado.ignorados += 1;
+          }
+          continue;
+        }
         if (cliente.status === "BLOQUEADO" || cliente.reguaPausada) {
           const motivo = cliente.status === "BLOQUEADO" ? "cliente bloqueado" : "régua pausada";
           if (passo.canal === "EMAIL") {

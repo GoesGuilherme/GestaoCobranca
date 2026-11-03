@@ -58,6 +58,20 @@ export type ResultadoClassificacaoPagador = {
   mediaAtrasoDias: number;
   vencidasEmAberto: number;
   maiorAtrasoAberto: number;
+  promessasQuebradas: number;
+};
+
+/**
+ * Ajuste opcional do selo. A empresa deixa desligado.
+ * Com o ajuste ligado, cada promessa QUEBRADA cuja data prometida cai nos
+ * últimos 12 meses conta contra o cliente:
+ * - 1 promessa quebrada impede o selo de bom pagador (cai para regular);
+ * - 2 ou mais classificam como mau pagador.
+ * Cumprida, cumprida com atraso e cancelada não entram.
+ * Promessa quebrada sozinha não cria selo: sem o mínimo de faturas, continua sem selo.
+ */
+export type AjustePromessasPagador = {
+  quebradas?: number;
 };
 
 const ROTULOS: Record<ClassificacaoPagador, string> = {
@@ -90,23 +104,29 @@ function fraseDias(dias: number): string {
 }
 
 function tooltipDe(resultado: Omit<ResultadoClassificacaoPagador, "tooltip" | "rotulo">): string {
-  if (resultado.classificacao === "bom") {
-    return `Pagou em dia as ${resultado.pagas} faturas dos últimos ${JANELA_MESES} meses.`;
-  }
   const partes: string[] = [];
-  if (resultado.comAtraso > 0) {
-    partes.push(
-      `${resultado.comAtraso} de ${resultado.pagas} faturas com atraso, média ${fraseDias(resultado.mediaAtrasoDias)}`,
-    );
+  if (resultado.classificacao === "bom") {
+    partes.push(`Pagou em dia as ${resultado.pagas} faturas dos últimos ${JANELA_MESES} meses`);
+  } else {
+    if (resultado.comAtraso > 0) {
+      partes.push(
+        `${resultado.comAtraso} de ${resultado.pagas} faturas com atraso, média ${fraseDias(resultado.mediaAtrasoDias)}`,
+      );
+    }
+    if (resultado.vencidasEmAberto === 1) {
+      partes.push(`1 fatura vencida em aberto há ${fraseDias(resultado.maiorAtrasoAberto)}`);
+    } else if (resultado.vencidasEmAberto > 1) {
+      partes.push(
+        `${resultado.vencidasEmAberto} faturas vencidas em aberto, a mais antiga há ${fraseDias(resultado.maiorAtrasoAberto)}`,
+      );
+    }
+    if (partes.length === 0) partes.push("Pontualidade dentro do limite de pagador regular");
   }
-  if (resultado.vencidasEmAberto === 1) {
-    partes.push(`1 fatura vencida em aberto há ${fraseDias(resultado.maiorAtrasoAberto)}`);
-  } else if (resultado.vencidasEmAberto > 1) {
-    partes.push(
-      `${resultado.vencidasEmAberto} faturas vencidas em aberto, a mais antiga há ${fraseDias(resultado.maiorAtrasoAberto)}`,
-    );
+  if (resultado.promessasQuebradas === 1) {
+    partes.push(`1 promessa quebrada nos últimos ${JANELA_MESES} meses`);
+  } else if (resultado.promessasQuebradas > 1) {
+    partes.push(`${resultado.promessasQuebradas} promessas quebradas nos últimos ${JANELA_MESES} meses`);
   }
-  if (partes.length === 0) return "Pontualidade dentro do limite de pagador regular.";
   return `${partes.join(". ")}.`;
 }
 
@@ -119,6 +139,7 @@ function tooltipDe(resultado: Omit<ResultadoClassificacaoPagador, "tooltip" | "r
 export function classificarPagador(
   faturas: readonly FaturaParaClassificar[],
   hoje: string,
+  ajuste?: AjustePromessasPagador,
 ): ResultadoClassificacaoPagador | null {
   if (!dataIsoValida(hoje)) return null;
   const inicio = inicioDaJanela(hoje);
@@ -152,9 +173,10 @@ export function classificarPagador(
   const abertaGrave = abertas.some((dias) => dias >= DIAS_VENCIDA_ABERTO_GRAVE);
   const abertasDemais = abertas.length > MAX_VENCIDAS_ABERTO_REGULAR;
 
+  const quebradas = Math.max(0, Math.floor(ajuste?.quebradas ?? 0));
   let classificacao: ClassificacaoPagador;
-  if (frequente || longo || abertaGrave || abertasDemais) classificacao = "mau";
-  else if (atrasos.length === 0 && abertas.length === 0) classificacao = "bom";
+  if (frequente || longo || abertaGrave || abertasDemais || quebradas >= 2) classificacao = "mau";
+  else if (atrasos.length === 0 && abertas.length === 0 && quebradas === 0) classificacao = "bom";
   else classificacao = "regular";
 
   const parcial = {
@@ -164,6 +186,7 @@ export function classificarPagador(
     mediaAtrasoDias,
     vencidasEmAberto: abertas.length,
     maiorAtrasoAberto,
+    promessasQuebradas: quebradas,
   };
   return { ...parcial, rotulo: ROTULOS[classificacao], tooltip: tooltipDe(parcial) };
 }

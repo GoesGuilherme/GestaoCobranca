@@ -92,6 +92,7 @@ export function BarraLateral({
       titulo: "Cobrança",
       itens: [
         ...(mostrarFaturas ? [{ href: "/faturas", rotulo: "Faturas" }] : []),
+        ...(mostrarFaturas ? [{ href: "/promessas", rotulo: "Promessas" }] : []),
         ...(mostrarRegua ? [{ href: "/regua", rotulo: "Régua de cobrança" }] : []),
         ...(mostrarAssessor ? [{ href: "/assessor", rotulo: "Assessor" }] : []),
       ],

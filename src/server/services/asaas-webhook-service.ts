@@ -3,6 +3,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db";
 import { ErroAplicacao } from "@/server/erros";
 import { espelharPagamentoAsaas } from "./asaas-pagamento";
+import { conciliarPromessas } from "./promessa-service";
 import { enfileirarPagoWhatsapp, eventoConfirmaPagamento } from "./whatsapp-fila";
 
 // Página da fatura e PDF do boleto. Não mudam o status nem disparam mensagem.
@@ -106,6 +107,9 @@ export async function processarWebhookAsaas(token: string | null, corpo: unknown
         }
       }
     });
+    if (pagamento && tipo.startsWith("PAYMENT_") && !EVENTOS_VISUALIZACAO.has(tipo)) {
+      await conciliarPromessas(config.empresaId);
+    }
     return { duplicado: false as const };
   } catch (erro) {
     if (conflitoDeEvento(erro)) return { duplicado: true as const };

@@ -8,6 +8,7 @@ import {
   type PainelFinanceiro,
 } from "@/lib/painel-financeiro";
 import { FORMAS_COBRANCA, rotuloFormaCobranca, STATUS_CLIENTE } from "@/lib/rotulos";
+import { CartoesPromessas } from "./cartoes-promessas";
 import { classeBotaoPrimario, classeCampo } from "./estilos";
 
 const DICAS = {
@@ -254,7 +255,10 @@ export function PainelFinanceiroView({ painel }: { painel: PainelFinanceiro }) {
     painel.aReceber.valor === "0.00" &&
     painel.previstoProximoMes.total === "0.00" &&
     painel.topAtraso.length === 0 &&
-    painel.proximos.length === 0;
+    painel.proximos.length === 0 &&
+    painel.promessas.abertas === 0 &&
+    painel.promessas.cumpridas === 0 &&
+    painel.promessas.quebradas === 0;
 
   return (
     <div className="space-y-6">
@@ -314,6 +318,16 @@ export function PainelFinanceiroView({ painel }: { painel: PainelFinanceiro }) {
           dica={DICAS.taxa}
           dicaId="dica-taxa"
         />
+      </section>
+      <section className="space-y-3">
+        <div>
+          <h2 className="font-display text-2xl">Promessas de pagamento</h2>
+          <p className="mt-1 text-sm text-muted">
+            Em aberto e as que vencem hoje olham o momento atual. Cumpridas, quebradas e a taxa usam o período
+            selecionado.
+          </p>
+        </div>
+        <CartoesPromessas metricas={painel.promessas} prefixoId="fin-promessa" />
       </section>
       <Grafico painel={painel} />
       <div className="grid gap-4 lg:grid-cols-2">
