@@ -26,6 +26,11 @@ type Valores = {
   email: string;
   cidade: string;
   uf: string;
+  endereco: string;
+  numero: string;
+  complemento: string;
+  bairro: string;
+  cep: string;
   status: string;
   ativadoEm: string;
   observacoes: string;
@@ -60,6 +65,11 @@ export function FormularioCliente({
           email: cliente.email,
           cidade: cliente.cidade,
           uf: cliente.uf,
+          endereco: cliente.endereco ?? "",
+          numero: cliente.numero ?? "",
+          complemento: cliente.complemento ?? "",
+          bairro: cliente.bairro ?? "",
+          cep: cliente.cep ?? "",
           status: cliente.status,
           ativadoEm: cliente.ativadoEm ?? "",
           observacoes: cliente.observacoes ?? "",
@@ -247,6 +257,52 @@ export function FormularioCliente({
             value={valores.ativadoEm}
             max={dataHojeIso()}
             onChange={(evento) => alterar("ativadoEm", evento.target.value)}
+          />
+        </Campo>
+        <Campo
+          label="Endereço"
+          htmlFor="endereco"
+          erro={campos.endereco}
+          dica="O Banco Inter exige endereço, bairro e CEP para emitir o boleto."
+        >
+          <input
+            id="endereco"
+            className={classeCampo}
+            value={valores.endereco}
+            onChange={(evento) => alterar("endereco", evento.target.value)}
+          />
+        </Campo>
+        <Campo label="Número" htmlFor="numero" erro={campos.numero}>
+          <input
+            id="numero"
+            className={classeCampo}
+            value={valores.numero}
+            onChange={(evento) => alterar("numero", evento.target.value)}
+          />
+        </Campo>
+        <Campo label="Complemento" htmlFor="complemento" erro={campos.complemento}>
+          <input
+            id="complemento"
+            className={classeCampo}
+            value={valores.complemento}
+            onChange={(evento) => alterar("complemento", evento.target.value)}
+          />
+        </Campo>
+        <Campo label="Bairro" htmlFor="bairro" erro={campos.bairro}>
+          <input
+            id="bairro"
+            className={classeCampo}
+            value={valores.bairro}
+            onChange={(evento) => alterar("bairro", evento.target.value)}
+          />
+        </Campo>
+        <Campo label="CEP" htmlFor="cep" erro={campos.cep}>
+          <input
+            id="cep"
+            className={classeCampo}
+            inputMode="numeric"
+            value={valores.cep}
+            onChange={(evento) => alterar("cep", evento.target.value)}
           />
         </Campo>
         <Campo label="Cidade" htmlFor="cidade" erro={campos.cidade}>

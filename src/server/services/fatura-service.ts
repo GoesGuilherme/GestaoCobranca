@@ -17,6 +17,7 @@ import { lerEsquema } from "@/server/validar";
 import { espelharCobrancaImportada } from "./asaas-pagamento";
 import { conciliarPromessas, promessasPendentesDasFaturas } from "./promessa-service";
 import { encargosDaPreferencia, obterPreferenciasCobranca } from "./preferencia-cobranca-service";
+import { cancelarFaturaInter, emitirFaturaInter } from "./inter-cobranca";
 
 type FaturaComNomes = {
   id: string;
@@ -406,6 +407,13 @@ export async function emitirFatura(
   entrada: unknown,
   clienteHttp?: ClienteHttpAsaas,
 ): Promise<FaturaDTO> {
+  const empresa = await prisma.empresa.findUnique({
+    where: { id: autor.empresaId },
+    select: { provedorPagamento: true },
+  });
+  if (empresa?.provedorPagamento === "INTER") {
+    return emitirFaturaInter(autor, clienteId, entrada);
+  }
   exigirCobranca(autor);
   const dados = lerEsquema(esquemaFatura, entrada);
   const cliente = await prisma.cliente.findFirst({
@@ -591,6 +599,7 @@ export async function cancelarFatura(
     include: includeNomes,
   });
   if (!atual) throw new ErroAplicacao("Fatura não encontrada.", 404, "nao_encontrado");
+  if (atual.provedor === "INTER") return cancelarFaturaInter(autor, atual.id);
   if (atual.excluida) return paraFatura(atual);
   if (!atual.asaasPaymentId) {
     const fatura = await prisma.fatura.update({

@@ -1,5 +1,5 @@
 import { decifrarSegredoAsaas } from "@/lib/asaas-cripto";
-import { statusBrutos } from "@/lib/status-pagamento";
+import { statusBrutos, PROVEDORES_PAGAMENTO } from "@/lib/status-pagamento";
 import { isoDeData } from "@/lib/data";
 import { formatarReais } from "@/lib/dinheiro";
 import { formatarDataIso } from "@/lib/formatacao";
@@ -24,7 +24,9 @@ import { clienteTwilioPadrao } from "@/server/twilio/fabrica";
 import { conciliarPromessas, faturaIdsComPromessaAtiva } from "@/server/services/promessa-service";
 import { enfileirarWhatsappDoPasso, processarFilaWhatsapp } from "@/server/services/whatsapp-fila";
 
-const ABERTAS = statusBrutos("REGUA_ABERTA");
+const ABERTAS_POR_PROVEDOR = PROVEDORES_PAGAMENTO.flatMap((provedor) =>
+  statusBrutos("REGUA_ABERTA", provedor).map((status) => ({ provedor, status })),
+);
 
 export type ResultadoRegua = {
   enviados: number;
@@ -78,7 +80,7 @@ export async function executarRegua(
         include: { passos: { orderBy: { ordem: "asc" } } },
       }),
       prisma.fatura.findMany({
-        where: { empresaId: config.empresaId, excluida: false, status: { in: [...ABERTAS] } },
+        where: { empresaId: config.empresaId, excluida: false, OR: ABERTAS_POR_PROVEDOR },
         include: {
           cliente: true,
           clienteServico: { select: { servico: { select: { nome: true } } } },

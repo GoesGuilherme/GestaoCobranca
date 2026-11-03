@@ -1,6 +1,6 @@
 import { cifrarSegredoAsaas, decifrarSegredoAsaas } from "@/lib/asaas-cripto";
 import { isoDeData } from "@/lib/data";
-import { statusEh } from "@/lib/status-pagamento";
+import { provedorCodigo, statusEh } from "@/lib/status-pagamento";
 import { formatarReais } from "@/lib/dinheiro";
 import { formatarDataIso } from "@/lib/formatacao";
 import { emailDeCobranca } from "@/lib/remetentes";
@@ -436,7 +436,7 @@ export async function enviarLembreteAgora(
     prisma.empresa.findUnique({ where: { id: autor.empresaId }, select: { nomeFantasia: true } }),
   ]);
   if (!fatura) throw new ErroAplicacao("Fatura não encontrada.", 404, "nao_encontrado");
-  if (fatura.excluida || !statusEh(fatura.status, "REGUA_ABERTA")) {
+  if (fatura.excluida || !statusEh(fatura.status, "REGUA_ABERTA", provedorCodigo(fatura.provedor))) {
     throw new ErroAplicacao("Esta cobrança não está em aberto.", 400, "fatura_fechada");
   }
   if (!passo) throw new ErroAplicacao("Passo não encontrado.", 404, "nao_encontrado");

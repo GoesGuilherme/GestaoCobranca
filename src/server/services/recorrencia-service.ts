@@ -25,6 +25,14 @@ import {
   gravarCobrancasEspelhadas,
   marcarFaturasAbertasExcluidas,
 } from "./fatura-service";
+import {
+  ativarRecorrenciaInter,
+  cancelarRecorrenciaInter,
+  editarRecorrenciaInter,
+  empresaUsaInter,
+  pausarRecorrenciaInter,
+  retomarRecorrenciaInter,
+} from "./inter-recorrencia";
 
 const PODE_SUBSTITUIR = new Set(["CANCELADA", "EXPIRED"]);
 const STATUS_CRIANDO = "CRIANDO";
@@ -188,6 +196,16 @@ export async function ativarRecorrencia(
   ).slice(0, 500);
   const forma = formaCobrancaDe(dados.formaCobranca ?? prefs.formaCobranca);
 
+  if (await empresaUsaInter(autor.empresaId)) {
+    return ativarRecorrenciaInter(autor, clienteServicoId, {
+      diaVencimento: dia,
+      proximoVencimento: vencimento,
+      valor,
+      formaCobranca: forma,
+      descricao,
+    });
+  }
+
   try {
     const http = await clienteAsaasDaEmpresa(autor.empresaId, clienteHttp);
     const customer = await garantirClienteAsaas(autor.empresaId, vinculo.cliente, http);
@@ -326,6 +344,17 @@ export async function editarRecorrencia(
   const forma = formaCobrancaDe(dados.formaCobranca ?? vinculo.formaCobrancaRecorrente ?? prefs.formaCobranca);
   const atualizarPendentes = dados.atualizarPendentes ?? prefs.atualizarPendentes;
 
+  if (await empresaUsaInter(autor.empresaId)) {
+    return editarRecorrenciaInter(autor, clienteServicoId, {
+      diaVencimento: dados.diaVencimento,
+      proximoVencimento: vencimento,
+      valor: dados.valor,
+      formaCobranca: forma,
+      descricao,
+      atualizarPendentes,
+    });
+  }
+
   try {
     const http = await clienteAsaasDaEmpresa(autor.empresaId, clienteHttp);
     const assinatura = await http.atualizarAssinatura(vinculo.asaasSubscriptionId, {
@@ -378,6 +407,7 @@ export async function pausarRecorrencia(
 ): Promise<ClienteServicoDTO> {
   exigirCobranca(autor);
   const vinculo = await buscarVinculo(autor.empresaId, clienteServicoId);
+  if (await empresaUsaInter(autor.empresaId)) return pausarRecorrenciaInter(autor, clienteServicoId);
   if (!vinculo.asaasSubscriptionId || vinculo.asaasAssinaturaStatus !== "ACTIVE") {
     throw new ErroAplicacao("Só uma recorrência ativa pode ser pausada.", 409, "assinatura_ausente");
   }
@@ -419,6 +449,9 @@ export async function retomarRecorrencia(
   const dia = dados.diaVencimento ?? vinculo.diaVencimento;
   if (!dia) throw new ErroAplicacao("Informe o dia de vencimento entre 1 e 31.", 400, "dia_invalido");
   const vencimento = resolverVencimento(dia, dados.proximoVencimento, dataHojeIso());
+  if (await empresaUsaInter(autor.empresaId)) {
+    return retomarRecorrenciaInter(autor, clienteServicoId, { diaVencimento: dia, proximoVencimento: vencimento });
+  }
   try {
     const http = await clienteAsaasDaEmpresa(autor.empresaId, clienteHttp);
     const assinatura = await http.atualizarAssinatura(vinculo.asaasSubscriptionId, {
@@ -456,6 +489,7 @@ export async function cancelarRecorrencia(
 ): Promise<ClienteServicoDTO> {
   exigirCobranca(autor);
   const vinculo = await buscarVinculo(autor.empresaId, clienteServicoId);
+  if (await empresaUsaInter(autor.empresaId)) return cancelarRecorrenciaInter(autor, clienteServicoId);
   if (!vinculo.asaasSubscriptionId || vinculo.asaasAssinaturaStatus === "CANCELADA") {
     throw new ErroAplicacao("Esta venda não tem cobrança recorrente para cancelar.", 409, "assinatura_ausente");
   }
@@ -506,6 +540,7 @@ export async function listarPreviaRecorrencia(
       AND: [
         { OR: [{ asaasSubscriptionId: null }, { asaasAssinaturaStatus: { in: [...PODE_SUBSTITUIR] } }] },
         { OR: [{ asaasAssinaturaStatus: null }, { asaasAssinaturaStatus: { not: STATUS_CRIANDO } }] },
+        { OR: [{ asaasAssinaturaStatus: null }, { asaasAssinaturaStatus: { notIn: ["ACTIVE", "INACTIVE"] } }] },
       ],
     },
     include: {

@@ -37,6 +37,11 @@ export type ClienteResumo = {
   email: string;
   cidade: string;
   uf: string;
+  endereco: string | null;
+  numero: string | null;
+  complemento: string | null;
+  bairro: string | null;
+  cep: string | null;
   status: StatusCliente;
   ativadoEm: string | null;
   observacoes: string | null;
@@ -343,6 +348,20 @@ export type AtribuicaoReguaDTO = {
   reguaId: string | null;
   pausada: boolean;
   nome: string | null;
+};
+
+export type ConfiguracaoInterDTO = {
+  provedorAtual: "ASAAS" | "CORA" | "INTER" | "EFI" | "SICOOB" | "SICREDI";
+  configurado: boolean;
+  ambiente: "SANDBOX" | "PRODUCAO" | null;
+  clientIdMascarado: string | null;
+  contaCorrente: string | null;
+  temCertificado: boolean;
+  certificadoValidoAte: string | null;
+  certificadoPertoDoVencimento: boolean;
+  certificadoVencido: boolean;
+  urlWebhook: string | null;
+  aviso: string | null;
 };
 
 export type ConfiguracaoAsaasDTO = {

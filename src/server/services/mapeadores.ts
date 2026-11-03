@@ -54,6 +54,11 @@ export function paraCliente(cliente: ClienteComContagem): ClienteResumo {
     email: cliente.email,
     cidade: cliente.cidade,
     uf: cliente.uf,
+    endereco: cliente.enderecoCobranca,
+    numero: cliente.numeroCobranca,
+    complemento: cliente.complementoCobranca,
+    bairro: cliente.bairroCobranca,
+    cep: cliente.cepCobranca,
     status: cliente.status,
     ativadoEm: cliente.ativadoEm ? isoDeData(cliente.ativadoEm) : null,
     observacoes: cliente.observacoes,
@@ -150,7 +155,10 @@ export function paraClienteServico(
     status: vinculo.status,
     observacoes: vinculo.observacoes,
     recorrenciaAsaas:
-      incluirCobranca && vinculo.asaasSubscriptionId
+      incluirCobranca &&
+      (vinculo.asaasSubscriptionId ||
+        (!vinculo.asaasSubscriptionId &&
+          (vinculo.asaasAssinaturaStatus === "ACTIVE" || vinculo.asaasAssinaturaStatus === "INACTIVE")))
         ? {
             status: vinculo.asaasAssinaturaStatus ?? "ACTIVE",
             formaCobranca: vinculo.formaCobrancaRecorrente,

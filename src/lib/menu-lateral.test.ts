@@ -41,6 +41,8 @@ describe("menu lateral", () => {
     expect(grupos.find((grupo) => grupo.id === "visao")?.itens).toEqual([
       { href: "/dashboards/painel", rotulo: "Dashboards" },
     ]);
+    expect(grupos.find((grupo) => grupo.id === "configuracoes")?.itens.map((item) => item.rotulo)).toContain("Banco");
+    expect(montarGruposMenu(suporte).flatMap((grupo) => grupo.itens).map((item) => item.rotulo)).not.toContain("Banco");
   });
 
   it("mantém Visão geral com um item para o menu fechado destacar a aba atual", () => {
