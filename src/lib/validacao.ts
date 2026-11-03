@@ -2,7 +2,7 @@ import { z } from "zod";
 import { MODELO_ASSUNTO_PADRAO, MODELO_MENSAGEM_PADRAO } from "./cobranca";
 import { dataHojeIso, dataIsoValida } from "./data";
 import { normalizarAliquota, normalizarDinheiro } from "./dinheiro";
-import { cnpjValido, identificarDocumento, whatsappValido } from "./documento";
+import { cnpjValido, identificarDocumento, somenteDigitos, whatsappValido } from "./documento";
 import { ufValida } from "./ufs";
 
 export function mensagensDoZod(erro: z.ZodError): Record<string, string> {
@@ -95,6 +95,31 @@ export const esquemaCliente = z.object({
     .trim()
     .min(1, "Escolha a UF.")
     .refine((valor) => ufValida(valor), "Escolha uma UF válida."),
+  endereco: z.preprocess(
+    (valor) => (typeof valor === "string" && valor.trim() === "" ? undefined : valor),
+    z.string().trim().max(200, "O endereço pode ter no máximo 200 caracteres.").optional(),
+  ),
+  numero: z.preprocess(
+    (valor) => (typeof valor === "string" && valor.trim() === "" ? undefined : valor),
+    z.string().trim().max(20, "O número pode ter no máximo 20 caracteres.").optional(),
+  ),
+  complemento: z.preprocess(
+    (valor) => (typeof valor === "string" && valor.trim() === "" ? undefined : valor),
+    z.string().trim().max(80, "O complemento pode ter no máximo 80 caracteres.").optional(),
+  ),
+  bairro: z.preprocess(
+    (valor) => (typeof valor === "string" && valor.trim() === "" ? undefined : valor),
+    z.string().trim().max(80, "O bairro pode ter no máximo 80 caracteres.").optional(),
+  ),
+  cep: z.preprocess(
+    (valor) => (typeof valor === "string" && valor.trim() === "" ? undefined : valor),
+    z
+      .string()
+      .trim()
+      .max(9, "Informe o CEP com 8 dígitos.")
+      .refine((valor) => somenteDigitos(valor).length === 8, "Informe o CEP com 8 dígitos.")
+      .optional(),
+  ),
   status: z.enum(["ATIVO", "INATIVO", "EM_IMPLANTACAO", "BLOQUEADO"], "Escolha o status."),
   ativadoEm: z
     .string()
@@ -426,6 +451,27 @@ export type EntradaSegmento = z.infer<typeof esquemaSegmento>;
 export type EntradaServico = z.infer<typeof esquemaServico>;
 export type EntradaClienteServico = z.infer<typeof esquemaClienteServico>;
 export type EntradaConfiguracaoAsaas = z.infer<typeof esquemaConfiguracaoAsaas>;
+
+function segredoOpcional(maximo: number) {
+  return z.preprocess(
+    (valor) => (typeof valor === "string" && valor.trim() === "" ? undefined : valor),
+    z.string().trim().min(1).max(maximo).optional(),
+  );
+}
+
+export const esquemaConfiguracaoInter = z.object({
+  ambiente: z.enum(["SANDBOX", "PRODUCAO"], "Escolha sandbox ou produção."),
+  clientId: segredoOpcional(200),
+  clientSecret: segredoOpcional(400),
+  contaCorrente: z.preprocess(
+    (valor) => (typeof valor === "string" && valor.trim() === "" ? undefined : valor),
+    z.string().trim().max(20, "A conta corrente está longa demais.").optional(),
+  ),
+  certificadoPem: segredoOpcional(64_000),
+  chavePrivadaPem: segredoOpcional(64_000),
+});
+
+export type EntradaConfiguracaoInter = z.infer<typeof esquemaConfiguracaoInter>;
 export const esquemaDiaVencimento = z
   .number("Informe o dia de vencimento.")
   .int("Informe o dia de vencimento.")

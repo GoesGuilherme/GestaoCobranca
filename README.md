@@ -24,6 +24,7 @@ Cada empresa assinante vê só os próprios clientes e filiais. O CPF/CNPJ do cl
 - Dono e financeiro alteram serviços, valores, custo e impostos, e veem a margem. Suporte consulta o preço e não vê custo, impostos nem margem. Os outros papéis continuam como antes: todo mundo autenticado altera clientes e filiais; só o dono altera usuários e os dados da empresa.
 - Ver o resultado de custo e faturamento em Resultado, só o dono. O mensal reúne serviços recorrentes ativos de clientes ativos ou em implantação. O avulso fica separado. Custo vazio entra como zero e a página avisa que a margem pode estar alta demais.
 - O dono configura o Asaas da empresa em Asaas: ambiente sandbox ou produção, chave da API cifrada, token do webhook e as preferências de cobrança (forma, dia, modelo de descrição, multa, juros, desconto e atualização das cobranças em aberto). A tela mostra a chave mascarada e tem o botão Testar conexão.
+- O dono pode escolher o Banco Inter em Banco. A empresa gera client id, segredo e certificado no Internet Banking. O passo a passo está em `docs/banco-inter.md`. Empresas que continuam no Asaas não passam por esse conector.
 - Dono e financeiro veem, emitem e cancelam cobrança avulsa (boleto, Pix ou o cliente escolhe), a lista Faturas em aberto, a recorrência das vendas mensais e a importação. Suporte não vê o menu, a seção na ficha do cliente, a segunda via, a recorrência nem as rotas de fatura. O cliente é criado no Asaas na primeira cobrança, ou reaproveitado pelo CPF/CNPJ.
 - O webhook `POST /api/webhooks/asaas` autentica o cabeçalho `asaas-access-token` de cada empresa e atualiza a situação da cobrança sem processar o mesmo evento duas vezes.
 
@@ -102,7 +103,9 @@ Os testes apagam empresas, usuários, clientes, filiais, serviços, vínculos, f
 | `ADMIN_NOME` | Nome do primeiro acesso real. Só para `npm run criar-admin`. |
 | `ADMIN_EMAIL` | E-mail desse acesso. |
 | `ADMIN_SENHA` | Senha em texto. O script grava o hash e não altera a senha se o e-mail já existir. |
-| `ASAAS_ENCRYPTION_KEY` | 32 bytes em base64 (`openssl rand -base64 32`). Cifra, no banco, a chave da API do Asaas, o token do webhook, a chave da Resend e o auth token da subconta Twilio de cada empresa. Não é a chave da API e não pode ir para o repositório. Sem ela, a tela Asaas e a régua não gravam nem leem esses segredos. Não troque essa chave se já houver segredo gravado. |
+| `ASAAS_ENCRYPTION_KEY` | 32 bytes em base64 (`openssl rand -base64 32`). Cifra, no banco, a chave da API do Asaas, o token do webhook, a chave da Resend e o auth token da subconta Twilio de cada empresa. Não é a chave da API e não pode ir para o repositório. Sem ela, a tela Asaas e a régua não gravam nem leem esses segredos. Não troque essa chave se já houver segredo gravado. Não use esta chave para o Banco Inter. |
+| `PAGAMENTOS_ENCRYPTION_KEY` | Outra chave de 32 bytes em base64. Cifra client id, segredo, certificado e chave privada na tabela `configuracoes_pagamento`. Não é a `ASAAS_ENCRYPTION_KEY` e não substitui a chave do Asaas. |
+| `PAGAMENTOS_PUBLIC_URL` | Origem HTTPS da aplicação, por exemplo `https://app.taguaro.com.br`. O Taguaro usa isso para registrar o webhook do Inter. |
 | `TWILIO_ACCOUNT_SID` | Account SID da conta pai da Twilio (começa com `AC`). Não é digitado na tela. |
 | `TWILIO_AUTH_TOKEN` | Auth token da conta pai. Só no servidor. A subconta de cada empresa é criada pela API e o token dela fica cifrado. |
 | `TWILIO_WEBHOOK_URL` | URL pública exata de `/api/webhooks/twilio`. Em produção, `https`. A Twilio assina esse endereço. |
@@ -115,7 +118,7 @@ Os testes apagam empresas, usuários, clientes, filiais, serviços, vínculos, f
 | `ASSESSOR_TIMEOUT_MS` | Tempo máximo da consulta ao modelo, em milissegundos. Vazio usa 12000. Estourar o tempo manda o texto de fallback. |
 | `ASSESSOR_LIMITE_TELEFONE` | Mensagens por telefone a cada 10 minutos. Vazio usa 8. |
 | `ASSESSOR_LIMITE_EMPRESA` | Mensagens da empresa a cada 10 minutos. Vazio usa 60. |
-| `CRON_SECRET` | Segredo das rotas diárias `/api/cron/regua` e `/api/cron/visualizacoes`. A Vercel Cron envia `Authorization: Bearer`. Sem ele a rota responde 500. Não é a chave da Resend nem a chave do Asaas. |
+| `CRON_SECRET` | Segredo das rotas diárias `/api/cron/regua`, `/api/cron/visualizacoes`, `/api/cron/recorrencias` e `/api/cron/conciliacao`. A Vercel Cron envia `Authorization: Bearer`. Sem ele a rota responde 500. Não é a chave da Resend nem a chave do Asaas. |
 | `ASAAS_MOCK` | Só no computador de desenvolvimento. `true` usa um Asaas em memória, sem rede e sem chave real, para a tela funcionar antes de existir a chave. Se `NODE_ENV` for `production`, a aplicação recusa esse modo. Não defina na Vercel. |
 
 ## Publicar no Supabase e na Vercel

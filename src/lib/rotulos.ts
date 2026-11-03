@@ -121,6 +121,15 @@ const STATUS_FATURA: Record<string, string> = {
   CHARGEBACK_REQUESTED: "Chargeback",
   CHARGEBACK_DISPUTE: "Chargeback em disputa",
   AWAITING_CHARGEBACK_REVERSAL: "Aguardando reversão",
+  A_RECEBER: "Em aberto",
+  ATRASADO: "Vencida",
+  RECEBIDO: "Recebida",
+  MARCADO_RECEBIDO: "Recebida",
+  CANCELADO: "Cancelada",
+  EXPIRADO: "Expirada",
+  EM_PROCESSAMENTO: "Em emissão",
+  FALHA_EMISSAO: "Falha na emissão",
+  PROTESTO: "Em protesto",
 };
 
 export function rotuloAmbienteAsaas(valor: AmbienteAsaas): string {

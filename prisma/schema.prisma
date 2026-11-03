@@ -2,7 +2,7 @@
 // Servico é o catálogo da empresa (o que ela vende aos clientes dela).
 // ClienteServico guarda o valor combinado daquele cliente. O plano da Empresa
 // (string `plano`) é a assinatura dela na plataforma e não se mistura com este catálogo.
-// A cobrança nasce no provedor da empresa. Hoje só o Asaas está disponível.
+// A cobrança nasce no provedor da empresa. Asaas e Inter estão disponíveis.
 // Colunas asaas_* permanecem. provedor, id externo e status normalizado
 // são o caminho comum para Cora, Inter, Efí, Sicoob e Sicredi.
 
@@ -224,6 +224,12 @@ model Cliente {
   email         String
   cidade        String
   uf            String
+  // Endereço do pagador. O Inter exige na emissão do boleto. O Asaas não lê estes campos.
+  enderecoCobranca    String?          @map("endereco_cobranca")
+  numeroCobranca      String?          @map("numero_cobranca")
+  complementoCobranca String?          @map("complemento_cobranca")
+  bairroCobranca      String?          @map("bairro_cobranca")
+  cepCobranca         String?          @map("cep_cobranca")
   status          StatusCliente
   ativadoEm       DateTime?        @map("ativado_em") @db.Date
   observacoes     String?          @db.Text
@@ -476,9 +482,9 @@ model EventoAsaas {
   @@map("eventos_asaas")
 }
 
-// Cofre genérico por empresa e provedor. A cifra é a mesma ASAAS_ENCRYPTION_KEY.
-// O Asaas segue em configuracoes_asaas; esta tabela espera os próximos bancos
-// (client_id, segredo, certificado e chave privada).
+// Cofre genérico por empresa e provedor. A cifra é PAGAMENTOS_ENCRYPTION_KEY,
+// separada da ASAAS_ENCRYPTION_KEY. O Asaas segue em configuracoes_asaas.
+// client_id, segredo, certificado e chave privada ficam aqui.
 model ConfiguracaoPagamento {
   id                    String            @id @default(cuid())
   empresaId             String            @map("empresa_id")

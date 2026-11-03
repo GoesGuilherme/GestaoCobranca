@@ -29,6 +29,22 @@ export type EncargosCobranca = {
   descontoDiasAntes?: number | null;
 };
 
+export type PagadorCobranca = {
+  nome: string;
+  cpfCnpj: string;
+  tipoPessoa: "FISICA" | "JURIDICA";
+  email?: string;
+  ddd?: string;
+  telefone?: string;
+  endereco: string;
+  numero?: string;
+  complemento?: string;
+  bairro: string;
+  cidade: string;
+  uf: string;
+  cep: string;
+};
+
 export type NovaCobranca = {
   idClienteExterno: string;
   formaCobranca: FormaCobrancaProvedor;
@@ -37,6 +53,9 @@ export type NovaCobranca = {
   descricao?: string;
   chaveIdempotencia: string;
   encargos?: EncargosCobranca;
+  // Bancos sem cliente remoto (Inter) exigem o pagador em cada cobrança.
+  // O adaptador do Asaas ignora este campo.
+  pagador?: PagadorCobranca;
 };
 
 export type CobrancaNormalizada = {
@@ -51,6 +70,9 @@ export type CobrancaNormalizada = {
   meio: MeioPagamento | null;
   boletoUrl: string | null;
   faturaUrl: string | null;
+  linhaDigitavel?: string | null;
+  codigoBarras?: string | null;
+  pixCopiaCola?: string | null;
   descricao: string | null;
   excluida: boolean;
   pagoEm: string | null;
@@ -120,7 +142,15 @@ export interface ProvedorPagamento {
   consultarCobranca(idExterno: string): Promise<CobrancaNormalizada>;
   cancelarCobranca(idExterno: string, motivo?: string): Promise<void>;
   editarCobranca?(idExterno: string, dados: { valor?: string; vencimento?: string }): Promise<void>;
-  listarCobrancas?(filtro: { statusBruto?: string; offset: number; limit: number }): Promise<PaginaCobrancas>;
+  listarCobrancas?(filtro: {
+    statusBruto?: string;
+    offset: number;
+    limit: number;
+    dataInicial?: string;
+    dataFinal?: string;
+  }): Promise<PaginaCobrancas>;
+  obterPdf?(idExterno: string): Promise<string>;
+  registrarWebhook?(url: string): Promise<void>;
   normalizarWebhook(entrada: EntradaWebhook): Promise<EventoNormalizado[]>;
   criarAssinatura?(dados: NovaAssinatura): Promise<AssinaturaNormalizada>;
   atualizarAssinatura?(idExterno: string, dados: AtualizacaoAssinatura): Promise<AssinaturaNormalizada>;

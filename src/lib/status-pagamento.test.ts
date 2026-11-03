@@ -60,4 +60,11 @@ describe("status normalizado do Taguaro", () => {
     expect(statusIgnoradoNoSelo("PENDING")).toBe(false);
     expect(statusIgnoradoNoSelo("RECEIVED")).toBe(false);
   });
+
+  it("não muda o mapa do Asaas quando o status é do Inter", () => {
+    expect(statusNormalizado("A_RECEBER")).toBe("PENDENTE");
+    expect(statusNormalizado("PENDING")).toBe("PENDENTE");
+    expect(statusBrutos("PENDENTE")).toEqual(HISTORICO.PENDENTE);
+    expect(statusNormalizado("A_RECEBER", "ASAAS")).toBe("PENDENTE");
+  });
 });

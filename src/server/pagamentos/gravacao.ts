@@ -18,3 +18,11 @@ export function espelhoClienteAsaas(id: string) {
 export function espelhoAssinaturaAsaas(id: string) {
   return { asaasSubscriptionId: id, idAssinaturaExterna: id };
 }
+
+export function espelhoFaturaInter(dados: { status?: string; idExterno?: string | null }) {
+  return {
+    provedor: "INTER" as const,
+    ...(dados.status !== undefined ? { statusNormalizado: statusNormalizado(dados.status, "INTER") } : {}),
+    ...(dados.idExterno !== undefined ? { idExterno: dados.idExterno } : {}),
+  };
+}

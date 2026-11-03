@@ -51,8 +51,11 @@ export async function middleware(request: NextRequest) {
     pathname === "/api/cadastro" ||
     pathname === "/api/webhooks/asaas" ||
     pathname === "/api/webhooks/twilio" ||
+    pathname.startsWith("/api/webhooks/inter/") ||
     pathname === "/api/cron/regua" ||
-    pathname === "/api/cron/visualizacoes";
+    pathname === "/api/cron/visualizacoes" ||
+    pathname === "/api/cron/recorrencias" ||
+    pathname === "/api/cron/conciliacao";
 
   if (rotaPublica) {
     const empresaSuspensa = request.nextUrl.searchParams.get("motivo") === "suspensa";
@@ -150,12 +153,21 @@ export async function middleware(request: NextRequest) {
     );
   }
 
-  const rotaAsaas = pathname === "/asaas" || pathname.startsWith("/asaas/") || pathname.startsWith("/api/asaas");
+  const rotaAsaas =
+    pathname === "/asaas" ||
+    pathname.startsWith("/asaas/") ||
+    pathname.startsWith("/api/asaas") ||
+    pathname === "/banco" ||
+    pathname.startsWith("/banco/") ||
+    pathname.startsWith("/api/banco");
   if (rotaAsaas && !podeConfigurarAsaas(sessao.papel)) {
+    const banco = pathname === "/banco" || pathname.startsWith("/banco/") || pathname.startsWith("/api/banco");
     return paginaProibida(
       pathname,
-      "Só o dono configura o Asaas",
-      "A chave da API e o token do webhook ficam com o dono da empresa. Financeiro e suporte não entram aqui.",
+      banco ? "Só o dono configura o banco" : "Só o dono configura o Asaas",
+      banco
+        ? "Certificado, chave e segredos do banco ficam com o dono da empresa. Financeiro e suporte não entram aqui."
+        : "A chave da API e o token do webhook ficam com o dono da empresa. Financeiro e suporte não entram aqui.",
     );
   }
 

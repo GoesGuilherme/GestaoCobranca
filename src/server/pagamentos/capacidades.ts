@@ -28,7 +28,7 @@ const CAPACIDADES_CORA: Capacidades = {
   webhookAssinado: false,
 };
 
-const CAPACIDADES_INTER: Capacidades = {
+export const CAPACIDADES_INTER: Capacidades = {
   boleto: true,
   boletoComPix: true,
   pixComVencimento: true,
@@ -90,7 +90,7 @@ export type ItemCatalogoProvedor = {
 export const CATALOGO_PROVEDORES: readonly ItemCatalogoProvedor[] = [
   { codigo: "ASAAS", nome: "Asaas", disponivel: true, capacidades: CAPACIDADES_ASAAS },
   { codigo: "CORA", nome: "Cora", disponivel: false, capacidades: CAPACIDADES_CORA },
-  { codigo: "INTER", nome: "Inter", disponivel: false, capacidades: CAPACIDADES_INTER },
+  { codigo: "INTER", nome: "Inter", disponivel: true, capacidades: CAPACIDADES_INTER },
   { codigo: "EFI", nome: "Efí", disponivel: false, capacidades: CAPACIDADES_EFI },
   { codigo: "SICOOB", nome: "Sicoob", disponivel: false, capacidades: CAPACIDADES_SICOOB },
   { codigo: "SICREDI", nome: "Sicredi", disponivel: false, capacidades: CAPACIDADES_SICREDI },
@@ -107,8 +107,8 @@ export function provedorEstaDisponivel(codigo: ProvedorCodigo): boolean {
 }
 
 // Bancos sem assinatura nativa passam a gerar a cobrança do mês no Taguaro.
-// O cron disso ainda não entra no vercel.json: hoje só o Asaas está disponível
-// e ele continua na assinatura nativa.
+// O Asaas continua na assinatura nativa. O cron /api/cron/recorrencias só
+// percorre empresas cujo provedor não tem assinatura.
 export function usaRecorrenciaPropria(capacidades: Capacidades): boolean {
   return !capacidades.assinaturaNativa;
 }

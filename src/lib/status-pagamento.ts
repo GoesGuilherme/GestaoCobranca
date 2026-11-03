@@ -50,11 +50,27 @@ const MAPA_ASAAS: readonly RegistroStatus[] = [
   { bruto: "ERRO_EMISSAO", normalizado: "FALHA", regua: false, recorrencia: false },
 ];
 
+// Cobrança v3 (bolepix). EXPIRADO encerra o título depois de numDiasAgenda: não entra na régua.
+// PROTESTO continua cobrável. Não há estorno nesta API.
+const MAPA_INTER: readonly RegistroStatus[] = [
+  { bruto: "EM_PROCESSAMENTO", normalizado: "CRIANDO", regua: false, recorrencia: false },
+  { bruto: "CRIANDO", normalizado: "CRIANDO", regua: false, recorrencia: false },
+  { bruto: "A_RECEBER", normalizado: "PENDENTE", regua: true, recorrencia: true },
+  { bruto: "ATRASADO", normalizado: "VENCIDO", regua: true, recorrencia: true },
+  { bruto: "PROTESTO", normalizado: "VENCIDO", regua: true, recorrencia: true },
+  { bruto: "RECEBIDO", normalizado: "PAGO", regua: false, recorrencia: false },
+  { bruto: "MARCADO_RECEBIDO", normalizado: "PAGO", regua: false, recorrencia: false },
+  { bruto: "CANCELADO", normalizado: "CANCELADO", regua: false, recorrencia: false },
+  { bruto: "EXPIRADO", normalizado: "CANCELADO", regua: false, recorrencia: false },
+  { bruto: "FALHA_EMISSAO", normalizado: "FALHA", regua: false, recorrencia: false },
+  { bruto: "ERRO_EMISSAO", normalizado: "FALHA", regua: false, recorrencia: false },
+];
+
 const MAPAS: Record<ProvedorCodigo, readonly RegistroStatus[]> = {
   ASAAS: MAPA_ASAAS,
   // Os outros bancos entram com o próprio mapa. Enquanto o conector não existe, a lista fica vazia.
   CORA: [],
-  INTER: [],
+  INTER: MAPA_INTER,
   EFI: [],
   SICOOB: [],
   SICREDI: [],
@@ -69,9 +85,24 @@ export function provedorCodigo(valor: string | null | undefined): ProvedorCodigo
   return "ASAAS";
 }
 
+function registroDe(provedor: ProvedorCodigo, bruto: string): RegistroStatus | undefined {
+  return registros(provedor).find((item) => item.bruto === bruto);
+}
+
 export function statusNormalizado(statusBruto: string, provedor: ProvedorCodigo = "ASAAS"): StatusNormalizado | null {
   const bruto = statusBruto.trim().toUpperCase();
-  return registros(provedor).find((item) => item.bruto === bruto)?.normalizado ?? null;
+  const direto = registroDe(provedor, bruto);
+  if (direto) return direto.normalizado;
+  // Quem já informa o provedor não mistura mapas. O padrão Asaas só cai no
+  // mapa de outro banco quando a string não é do Asaas (A_RECEBER, RECEBIDO…).
+  // Nenhuma situação do Asaas muda de grupo por causa disso.
+  if (provedor !== "ASAAS") return null;
+  for (const codigo of PROVEDORES_PAGAMENTO) {
+    if (codigo === "ASAAS") continue;
+    const outro = registroDe(codigo, bruto);
+    if (outro) return outro.normalizado;
+  }
+  return null;
 }
 
 export function statusBrutos(grupo: GrupoStatus, provedor: ProvedorCodigo = "ASAAS"): readonly string[] {

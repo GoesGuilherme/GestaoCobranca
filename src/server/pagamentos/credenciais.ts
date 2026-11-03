@@ -1,4 +1,5 @@
-import { cifrarSegredoAsaas, decifrarSegredoAsaas, hashTokenWebhook } from "@/lib/asaas-cripto";
+import { hashTokenWebhook } from "@/lib/asaas-cripto";
+import { cifrarSegredoPagamento, decifrarSegredoPagamento } from "@/lib/pagamentos-cripto";
 import type { ProvedorCodigo } from "@/lib/status-pagamento";
 import { prisma } from "@/server/db";
 import { ErroAplicacao } from "@/server/erros";
@@ -21,7 +22,7 @@ type PacoteCifrado = {
   extra?: Record<string, string>;
 };
 
-const LIMITE = 16_000;
+const LIMITE = 64_000;
 
 function textoOpcional(valor: string | undefined, nome: string): string | undefined {
   if (valor === undefined) return undefined;
@@ -60,13 +61,13 @@ function pacoteDe(credenciais: CredenciaisPagamento): PacoteCifrado {
 }
 
 function selar(pacote: PacoteCifrado): string {
-  return cifrarSegredoAsaas(JSON.stringify(pacote));
+  return cifrarSegredoPagamento(JSON.stringify(pacote));
 }
 
 function abrir(cifrado: string): PacoteCifrado {
   let json: unknown;
   try {
-    json = JSON.parse(decifrarSegredoAsaas(cifrado));
+    json = JSON.parse(decifrarSegredoPagamento(cifrado));
   } catch (erro) {
     if (erro instanceof ErroAplicacao) throw erro;
     throw new ErroAplicacao("As credenciais do provedor estão ilegíveis.", 500, "credencial_ilegivel");
@@ -118,22 +119,22 @@ export async function salvarCredenciaisPagamento(dados: {
       provedor: dados.provedor,
       ambiente: dados.ambiente,
       credenciaisCifradas: selar(pacote),
-      certificadoCifrado: certificado ? cifrarSegredoAsaas(certificado) : null,
-      chavePrivadaCifrada: chave ? cifrarSegredoAsaas(chave) : null,
+      certificadoCifrado: certificado ? cifrarSegredoPagamento(certificado) : null,
+      chavePrivadaCifrada: chave ? cifrarSegredoPagamento(chave) : null,
       certificadoValidoAte: dados.certificadoValidoAte ?? null,
-      segredoWebhookCifrado: segredo ? cifrarSegredoAsaas(segredo) : null,
+      segredoWebhookCifrado: segredo ? cifrarSegredoPagamento(segredo) : null,
       segredoWebhookHash: segredo ? hashTokenWebhook(segredo) : null,
     },
     update: {
       ambiente: dados.ambiente,
       credenciaisCifradas: selar(pacote),
-      certificadoCifrado: certificado ? cifrarSegredoAsaas(certificado) : null,
-      chavePrivadaCifrada: chave ? cifrarSegredoAsaas(chave) : null,
+      certificadoCifrado: certificado ? cifrarSegredoPagamento(certificado) : null,
+      chavePrivadaCifrada: chave ? cifrarSegredoPagamento(chave) : null,
       certificadoValidoAte: dados.certificadoValidoAte ?? null,
       ...(segredo === undefined
         ? {}
         : {
-            segredoWebhookCifrado: segredo ? cifrarSegredoAsaas(segredo) : null,
+            segredoWebhookCifrado: segredo ? cifrarSegredoPagamento(segredo) : null,
             segredoWebhookHash: segredo ? hashTokenWebhook(segredo) : null,
           }),
     },
@@ -158,8 +159,8 @@ export async function lerCredenciaisPagamento(
     ambiente: linha.ambiente === "PRODUCAO" ? "PRODUCAO" : "SANDBOX",
     credenciais: {
       ...pacote,
-      certificadoPem: linha.certificadoCifrado ? decifrarSegredoAsaas(linha.certificadoCifrado) : undefined,
-      chavePrivadaPem: linha.chavePrivadaCifrada ? decifrarSegredoAsaas(linha.chavePrivadaCifrada) : undefined,
+      certificadoPem: linha.certificadoCifrado ? decifrarSegredoPagamento(linha.certificadoCifrado) : undefined,
+      chavePrivadaPem: linha.chavePrivadaCifrada ? decifrarSegredoPagamento(linha.chavePrivadaCifrada) : undefined,
     },
     certificadoValidoAte: linha.certificadoValidoAte,
     temSegredoWebhook: Boolean(linha.segredoWebhookHash),

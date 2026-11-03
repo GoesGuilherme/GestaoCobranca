@@ -5,7 +5,7 @@ import { lerCredenciaisPagamento, salvarCredenciaisPagamento } from "./credencia
 import { criarEmpresaDeTeste, usarBancoDeTeste } from "@/server/services/teste-db";
 
 beforeAll(() => {
-  process.env.ASAAS_ENCRYPTION_KEY = randomBytes(32).toString("base64");
+  process.env.PAGAMENTOS_ENCRYPTION_KEY = randomBytes(32).toString("base64");
 });
 
 usarBancoDeTeste();

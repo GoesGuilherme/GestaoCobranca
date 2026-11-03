@@ -66,6 +66,16 @@ export function exigirAsaas(autor: AutorEmpresa) {
   }
 }
 
+export function exigirBanco(autor: AutorEmpresa) {
+  if (!podeConfigurarAsaas(autor.papel)) {
+    throw new ErroAplicacao(
+      "Só o dono da empresa pode configurar o banco.",
+      403,
+      "sem_permissao",
+    );
+  }
+}
+
 export function exigirVerFaturas(autor: AutorEmpresa) {
   if (!podeVerFaturas(autor.papel)) {
     throw new ErroAplicacao(
