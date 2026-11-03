@@ -1,5 +1,5 @@
 import { dataIsoValida } from "./data";
-import { STATUS_ABERTAS, STATUS_PAGAS, STATUS_VENCIDAS } from "./fatura-situacao";
+import { statusNormalizado, STATUS_NORMALIZADO } from "./status-pagamento";
 import { somarDias } from "./regua";
 
 /**
@@ -43,9 +43,6 @@ export const STATUS_PROMESSA = [
 
 export type StatusPromessa = (typeof STATUS_PROMESSA)[number];
 
-const PAGAS = new Set<string>(STATUS_PAGAS);
-const ABERTAS = new Set<string>([...STATUS_ABERTAS, ...STATUS_VENCIDAS]);
-
 const ROTULO_STATUS: Record<StatusPromessa, string> = {
   PENDENTE: "Pendente",
   CUMPRIDA: "Cumprida",
@@ -75,11 +72,13 @@ export function rotuloStatusPromessa(status: string): string {
 }
 
 export function faturaAceitaPromessa(status: string, excluida: boolean): boolean {
-  return !excluida && ABERTAS.has(status);
+  if (excluida) return false;
+  const normalizado = statusNormalizado(status);
+  return normalizado === STATUS_NORMALIZADO.PENDENTE || normalizado === STATUS_NORMALIZADO.VENCIDO;
 }
 
 export function faturaPaga(status: string, excluida: boolean): boolean {
-  return !excluida && PAGAS.has(status);
+  return !excluida && statusNormalizado(status) === STATUS_NORMALIZADO.PAGO;
 }
 
 export function promessaCobreHoje(status: string, dataPrometida: string, hoje: string): boolean {

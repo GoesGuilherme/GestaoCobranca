@@ -297,6 +297,11 @@ export function criarClienteHttpAsaas(opcoes: {
       await pedir("DELETE", `/payments/${idAsaasSeguro(id)}`);
     },
 
+    async obterCobranca(id) {
+      const { json } = await pedir("GET", `/payments/${idAsaasSeguro(id)}`);
+      return lerCobranca(json);
+    },
+
     async obterLinhaDigitavel(id) {
       try {
         const { json } = await pedir("GET", `/payments/${idAsaasSeguro(id)}/identificationField`);

@@ -1,17 +1,9 @@
+import { statusBrutos, statusNormalizado, STATUS_NORMALIZADO } from "./status-pagamento";
 import type { FiltroVisualizacao, SituacaoFatura } from "./tipos";
 
-export const STATUS_ABERTAS = ["PENDING", "AWAITING_RISK_ANALYSIS"] as const;
-export const STATUS_VENCIDAS = ["OVERDUE", "DUNNING_REQUESTED"] as const;
-export const STATUS_PAGAS = ["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH", "DUNNING_RECEIVED"] as const;
-
-const ESTORNO = new Set([
-  "REFUNDED",
-  "REFUND_REQUESTED",
-  "REFUND_IN_PROGRESS",
-  "CHARGEBACK_REQUESTED",
-  "CHARGEBACK_DISPUTE",
-  "AWAITING_CHARGEBACK_REVERSAL",
-]);
+export const STATUS_ABERTAS = statusBrutos("PENDENTE");
+export const STATUS_VENCIDAS = statusBrutos("VENCIDO");
+export const STATUS_PAGAS = statusBrutos("PAGO");
 
 export type TomFatura = "aberto" | "vencida" | "paga" | "cancelada" | "estorno";
 
@@ -21,16 +13,19 @@ export function faturaNaSituacao(fatura: FaturaSituacao, situacao: SituacaoFatur
   if (situacao === "todas") return true;
   if (situacao === "canceladas") return fatura.excluida;
   if (fatura.excluida) return false;
-  if (situacao === "vencidas") return inclui(STATUS_VENCIDAS, fatura.status);
-  if (situacao === "pagas") return inclui(STATUS_PAGAS, fatura.status);
-  return inclui(STATUS_ABERTAS, fatura.status) || inclui(STATUS_VENCIDAS, fatura.status);
+  const normalizado = statusNormalizado(fatura.status);
+  if (situacao === "vencidas") return normalizado === STATUS_NORMALIZADO.VENCIDO;
+  if (situacao === "pagas") return normalizado === STATUS_NORMALIZADO.PAGO;
+  return normalizado === STATUS_NORMALIZADO.PENDENTE || normalizado === STATUS_NORMALIZADO.VENCIDO;
 }
 
 export function tomFatura(status: string, excluida: boolean): TomFatura {
   if (excluida) return "cancelada";
-  if (inclui(STATUS_VENCIDAS, status)) return "vencida";
-  if (inclui(STATUS_PAGAS, status)) return "paga";
-  if (ESTORNO.has(status)) return "estorno";
+  const normalizado = statusNormalizado(status);
+  if (normalizado === STATUS_NORMALIZADO.CANCELADO) return "cancelada";
+  if (normalizado === STATUS_NORMALIZADO.VENCIDO) return "vencida";
+  if (normalizado === STATUS_NORMALIZADO.PAGO) return "paga";
+  if (normalizado === STATUS_NORMALIZADO.ESTORNADO) return "estorno";
   return "aberto";
 }
 
@@ -57,10 +52,6 @@ export function faturasNaVisualizacao<T extends { visualizada: boolean }>(
   filtro: FiltroVisualizacao,
 ): T[] {
   return faturas.filter((fatura) => faturaNaVisualizacao(fatura, filtro));
-}
-
-function inclui(lista: readonly string[], status: string): boolean {
-  return lista.some((item) => item === status);
 }
 
 function comparar(a: string, b: string): number {

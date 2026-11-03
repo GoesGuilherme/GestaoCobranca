@@ -18,8 +18,6 @@ import { prisma } from "@/server/db";
 import { ErroAplicacao } from "@/server/erros";
 import { lerEsquema } from "@/server/validar";
 
-const PAGAS = ["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH", "DUNNING_RECEIVED"] as const;
-
 export type AutorPromessa = AutorEmpresa & { usuarioId: string };
 
 export type ResumoPromessasPainel = {
@@ -119,7 +117,6 @@ function paraPendente(linha: {
 export async function conciliarPromessas(empresaId: string | null, hoje = dataHojeIso()): Promise<void> {
   if (!dataIsoValida(hoje)) return;
   const filtro = empresaSql(empresaId);
-  const pagas = Prisma.join([...PAGAS]);
 
   await prisma.$executeRaw`
     UPDATE "promessas_pagamento" AS p
@@ -153,7 +150,7 @@ export async function conciliarPromessas(empresaId: string | null, hoje = dataHo
       AND f."empresa_id" = p."empresa_id"
       AND p."status"::text IN ('CUMPRIDA', 'CUMPRIDA_COM_ATRASO')
       AND f."excluida" = false
-      AND f."status" NOT IN (${pagas})
+      AND f."status_normalizado" IS DISTINCT FROM 'PAGO'
       ${filtro}
   `;
 
@@ -173,7 +170,7 @@ export async function conciliarPromessas(empresaId: string | null, hoje = dataHo
       AND f."empresa_id" = p."empresa_id"
       AND p."status"::text IN ('PENDENTE', 'QUEBRADA')
       AND f."excluida" = false
-      AND f."status" IN (${pagas})
+      AND f."status_normalizado" = 'PAGO'
       ${filtro}
   `;
 

@@ -1,12 +1,14 @@
 import { formaCobrancaDe } from "@/lib/cobranca";
 import { isoDeData } from "@/lib/data";
-import { STATUS_ABERTAS, STATUS_PAGAS, STATUS_VENCIDAS } from "@/lib/fatura-situacao";
+import { STATUS_NORMALIZADO, statusBrutos } from "@/lib/status-pagamento";
 import { somenteDocumento } from "@/lib/documento";
 import type { FaturaDTO, FiltroVisualizacao, LembreteReguaDTO, ModoReguaCliente, PromessaPendenteDTO, SituacaoFatura, StatusLembrete } from "@/lib/tipos";
 import { esquemaFatura } from "@/lib/validacao";
-import { abrirClienteAsaas, asaasRespondeu, traduzirErroAsaas } from "@/server/asaas/abrir";
+import { asaasRespondeu, traduzirErroAsaas } from "@/server/asaas/abrir";
 import { type ClienteHttpAsaas, type CobrancaAsaas, type PaginaCobrancasAsaas } from "@/server/asaas/contrato";
 import { logAsaas, logAsaasErro, mensagemLogAsaas } from "@/server/asaas/log";
+import { clienteAsaasDaEmpresa } from "@/server/pagamentos/fabrica";
+import { espelhoClienteAsaas, espelhoFaturaAsaas } from "@/server/pagamentos/gravacao";
 import type { AutorEmpresa } from "@/server/auth/papeis";
 import { exigirCobranca, exigirVerFaturas } from "@/server/auth/papeis";
 import { prisma } from "@/server/db";
@@ -147,11 +149,15 @@ function filtroVisualizada(vista: FiltroVisualizacao | undefined) {
 }
 
 function filtroSituacao(situacao: SituacaoFatura) {
-  if (situacao === "todas") return { status: { not: "CRIANDO" } };
-  if (situacao === "canceladas") return { excluida: true, status: { not: "CRIANDO" } };
-  if (situacao === "vencidas") return { excluida: false, status: { in: [...STATUS_VENCIDAS] } };
-  if (situacao === "pagas") return { excluida: false, status: { in: [...STATUS_PAGAS] } };
-  return { excluida: false, status: { in: [...STATUS_ABERTAS, ...STATUS_VENCIDAS] } };
+  const semRascunho = { notIn: [...statusBrutos("CRIANDO")] };
+  if (situacao === "todas") return { status: semRascunho };
+  if (situacao === "canceladas") return { excluida: true, status: semRascunho };
+  if (situacao === "vencidas") return { excluida: false, statusNormalizado: STATUS_NORMALIZADO.VENCIDO };
+  if (situacao === "pagas") return { excluida: false, statusNormalizado: STATUS_NORMALIZADO.PAGO };
+  return {
+    excluida: false,
+    statusNormalizado: { in: [STATUS_NORMALIZADO.PENDENTE, STATUS_NORMALIZADO.VENCIDO] },
+  };
 }
 
 export async function listarFaturas(
@@ -232,7 +238,7 @@ export async function garantirClienteAsaas(
   if (remoto.id === cliente.asaasCustomerId) return remoto.id;
   const gravado = await prisma.cliente.updateMany({
     where: { id: cliente.id, empresaId },
-    data: { asaasCustomerId: remoto.id },
+    data: espelhoClienteAsaas(remoto.id),
   });
   if (gravado.count === 1) return remoto.id;
   const atual = await prisma.cliente.findFirst({
@@ -300,6 +306,7 @@ async function gravarCobrancaNaFatura(
     where: { id: faturaId },
     data: {
       asaasPaymentId: cobranca.id,
+      ...espelhoFaturaAsaas({ status: cobranca.status, asaasPaymentId: cobranca.id }),
       valor: cobranca.valor,
       status: cobranca.status,
       formaCobranca: cobranca.formaCobranca,
@@ -331,6 +338,7 @@ async function reservarFatura(dados: {
     formaCobranca: dados.formaCobranca,
     descricao: dados.descricao,
     status: STATUS_CRIANDO,
+    ...espelhoFaturaAsaas({ status: STATUS_CRIANDO, asaasPaymentId: null }),
     excluida: false,
     erroEmissao: null,
     asaasPaymentId: null as string | null,
@@ -422,7 +430,7 @@ export async function emitirFatura(
   const descricao = dados.descricao?.trim() ? dados.descricao.trim() : null;
 
   try {
-    const { http } = await abrirClienteAsaas(autor.empresaId, clienteHttp);
+    const http = await clienteAsaasDaEmpresa(autor.empresaId, clienteHttp);
     await garantirClienteAsaas(autor.empresaId, cliente, http);
     const { fatura: reservada, dono } = await reservarFatura({
       empresaId: autor.empresaId,
@@ -468,6 +476,7 @@ export async function emitirFatura(
               where: { id: reservada.id },
               data: {
                 status: "ERRO_EMISSAO",
+                ...espelhoFaturaAsaas({ status: "ERRO_EMISSAO" }),
                 excluida: true,
                 erroEmissao: mensagemLogAsaas(erro).slice(0, 500),
                 chaveIdempotencia: null,
@@ -509,6 +518,7 @@ export async function emitirFatura(
               where: { id: reservada.id },
               data: {
                 asaasPaymentId: cobranca.id,
+                ...espelhoFaturaAsaas({ status: cobranca.status, asaasPaymentId: cobranca.id }),
                 status: cobranca.status,
                 boletoUrl: cobranca.boletoUrl,
                 faturaUrl: cobranca.faturaUrl,
@@ -534,6 +544,7 @@ export async function emitirFatura(
             where: { id: reservada.id },
             data: {
               asaasPaymentId: cobranca.id,
+              ...espelhoFaturaAsaas({ status: "ERRO_EMISSAO", asaasPaymentId: cobranca.id }),
               status: "ERRO_EMISSAO",
               excluida: true,
               erroEmissao: "A cobrança foi criada no Asaas e o Taguaro não conseguiu gravá-la. O cancelamento foi pedido.",
@@ -584,14 +595,14 @@ export async function cancelarFatura(
   if (!atual.asaasPaymentId) {
     const fatura = await prisma.fatura.update({
       where: { id: atual.id },
-      data: { excluida: true, status: "ERRO_EMISSAO" },
+      data: { excluida: true, status: "ERRO_EMISSAO", ...espelhoFaturaAsaas({ status: "ERRO_EMISSAO" }) },
       include: includeNomes,
     });
     return paraFatura(fatura);
   }
 
   try {
-    const { http } = await abrirClienteAsaas(autor.empresaId, clienteHttp);
+    const http = await clienteAsaasDaEmpresa(autor.empresaId, clienteHttp);
     try {
       await http.cancelarCobranca(atual.asaasPaymentId);
     } catch (erro) {
@@ -611,7 +622,9 @@ export async function cancelarFatura(
 
 const LIMITE_PAGINA = 100;
 const MAX_PAGINAS = 5;
-const ABERTAS_RECORRENTES = ["PENDING", "OVERDUE", "AWAITING_RISK_ANALYSIS", "DUNNING_REQUESTED"];
+const ABERTAS_RECORRENTES = {
+  statusNormalizado: { in: [STATUS_NORMALIZADO.PENDENTE, STATUS_NORMALIZADO.VENCIDO] },
+};
 
 function registroDeCobranca(cobranca: CobrancaAsaas): Record<string, unknown> {
   return {
@@ -667,7 +680,7 @@ export async function gravarCobrancasEspelhadas(empresaId: string, cobrancas: Co
 export async function importarFaturas(autor: AutorEmpresa, clienteHttp?: ClienteHttpAsaas) {
   exigirCobranca(autor);
   try {
-    const { http } = await abrirClienteAsaas(autor.empresaId, clienteHttp);
+    const http = await clienteAsaasDaEmpresa(autor.empresaId, clienteHttp);
     const clientes = await prisma.cliente.findMany({
       where: { empresaId: autor.empresaId, asaasCustomerId: { not: null } },
       select: { asaasCustomerId: true },
@@ -718,7 +731,7 @@ export async function marcarFaturasAbertasExcluidas(empresaId: string, clienteSe
       empresaId,
       clienteServicoId,
       excluida: false,
-      status: { in: ABERTAS_RECORRENTES },
+      statusNormalizado: ABERTAS_RECORRENTES.statusNormalizado,
     },
     data: { excluida: true },
   });
@@ -734,7 +747,7 @@ export async function atualizarFaturasAbertasDaAssinatura(
       empresaId,
       clienteServicoId,
       excluida: false,
-      status: { in: ABERTAS_RECORRENTES },
+      statusNormalizado: ABERTAS_RECORRENTES.statusNormalizado,
     },
     data: {
       valor: dados.valor,

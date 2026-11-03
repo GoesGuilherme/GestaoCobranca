@@ -1,6 +1,7 @@
 import { isoDeData } from "@/lib/data";
 import { formatarReais } from "@/lib/dinheiro";
-import { STATUS_ABERTAS, STATUS_PAGAS, STATUS_VENCIDAS, faturaNaSituacao } from "@/lib/fatura-situacao";
+import { faturaNaSituacao } from "@/lib/fatura-situacao";
+import { STATUS_NORMALIZADO, statusNormalizado } from "@/lib/status-pagamento";
 import { formatarDataIso } from "@/lib/formatacao";
 import { textoHumano, textoTecnico } from "@/lib/assessor-mensagens";
 import { prisma } from "@/server/db";
@@ -58,7 +59,7 @@ export function criarFerramentasAssessor(dados: {
         empresaId: dados.empresaId,
         clienteId: dados.clienteId,
         excluida: false,
-        status: { in: [...STATUS_ABERTAS, ...STATUS_VENCIDAS] },
+        statusNormalizado: { in: [STATUS_NORMALIZADO.PENDENTE, STATUS_NORMALIZADO.VENCIDO] },
       },
       orderBy: { vencimento: "asc" },
       take: 8,
@@ -81,7 +82,7 @@ export function criarFerramentasAssessor(dados: {
             empresaId: dados.empresaId,
             clienteId: dados.clienteId,
             excluida: false,
-            status: { in: [...STATUS_ABERTAS, ...STATUS_VENCIDAS] },
+            statusNormalizado: { in: [STATUS_NORMALIZADO.PENDENTE, STATUS_NORMALIZADO.VENCIDO] },
           },
           orderBy: { vencimento: "asc" },
         });
@@ -113,7 +114,7 @@ export function criarFerramentasAssessor(dados: {
       return { texto: `Não encontrei cobrança deste cliente na ${dados.nomeEmpresa}.` };
     }
     const vista = linhaTexto(escolhida);
-    const paga = (STATUS_PAGAS as readonly string[]).includes(escolhida.status);
+    const paga = statusNormalizado(escolhida.status) === STATUS_NORMALIZADO.PAGO;
     return {
       faturaId: escolhida.id,
       texto: paga

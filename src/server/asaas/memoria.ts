@@ -132,6 +132,12 @@ export class AsaasMemoria implements ClienteHttpAsaas {
     cobranca.excluida = true;
   }
 
+  async obterCobranca(id: string) {
+    const cobranca = this.cobrancas.get(id);
+    if (!cobranca) throw new ErroAsaas("Cobrança não encontrada.", 404);
+    return cobranca;
+  }
+
   async obterLinhaDigitavel(id: string) {
     const cobranca = this.cobrancas.get(id);
     if (!cobranca || cobranca.formaCobranca === "PIX") return null;
