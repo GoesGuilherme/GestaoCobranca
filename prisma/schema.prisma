@@ -86,6 +86,31 @@ enum AmbienteAsaas {
   @@map("ambiente_asaas")
 }
 
+enum CanalPromessa {
+  WHATSAPP
+  TELEFONE
+  EMAIL
+  PRESENCIAL
+  OUTRO
+
+  @@map("canal_promessa")
+}
+
+// PENDENTE vale até a data prometida, inclusive.
+// CUMPRIDA: pago no dia prometido ou antes.
+// CUMPRIDA_COM_ATRASO: pago depois do dia prometido (mesmo se já estava QUEBRADA).
+// QUEBRADA: o dia passou e a fatura não foi paga.
+// CANCELADA: alguém cancelou enquanto estava pendente, ou a fatura foi cancelada.
+enum StatusPromessaPagamento {
+  PENDENTE
+  CUMPRIDA
+  CUMPRIDA_COM_ATRASO
+  QUEBRADA
+  CANCELADA
+
+  @@map("status_promessa_pagamento")
+}
+
 // A empresa é a assinante do SaaS. Clientes e usuários ficam dentro dela.
 model Empresa {
   id               String           @id @default(cuid())
@@ -121,6 +146,9 @@ model Empresa {
   pedidosAtendimento   PedidoAtendimento[]
   limitesAssessor      LimiteAssessor[]
   segmentos            SegmentoCliente[]
+  // Desligado por padrão. Ligado, promessa quebrada nos últimos 12 meses pesa no selo.
+  promessasContamNoSelo Boolean        @default(false) @map("promessas_contam_no_selo")
+  promessas            PromessaPagamento[]
 
   @@map("empresas")
 }
@@ -148,6 +176,7 @@ model Usuario {
   atualizadoEm       DateTime     @updatedAt @map("atualizado_em") @db.Timestamptz(3)
   empresa            Empresa      @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   redefinicoesSenha  RedefinicaoSenha[]
+  promessasRegistradas PromessaPagamento[]
 
   @@index([empresaId])
   @@map("usuarios")
@@ -200,6 +229,7 @@ model Cliente {
   filaWhatsapp    FilaWhatsapp[]
   conversasAssessor ConversaAssessor[]
   pedidosAtendimento PedidoAtendimento[]
+  promessas          PromessaPagamento[]
 
   @@index([asaasCustomerId])
   @@index([reguaId])
@@ -397,6 +427,7 @@ model Fatura {
   clienteServico   ClienteServico? @relation(fields: [clienteServicoId], references: [id], onDelete: SetNull)
   lembretes        LembreteRegua[]
   filaWhatsapp     FilaWhatsapp[]
+  promessas        PromessaPagamento[]
 
   @@unique([empresaId, asaasPaymentId])
   @@unique([empresaId, chaveIdempotencia])
@@ -723,4 +754,38 @@ model LimiteAssessor {
   @@unique([empresaId, chave, janelaInicio])
   @@index([empresaId])
   @@map("limites_assessor")
+}
+
+// Acordo de pagamento de uma fatura. empresaId repete o da sessão.
+// Uma só pendente por fatura: índice único parcial na migration.
+// Índices de empresa, fatura, status e data prometida também ficam na migration.
+model PromessaPagamento {
+  id              String                  @id @default(cuid())
+  empresaId       String                  @map("empresa_id")
+  faturaId        String                  @map("fatura_id")
+  clienteId       String                  @map("cliente_id")
+  dataPrometida   DateTime                @map("data_prometida") @db.Date
+  valorPrometido  Decimal                 @map("valor_prometido") @db.Decimal(12, 2)
+  canal           CanalPromessa
+  observacao      String?                 @db.Text
+  status          StatusPromessaPagamento @default(PENDENTE)
+  registradaPorId String                  @map("registrada_por_id")
+  registradaEm    DateTime                @default(now()) @map("registrada_em") @db.Timestamptz(3)
+  cumpridaEm      DateTime?               @map("cumprida_em") @db.Date
+  quebradaEm      DateTime?               @map("quebrada_em") @db.Date
+  canceladaEm     DateTime?               @map("cancelada_em") @db.Timestamptz(3)
+  criadoEm        DateTime                @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm    DateTime                @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  empresa         Empresa                 @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  fatura          Fatura                  @relation(fields: [faturaId], references: [id], onDelete: Cascade)
+  cliente         Cliente                 @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  registradaPor   Usuario                 @relation(fields: [registradaPorId], references: [id], onDelete: Restrict)
+
+  @@index([empresaId])
+  @@index([faturaId])
+  @@index([status])
+  @@index([dataPrometida])
+  @@index([empresaId, status, dataPrometida])
+  @@index([empresaId, clienteId])
+  @@map("promessas_pagamento")
 }

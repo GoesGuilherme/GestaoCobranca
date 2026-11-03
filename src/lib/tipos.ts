@@ -171,6 +171,7 @@ export type EmpresaResumo = {
   plano: string;
   quantidadeUsuarios: number;
   quantidadeClientes: number;
+  promessasContamNoSelo: boolean;
   criadoEm: string;
 };
 
@@ -217,6 +218,31 @@ export type FormaCobranca = "BOLETO" | "PIX" | "UNDEFINED" | "CREDIT_CARD";
 export type SituacaoFatura = "em_aberto" | "vencidas" | "pagas" | "canceladas" | "todas";
 export type FiltroVisualizacao = "todas" | "vistas" | "nao_vistas";
 
+export type CanalPromessa = "WHATSAPP" | "TELEFONE" | "EMAIL" | "PRESENCIAL" | "OUTRO";
+export type StatusPromessa = "PENDENTE" | "CUMPRIDA" | "CUMPRIDA_COM_ATRASO" | "QUEBRADA" | "CANCELADA";
+
+export type PromessaPendenteDTO = {
+  id: string;
+  dataPrometida: string;
+  valorPrometido: string;
+  canal: CanalPromessa;
+  observacao: string | null;
+  registradaPor: string;
+  registradaEm: string;
+};
+
+export type PromessaDTO = PromessaPendenteDTO & {
+  faturaId: string;
+  clienteId: string;
+  nomeCliente: string;
+  valorFatura: string;
+  vencimentoFatura: string;
+  statusFatura: string;
+  status: StatusPromessa;
+  registradaPor: string;
+  registradaEm: string;
+};
+
 export type FaturaDTO = {
   id: string;
   clienteId: string;
@@ -242,6 +268,7 @@ export type FaturaDTO = {
   reguaModo: ModoReguaCliente;
   reguaId: string | null;
   lembretes: LembreteReguaDTO[];
+  promessaPendente: PromessaPendenteDTO | null;
 };
 
 export type ConfiguracaoReguaDTO = {

@@ -6,6 +6,7 @@ import { classeBotaoSecundario } from "@/components/estilos";
 import { PainelFiliais } from "@/components/painel-filiais";
 import { PainelServicosCliente } from "@/components/painel-servicos-cliente";
 import { AvisoModoTeste } from "@/components/aviso-modo-teste";
+import { ListaPromessas } from "@/components/lista-promessas";
 import { PainelFaturasCliente } from "@/components/painel-faturas-cliente";
 import { PainelReguaCliente } from "@/components/painel-regua-cliente";
 import { PainelRecorrenciaLote } from "@/components/painel-recorrencia-lote";
@@ -26,6 +27,7 @@ import { classificarPagadoresDaEmpresa } from "@/server/services/classificacao-p
 import { obterCliente } from "@/server/services/cliente-service";
 import { listarServicosDoCliente } from "@/server/services/cliente-servico-service";
 import { listarFaturas } from "@/server/services/fatura-service";
+import { listarPromessas } from "@/server/services/promessa-service";
 import { obterPreferenciasCobranca } from "@/server/services/preferencia-cobranca-service";
 import { listarEnviosRegua } from "@/server/services/regua-envios";
 import { obterPainelRegua } from "@/server/services/regua-service";
@@ -61,16 +63,18 @@ export default async function PaginaCliente({ params }: { params: Promise<{ id: 
   let vinculos: ClienteServicoDTO[];
   let catalogo: ServicoDTO[];
   let faturas: FaturaDTO[] = [];
+  let promessas: Awaited<ReturnType<typeof listarPromessas>> = [];
   const hoje = dataHojeIso();
   let seloPagador: ResultadoClassificacaoPagador | null = null;
   try {
-    [cliente, vinculos, catalogo, faturas, seloPagador] = await Promise.all([
+    [cliente, vinculos, catalogo, faturas, promessas, seloPagador] = await Promise.all([
       obterCliente(acesso.empresaId, id),
       listarServicosDoCliente(acesso.empresaId, id, verCusto, podeCobrar),
       listarServicos(acesso.empresaId, verCusto),
       verFaturas
         ? listarFaturas(acesso, { clienteId: id, situacao: "todas", ordem: "desc" })
         : Promise.resolve([]),
+      verFaturas ? listarPromessas(acesso, { situacao: "todas", clienteId: id }) : Promise.resolve([]),
       classificarPagadoresDaEmpresa(acesso.empresaId, [id], hoje).then((selos) => selos.get(id) ?? null),
     ]);
   } catch (erro) {
@@ -151,6 +155,16 @@ export default async function PaginaCliente({ params }: { params: Promise<{ id: 
       <p className="mt-4 text-xs text-muted">
         Cadastrado em {formatarData(cliente.criadoEm)} · Atualizado em {formatarData(cliente.atualizadoEm)}
       </p>
+
+      {verFaturas ? (
+        <section className="mt-8">
+          <h2 className="font-display text-2xl">Promessas de pagamento</h2>
+          <p className="mt-1 mb-4 text-sm text-muted">
+            Acordos deste cliente. Uma promessa pendente pausa a régua da fatura até o dia prometido.
+          </p>
+          <ListaPromessas promessas={promessas} mostrarCliente={false} />
+        </section>
+      ) : null}
 
       {verFaturas ? (
         <PainelFaturasCliente

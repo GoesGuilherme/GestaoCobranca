@@ -1,4 +1,5 @@
 import { dataIsoValida } from "./data";
+import { rotuloPromessaAte } from "./promessa";
 import { tomFatura } from "./fatura-situacao";
 import { formatarData, formatarDataIso } from "./formatacao";
 import { somarDias } from "./regua";
@@ -29,6 +30,7 @@ export type LinhaDoTempoFatura = {
   paga: boolean;
   semRegua: boolean;
   marcadores: MarcoFatura[];
+  promessaAte: string | null;
 };
 
 type EntradaLinhaFatura = {
@@ -40,6 +42,7 @@ type EntradaLinhaFatura = {
   reguaId?: string | null;
   reguas?: ReguaParaProgresso[];
   envios?: Pick<EnvioReguaLista, "passoId" | "canal" | "status" | "criadoEm">[];
+  promessaAte?: string | null;
 };
 
 function reguaAplicavel(modo: ModoReguaCliente, reguaId: string | null, reguas: ReguaParaProgresso[]): ReguaParaProgresso | null {
@@ -166,17 +169,23 @@ function dicaDoPasso(fase: FaseLinhaTempo, dias: number | null, canais: CanalMar
   return canal ? `${quando} · ${canal} · ${status}` : `${quando} · ${status}`;
 }
 
+function sufixoPromessa(linha: LinhaDoTempoFatura): string {
+  if (!linha.promessaAte || !dataIsoValida(linha.promessaAte)) return "";
+  return ` ${rotuloPromessaAte(linha.promessaAte)}. A régua automática desta fatura está pausada.`;
+}
+
 export function ariaLinhaDoTempoFatura(linha: LinhaDoTempoFatura): string {
+  const pausa = sufixoPromessa(linha);
   if (linha.semRegua) {
-    if (linha.neutra) return "Sem régua. Cobrança encerrada.";
-    if (linha.paga) return "Sem régua. Fatura paga.";
-    return "Sem régua. Fatura em aberto.";
+    if (linha.neutra) return `Sem régua. Cobrança encerrada.${pausa}`;
+    if (linha.paga) return `Sem régua. Fatura paga.${pausa}`;
+    return `Sem régua. Fatura em aberto.${pausa}`;
   }
   const partes = linha.marcadores.map((marco) => {
     const label = marco.detalhe ? `${marco.titulo}, ${marco.detalhe}` : marco.titulo;
     return `${label}. ${marco.dica}, ${marco.aceso ? "aceso" : "apagado"}`;
   });
-  return `Régua de cobrança. ${partes.join(". ")}`;
+  return `Régua de cobrança. ${partes.join(". ")}${pausa}`;
 }
 
 /**
@@ -192,6 +201,7 @@ export function linhaDoTempoDaFatura(entrada: EntradaLinhaFatura): LinhaDoTempoF
   const base = marcadoresDaLinhaTempo((regua?.passos ?? []).map(passoParaLinha));
   const semRegua = base.every((marco) => marco.fase === "pago");
   const enviados = enviosPorPasso(entrada.envios ?? []);
+  const promessaAte = entrada.promessaAte && dataIsoValida(entrada.promessaAte) ? entrada.promessaAte : null;
 
   const marcadores = base.map((marco) => {
     if (marco.fase === "pago") {
@@ -231,5 +241,5 @@ export function linhaDoTempoDaFatura(entrada: EntradaLinhaFatura): LinhaDoTempoF
     };
   });
 
-  return { neutra, paga, semRegua, marcadores };
+  return { neutra, paga, semRegua, marcadores, promessaAte };
 }

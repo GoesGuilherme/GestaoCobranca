@@ -12,6 +12,7 @@ import {
 } from "@/lib/painel-financeiro";
 import { exigirVerFaturas, type AutorEmpresa } from "@/server/auth/papeis";
 import { prisma } from "@/server/db";
+import { obterMetricasPromessas } from "@/server/services/promessa-service";
 
 type LinhaFatura = {
   id: string;
@@ -67,7 +68,8 @@ export async function obterPainelFinanceiro(
   // Não há outra coluna de data de pagamento. Se pago_em é nulo (fatura antiga),
   // último recurso é o dia de atualizado_em em São Paulo.
   const diaRecebimento = Prisma.sql`COALESCE(f.pago_em, (f.atualizado_em AT TIME ZONE 'America/Sao_Paulo')::date)`;
-  const faturas = await prisma.$queryRaw<LinhaFatura[]>(Prisma.sql`
+  const [faturas, assinaturas, mesesOcupados, promessas] = await Promise.all([
+    prisma.$queryRaw<LinhaFatura[]>(Prisma.sql`
       SELECT
         f.id,
         f.status,
@@ -95,8 +97,8 @@ export async function obterPainelFinanceiro(
             AND ${diaRecebimento} <= ${periodo.fim}::date
           )
         )
-    `);
-  const assinaturas = await prisma.$queryRaw<LinhaAssinatura[]>(Prisma.sql`
+    `),
+    prisma.$queryRaw<LinhaAssinatura[]>(Prisma.sql`
       SELECT
         cs.id,
         cs.valor::text AS valor,
@@ -111,8 +113,8 @@ export async function obterPainelFinanceiro(
         AND cs.asaas_assinatura_status = 'ACTIVE'
         ${formaAssinatura}
         ${statusSql}
-    `);
-  const mesesOcupados = await prisma.$queryRaw<LinhaMes[]>(Prisma.sql`
+    `),
+    prisma.$queryRaw<LinhaMes[]>(Prisma.sql`
       SELECT f.cliente_servico_id AS id, to_char(f.vencimento, 'YYYY-MM') AS mes
       FROM faturas f
       WHERE f.empresa_id = ${autor.empresaId}
@@ -120,7 +122,15 @@ export async function obterPainelFinanceiro(
         AND f.cliente_servico_id IS NOT NULL
         AND f.vencimento >= ${inicioAtual}::date
         AND f.vencimento <= ${fimGrafico}::date
-    `);
+    `),
+    obterMetricasPromessas(autor, {
+      inicio: periodo.inicio,
+      fim: periodo.fim,
+      hoje,
+      forma: filtros.forma,
+      statusCliente: filtros.statusCliente,
+    }),
+  ]);
 
   const ocupados = new Map<string, string[]>();
   for (const linha of mesesOcupados) {
@@ -159,6 +169,7 @@ export async function obterPainelFinanceiro(
     assinaturas: assinaturasPainel,
     periodo: filtros.periodo,
     hoje,
+    promessas,
   });
 }
 

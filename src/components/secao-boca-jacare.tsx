@@ -4,10 +4,14 @@ import { EstadoVazio } from "@/components/estado-vazio";
 import { classeBotaoPrimario, classeBotaoSecundario, classeCabecalhoTabela, classeTabelaRolavel } from "@/components/estilos";
 import { formatarReais } from "@/lib/dinheiro";
 import { formatarDataIso } from "@/lib/formatacao";
-import { hrefBocaJacare, type BocaJacare, type HorizonteBoca, type SituacaoMesBoca } from "@/lib/boca-jacare";
+import { dataHojeIso } from "@/lib/data";
+import { hrefBocaJacare, mesesDoHorizonte, type BocaJacare, type HorizonteBoca, type SituacaoMesBoca } from "@/lib/boca-jacare";
 import { formatarTaxa, type FiltrosPainel } from "@/lib/painel-financeiro";
+import type { MetricasPromessas } from "@/lib/promessa";
 import type { AutorEmpresa } from "@/server/auth/papeis";
 import { obterBocaJacare } from "@/server/services/boca-jacare-service";
+import { obterMetricasPromessas } from "@/server/services/promessa-service";
+import { CartoesPromessas } from "./cartoes-promessas";
 
 const GraficoBocaJacare = dynamic(
   () => import("@/components/grafico-boca-jacare").then((mod) => mod.GraficoBocaJacare),
@@ -91,11 +95,39 @@ export async function SecaoBocaJacare({
   filtros: FiltrosPainel;
   horizonte: HorizonteBoca;
 }) {
-  const dados = await obterBocaJacare(autor, horizonte);
-  return <BocaJacareView dados={dados} filtros={filtros} />;
+  const hoje = dataHojeIso();
+  const meses = mesesDoHorizonte(hoje, horizonte);
+  const inicio = `${meses[0]}-01`;
+  const fim = fimDoMes(meses[meses.length - 1] ?? hoje.slice(0, 7));
+  const [dados, promessas] = await Promise.all([
+    obterBocaJacare(autor, horizonte),
+    obterMetricasPromessas(autor, {
+      inicio,
+      fim,
+      hoje,
+      forma: filtros.forma,
+      statusCliente: filtros.statusCliente,
+    }),
+  ]);
+  return <BocaJacareView dados={dados} filtros={filtros} promessas={promessas} />;
 }
 
-export function BocaJacareView({ dados, filtros }: { dados: BocaJacare; filtros: FiltrosPainel }) {
+function fimDoMes(mes: string): string {
+  const ano = Number(mes.slice(0, 4));
+  const numero = Number(mes.slice(5, 7));
+  const ultimo = new Date(Date.UTC(ano, numero, 0)).getUTCDate();
+  return `${mes}-${String(ultimo).padStart(2, "0")}`;
+}
+
+export function BocaJacareView({
+  dados,
+  filtros,
+  promessas,
+}: {
+  dados: BocaJacare;
+  filtros: FiltrosPainel;
+  promessas?: MetricasPromessas;
+}) {
   const mostrarOutros = dados.meses.some((mes) => mes.outros !== "0.00");
   const temParcial = dados.meses.some((mes) => mes.situacao === "parcial");
   const temFuturo = dados.meses.some((mes) => mes.situacao === "futuro");
@@ -146,6 +178,17 @@ export function BocaJacareView({ dados, filtros }: { dados: BocaJacare; filtros:
           dicaId="dica-boca-taxa"
         />
       </div>
+
+      {promessas ? (
+        <div className="mt-5 space-y-3">
+          <h3 className="font-display text-xl">Promessas neste recorte</h3>
+          <p className="text-sm text-muted">
+            Cumpridas, quebradas e a taxa usam os meses do gráfico. Em aberto e as que vencem hoje são de agora. Forma
+            e status do cliente seguem o filtro da página.
+          </p>
+          <CartoesPromessas metricas={promessas} prefixoId="boca-promessa" />
+        </div>
+      ) : null}
 
       <p className="mt-4 text-sm text-muted">
         Os cartões olham a empresa inteira, até {formatarDataIso(dados.hoje)}. O gráfico olha só os meses do filtro.

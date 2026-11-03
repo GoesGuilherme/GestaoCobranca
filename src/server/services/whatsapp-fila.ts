@@ -1,4 +1,4 @@
-import { isoDeData } from "@/lib/data";
+import { dataHojeIso, isoDeData } from "@/lib/data";
 import { formatarReais } from "@/lib/dinheiro";
 import { formatarDataIso } from "@/lib/formatacao";
 import {
@@ -14,6 +14,7 @@ import { ErroTwilio } from "@/server/twilio/contrato";
 import type { ClienteTwilio } from "@/server/twilio/contrato";
 import { numeroTesteWhatsapp } from "@/server/twilio/fabrica";
 import { decifrarSegredoAsaas } from "@/lib/asaas-cripto";
+import { conciliarPromessas } from "@/server/services/promessa-service";
 
 const ESPERA_MAX_MS = 7 * 24 * 60 * 60 * 1000;
 const TENTATIVAS_MAX = 3;
@@ -240,12 +241,35 @@ export async function processarFilaWhatsapp(
     include: { cliente: true, fatura: true },
   });
 
+  const hojeFila = dataHojeIso(agora);
+  const empresasFila = [...new Set(pendentes.map((item) => item.empresaId))];
+  for (const empresaId of empresasFila) await conciliarPromessas(empresaId, hojeFila);
+  const promessasAtivas = new Set<string>();
+  if (pendentes.length > 0) {
+    const linhas = await prisma.promessaPagamento.findMany({
+      where: {
+        empresaId: { in: empresasFila },
+        faturaId: { in: pendentes.map((item) => item.faturaId) },
+        status: "PENDENTE",
+        dataPrometida: { gte: new Date(`${hojeFila}T00:00:00.000Z`) },
+      },
+      select: { empresaId: true, faturaId: true },
+    });
+    for (const linha of linhas) promessasAtivas.add(`${linha.empresaId}:${linha.faturaId}`);
+  }
+
   for (const item of pendentes) {
     const reivindicado = await prisma.filaWhatsapp.updateMany({
       where: { id: item.id, status: "PENDENTE" },
       data: { status: "PROCESSANDO" },
     });
     if (reivindicado.count !== 1) continue;
+
+    if (item.tipo !== "PAGO" && promessasAtivas.has(`${item.empresaId}:${item.faturaId}`)) {
+      await marcar(item.id, { status: "IGNORADO", motivo: "promessa de pagamento", destino: null });
+      resultado.ignorados += 1;
+      continue;
+    }
 
     const [conexao, regua, template] = await Promise.all([
       prisma.configuracaoTwilio.findUnique({ where: { empresaId: item.empresaId } }),

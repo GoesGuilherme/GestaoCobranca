@@ -188,6 +188,16 @@ describe("classificação de pagador", () => {
     expect(resultado?.pagas).toBe(2);
   });
 
+  it("promessa quebrada só pesa quando o ajuste manda contar", () => {
+    const faturas = [paga("2026-09-10"), paga("2026-10-10")];
+    expect(classificarPagador(faturas, HOJE)?.classificacao).toBe("bom");
+    expect(classificarPagador(faturas, HOJE, { quebradas: 0 })?.classificacao).toBe("bom");
+    expect(classificarPagador(faturas, HOJE, { quebradas: 1 })?.classificacao).toBe("regular");
+    expect(classificarPagador(faturas, HOJE, { quebradas: 1 })?.tooltip).toContain("1 promessa quebrada");
+    expect(classificarPagador(faturas, HOJE, { quebradas: 2 })?.classificacao).toBe("mau");
+    expect(classificarPagador([paga("2026-10-10")], HOJE, { quebradas: 3 })).toBeNull();
+  });
+
   it("conta a fatura no primeiro dia da janela e deixa a data de hoje inválida sem selo", () => {
     expect(classificarPagador([paga("2025-11-01"), paga("2026-10-01")], HOJE)?.classificacao).toBe("bom");
     expect(classificarPagador([paga("2025-10-31"), paga("2025-10-30")], HOJE)).toBeNull();

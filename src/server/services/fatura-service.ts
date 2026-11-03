@@ -2,7 +2,7 @@ import { formaCobrancaDe } from "@/lib/cobranca";
 import { isoDeData } from "@/lib/data";
 import { STATUS_ABERTAS, STATUS_PAGAS, STATUS_VENCIDAS } from "@/lib/fatura-situacao";
 import { somenteDocumento } from "@/lib/documento";
-import type { FaturaDTO, FiltroVisualizacao, LembreteReguaDTO, ModoReguaCliente, SituacaoFatura, StatusLembrete } from "@/lib/tipos";
+import type { FaturaDTO, FiltroVisualizacao, LembreteReguaDTO, ModoReguaCliente, PromessaPendenteDTO, SituacaoFatura, StatusLembrete } from "@/lib/tipos";
 import { esquemaFatura } from "@/lib/validacao";
 import { abrirClienteAsaas, asaasRespondeu, traduzirErroAsaas } from "@/server/asaas/abrir";
 import { type ClienteHttpAsaas, type CobrancaAsaas, type PaginaCobrancasAsaas } from "@/server/asaas/contrato";
@@ -13,6 +13,7 @@ import { prisma } from "@/server/db";
 import { ErroAplicacao } from "@/server/erros";
 import { lerEsquema } from "@/server/validar";
 import { espelharCobrancaImportada } from "./asaas-pagamento";
+import { conciliarPromessas, promessasPendentesDasFaturas } from "./promessa-service";
 import { encargosDaPreferencia, obterPreferenciasCobranca } from "./preferencia-cobranca-service";
 
 type FaturaComNomes = {
@@ -79,7 +80,7 @@ function paraLembrete(lembrete: NonNullable<FaturaComNomes["lembretes"]>[number]
   };
 }
 
-function paraFatura(fatura: FaturaComNomes): FaturaDTO {
+function paraFatura(fatura: FaturaComNomes, promessaPendente: PromessaPendenteDTO | null = null): FaturaDTO {
   return {
     id: fatura.id,
     clienteId: fatura.clienteId,
@@ -107,6 +108,7 @@ function paraFatura(fatura: FaturaComNomes): FaturaDTO {
     lembretes: [...(fatura.lembretes ?? []).map(paraLembrete), ...(fatura.filaWhatsapp ?? []).map(paraFilaWhatsapp)]
       .sort((a, b) => b.criadoEm.localeCompare(a.criadoEm))
       .slice(0, 20),
+    promessaPendente,
   };
 }
 
@@ -164,6 +166,7 @@ export async function listarFaturas(
 ): Promise<FaturaDTO[]> {
   exigirVerFaturas(autor);
   const busca = filtro.busca?.trim() ?? "";
+  await conciliarPromessas(autor.empresaId);
   const faturas = await prisma.fatura.findMany({
     where: {
       empresaId: autor.empresaId,
@@ -183,7 +186,19 @@ export async function listarFaturas(
     orderBy: [{ vencimento: filtro.ordem ?? "asc" }, { criadoEm: "desc" }],
     take: 200,
   });
-  return faturas.map(paraFatura);
+  const promessas = await promessasPendentesDasFaturas(
+    autor.empresaId,
+    faturas.map((fatura) => fatura.id),
+  );
+  return faturas.map((fatura) => paraFatura(fatura, promessas.get(fatura.id) ?? null));
+}
+
+export async function obterFatura(autor: AutorEmpresa, id: string): Promise<FaturaDTO> {
+  exigirVerFaturas(autor);
+  await conciliarPromessas(autor.empresaId);
+  const fatura = await carregarFatura(autor.empresaId, id);
+  const promessas = await promessasPendentesDasFaturas(autor.empresaId, [fatura.id]);
+  return paraFatura(fatura, promessas.get(fatura.id) ?? null);
 }
 
 export async function garantirClienteAsaas(
@@ -645,6 +660,7 @@ export async function gravarCobrancasEspelhadas(empresaId: string, cobrancas: Co
     else if (resultado === "atualizada") atualizadas += 1;
     else ignoradas += 1;
   }
+  if (criadas + atualizadas > 0) await conciliarPromessas(empresaId);
   return { criadas, atualizadas, ignoradas };
 }
 

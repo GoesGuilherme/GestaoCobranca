@@ -5,6 +5,8 @@ import { Selo } from "@/components/selo";
 import { classeBotaoPrimario } from "@/components/estilos";
 import { formatarReais } from "@/lib/dinheiro";
 import { formatarNumero } from "@/lib/formatacao";
+import { podeVerFaturas } from "@/lib/permissoes";
+import { SecaoPromessasPainel } from "@/components/secao-promessas-painel";
 import { rotuloSegmento } from "@/lib/rotulos";
 import type { Segmento, StatusCliente } from "@/lib/tipos";
 import { cnpjCollabPendente } from "@/lib/collab";
@@ -168,6 +170,7 @@ export default async function PaginaPainel() {
           )}
         </article>
       </section>
+      {podeVerFaturas(acesso.papel) ? <SecaoPromessasPainel empresaId={acesso.empresaId} /> : null}
     </>
   );
 }

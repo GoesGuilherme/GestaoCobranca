@@ -5,6 +5,7 @@ import { dataHojeIso } from "@/lib/data";
 import { formatarDataIso } from "@/lib/formatacao";
 import { opcoesDaReguaAplicavel, rotuloReguaDaFatura, type OpcaoPassoRegua, type PassoParaRotulo } from "@/lib/regua";
 import { linhaDoTempoDaFatura } from "@/lib/linha-tempo-fatura";
+import { rotuloPromessaAte } from "@/lib/promessa";
 import type { EnvioReguaLista, ReguaParaProgresso } from "@/lib/regua-progresso";
 import { rotuloFormaCobranca } from "@/lib/rotulos";
 import type { ResultadoClassificacaoPagador } from "@/lib/classificacao-pagador";
@@ -109,6 +110,7 @@ export function TabelaFaturas({
           reguaId: fatura.reguaId,
           reguas: reguasEnvio,
           envios: enviosPorFatura.get(fatura.id) ?? [],
+          promessaAte: fatura.promessaPendente?.dataPrometida ?? null,
         });
         const situacao = (
           <span className="inline-flex shrink-0 items-center gap-2">
@@ -140,10 +142,26 @@ export function TabelaFaturas({
                   {fatura.nomeServico ? ` · ${fatura.nomeServico}` : ""}
                 </p>
                 {rotulo ? (
-                  <div className="mt-2">
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
                     <SemaforoRegua fase={rotulo.fase} texto={rotulo.texto} aria={rotulo.aria} />
+                    {fatura.promessaPendente ? (
+                      <span className="inline-flex rounded-full bg-gold-soft px-2 py-0.5 text-xs font-medium text-gold-ink">
+                        {rotuloPromessaAte(fatura.promessaPendente.dataPrometida)}
+                      </span>
+                    ) : null}
                   </div>
+                ) : fatura.promessaPendente ? (
+                  <p className="mt-2">
+                    <span className="inline-flex rounded-full bg-gold-soft px-2 py-0.5 text-xs font-medium text-gold-ink">
+                      {rotuloPromessaAte(fatura.promessaPendente.dataPrometida)}
+                    </span>
+                  </p>
                 ) : null}
+                <p className="mt-1">
+                  <Link href={`/faturas/${fatura.id}`} className="text-xs font-medium text-canopy hover:underline">
+                    Abrir fatura
+                  </Link>
+                </p>
               </div>
               <span className="md:hidden">{situacao}</span>
             </div>

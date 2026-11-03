@@ -1,6 +1,7 @@
 import { dataIsoValida } from "@/lib/data";
 import { dataRecebimento } from "@/lib/data-recebimento";
 import { compararDinheiro, normalizarDinheiro, somarDinheiro } from "@/lib/dinheiro";
+import { metricasPromessaVazias, type MetricasPromessas } from "@/lib/promessa";
 import { diferencaDias } from "@/lib/regua";
 import { FORMAS_COBRANCA, STATUS_CLIENTE } from "@/lib/rotulos";
 import type { FormaCobranca, StatusCliente } from "@/lib/tipos";
@@ -75,6 +76,7 @@ export type PainelFinanceiro = {
   aReceber: { valor: string };
   previstoProximoMes: { emitido: string; previsao: string; total: string; mes: string; rotulo: string };
   inadimplencia: string | null;
+  promessas: MetricasPromessas;
   meses: MesFinanceiro[];
   topAtraso: { clienteId: string; nome: string; valor: string; dias: number }[];
   proximos: { id: string; clienteId: string; nome: string; valor: string; vencimento: string; forma: string }[];
@@ -241,6 +243,7 @@ export function montarPainelFinanceiro(entrada: {
   assinaturas: AssinaturaPainel[];
   periodo: PeriodoPainel;
   hoje: string;
+  promessas?: MetricasPromessas;
 }): PainelFinanceiro {
   const periodo = intervaloPeriodo(entrada.periodo, entrada.hoje);
   const meses = mesesDoGrafico(entrada.hoje);
@@ -366,6 +369,7 @@ export function montarPainelFinanceiro(entrada: {
       rotulo: rotuloMesLongo(mesProximo),
     },
     inadimplencia: taxaInadimplencia(valorAtraso, somarValores(faturadoPeriodo)),
+    promessas: entrada.promessas ?? metricasPromessaVazias(periodo.inicio, periodo.fim),
     meses: meses.map((mes) => {
       const balde = porMes.get(mes) ?? { recebido: [], atraso: [], aReceber: [] };
       const recebido = somarValores(balde.recebido);

@@ -648,6 +648,17 @@ export const esquemaLembreteManual = z.object({
   passoId: z.string().trim().min(1, "Escolha o passo.").max(64),
 });
 
+export const esquemaPromessa = z.object({
+  dataPrometida: z.string().trim().min(10, "Informe a data prometida.").max(10, "Informe a data prometida."),
+  valorPrometido: z.string().trim().min(1, "Informe o valor prometido.").max(20, "O valor prometido está longo demais."),
+  canal: z.enum(["WHATSAPP", "TELEFONE", "EMAIL", "PRESENCIAL", "OUTRO"], "Escolha o canal da promessa."),
+  observacao: z.string().trim().max(500, "A observação pode ter no máximo 500 caracteres.").optional().default(""),
+});
+
+export const esquemaSeloPromessa = z.object({
+  contarNoSelo: z.boolean("Informe se a promessa quebrada entra no selo."),
+});
+
 export const esquemaAssessor = z
   .object({
     ativo: z.boolean("Informe se o assessor está ligado."),

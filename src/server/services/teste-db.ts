@@ -18,6 +18,7 @@ export function usarBancoDeTeste() {
     await prisma.optOutWhatsapp.deleteMany();
     await prisma.templateWhatsapp.deleteMany();
     await prisma.configuracaoTwilio.deleteMany();
+    await prisma.promessaPagamento.deleteMany();
     await prisma.lembreteRegua.deleteMany();
     await prisma.passoRegua.deleteMany();
     await prisma.cliente.updateMany({ data: { reguaId: null, reguaModo: "PADRAO" } });

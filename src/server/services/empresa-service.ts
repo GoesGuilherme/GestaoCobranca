@@ -33,6 +33,7 @@ function paraEmpresa(
     telefone: string;
     status: "ATIVA" | "SUSPENSA";
     plano: string;
+    promessasContamNoSelo: boolean;
     criadoEm: Date;
     _count?: { usuarios: number; clientes: number };
   },
@@ -48,6 +49,7 @@ function paraEmpresa(
     plano: empresa.plano,
     quantidadeUsuarios: empresa._count?.usuarios ?? 0,
     quantidadeClientes: empresa._count?.clientes ?? 0,
+    promessasContamNoSelo: empresa.promessasContamNoSelo,
     criadoEm: empresa.criadoEm.toISOString(),
   };
 }
