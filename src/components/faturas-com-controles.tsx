@@ -6,6 +6,7 @@ import type { EnvioReguaLista, ReguaParaProgresso } from "@/lib/regua-progresso"
 import type { PassoParaRotulo } from "@/lib/regua";
 import type { ResultadoClassificacaoPagador } from "@/lib/classificacao-pagador";
 import type { ClienteServicoDTO, FaturaDTO, PreferenciasCobrancaDTO } from "@/lib/tipos";
+import { textoListaFaturas } from "@/lib/periodo-faturas";
 import { classeCampo } from "./campo";
 import { Paginacao } from "./paginacao";
 import { TabelaFaturas } from "./tabela-faturas";
@@ -66,7 +67,7 @@ export function FaturasComControles({
     <div>
       <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
         <p className="text-sm text-muted">
-          {faturas.length === 1 ? "1 fatura nesta lista" : `${faturas.length} faturas nesta lista`}
+          {textoListaFaturas(faturas.length)}
         </p>
         <label className="grid gap-1 text-sm">
           <span className="font-medium">Ordenar</span>
