@@ -309,6 +309,15 @@ describe("cliente HTTP do Asaas", () => {
     expect(pedidos[0]).toContain("/payments?");
     expect(pedidos[0]).toContain("status=RECEIVED");
     expect(pedidos[0]).toContain("limit=100");
+    await cliente.listarCobrancas({
+      offset: 0,
+      limit: 50,
+      paymentDateGe: "2026-10-21",
+      dateCreatedGe: "2026-10-21",
+    });
+    expect(pedidos[1]).toContain("paymentDate%5Bge%5D=2026-10-21");
+    expect(pedidos[1]).toContain("dateCreated%5Bge%5D=2026-10-21");
+    expect(pedidos[1]).not.toContain(CHAVE);
     expect(pagina.cobrancas[0]?.pagoEm).toBe("2026-08-09");
     expect(pagina.temMais).toBe(false);
   });

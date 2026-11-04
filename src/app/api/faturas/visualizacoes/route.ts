@@ -1,6 +1,6 @@
 import { exigirAcesso } from "@/server/auth/acesso";
 import { jsonErro, jsonOk } from "@/server/http";
-import { sincronizarVisualizacoesDoAutor } from "@/server/services/visualizacao-fatura-service";
+import { sincronizarAsaasDoAutor } from "@/server/services/asaas-conciliacao";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -8,7 +8,7 @@ export const maxDuration = 60;
 export async function POST() {
   try {
     const acesso = await exigirAcesso();
-    const resultado = await sincronizarVisualizacoesDoAutor(acesso);
+    const resultado = await sincronizarAsaasDoAutor(acesso);
     return jsonOk(resultado);
   } catch (erro) {
     return jsonErro(erro);

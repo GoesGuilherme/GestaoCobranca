@@ -140,6 +140,15 @@ export type ResultadoVisualizacoesFaturas = {
   interrompida: boolean;
 };
 
+export type ResultadoAtualizacaoAsaas = {
+  atualizadas: number;
+  pagamentos: number;
+  marcadas: number;
+  interrompida: boolean;
+  falhas: number;
+  restantes: number;
+};
+
 export type PreferenciasCobrancaDTO = {
   formaCobranca: "BOLETO" | "PIX" | "UNDEFINED" | "CREDIT_CARD";
   diaVencimento: number;

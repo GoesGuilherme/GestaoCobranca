@@ -2,7 +2,7 @@ import Link from "next/link";
 import { CabecalhoPagina } from "@/components/cabecalho";
 import { classeCampo } from "@/components/campo";
 import { classeBotaoPrimario } from "@/components/estilos";
-import { BotaoAtualizarVisualizacoes } from "@/components/botao-atualizar-visualizacoes";
+import { BotaoAtualizarAsaas } from "@/components/botao-atualizar-asaas";
 import { BotaoImportarFaturas } from "@/components/botao-importar-faturas";
 import { PainelRecorrenciaLote } from "@/components/painel-recorrencia-lote";
 import { AvisoModoTeste } from "@/components/aviso-modo-teste";
@@ -70,7 +70,7 @@ export default async function PaginaFaturas({ searchParams }: { searchParams: Pr
       <AvisoModoTeste ativo={regua.config.gravada && regua.config.modoTeste} />
       <div className="mb-6 flex flex-wrap items-start gap-3">
         <BotaoImportarFaturas />
-        {podeAtualizarVisualizacoes(acesso.papel) ? <BotaoAtualizarVisualizacoes /> : null}
+        {podeAtualizarVisualizacoes(acesso.papel) ? <BotaoAtualizarAsaas /> : null}
       </div>
       <PainelRecorrenciaLote preferencias={preferencias} />
       <LegendaFaturas />

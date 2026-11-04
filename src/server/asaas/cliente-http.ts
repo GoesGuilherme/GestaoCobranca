@@ -1,5 +1,6 @@
 import { bandeiraCartaoSegura, finalCartaoSeguro } from "@/lib/cobranca";
 import { somenteDocumento } from "@/lib/documento";
+import { dataIsoValida } from "@/lib/data";
 import { normalizarDinheiro } from "@/lib/dinheiro";
 import {
   type AssinaturaAsaas,
@@ -10,6 +11,7 @@ import {
   ErroAsaas,
   idAsaasSeguro,
   type EncargosAsaas,
+  type FiltroListaCobrancasAsaas,
   type NovaAssinaturaAsaas,
   type NovaCobrancaAsaas,
   type NovoClienteAsaas,
@@ -165,6 +167,29 @@ function segundosDeReset(headers: Headers): number | null {
   const bruto = Number(headers.get("ratelimit-reset"));
   if (!Number.isFinite(bruto) || bruto < 0) return null;
   return Math.min(Math.floor(bruto), 86_400);
+}
+
+function dataConsulta(valor: string): string {
+  if (!dataIsoValida(valor)) throw new ErroAsaas("Data inválida para o Asaas.", 400);
+  return valor;
+}
+
+function statusConsulta(valor: string): string {
+  if (!/^[A-Z0-9_]{1,40}$/.test(valor)) throw new ErroAsaas("Status inválido para o Asaas.", 400);
+  return valor;
+}
+
+function consultaCobrancas(filtro: FiltroListaCobrancasAsaas): string {
+  const limite = Math.min(100, Math.max(1, Math.floor(filtro.limit)));
+  const inicio = Math.max(0, Math.floor(filtro.offset));
+  const consulta = new URLSearchParams({
+    offset: String(inicio),
+    limit: String(limite),
+  });
+  if (filtro.status) consulta.set("status", statusConsulta(filtro.status));
+  if (filtro.paymentDateGe) consulta.set("paymentDate[ge]", dataConsulta(filtro.paymentDateGe));
+  if (filtro.dateCreatedGe) consulta.set("dateCreated[ge]", dataConsulta(filtro.dateCreatedGe));
+  return consulta.toString();
 }
 
 function corpoComValor(dados: Record<string, unknown>, valor: string, encargos?: EncargosAsaas): string {
@@ -395,14 +420,7 @@ export function criarClienteHttpAsaas(opcoes: {
     },
 
     async listarCobrancas(filtro) {
-      const limite = Math.min(100, Math.max(1, Math.floor(filtro.limit)));
-      const inicio = Math.max(0, Math.floor(filtro.offset));
-      const consulta = new URLSearchParams({
-        offset: String(inicio),
-        limit: String(limite),
-      });
-      if (filtro.status) consulta.set("status", filtro.status);
-      const { json } = await pedir("GET", `/payments?${consulta.toString()}`);
+      const { json } = await pedir("GET", `/payments?${consultaCobrancas(filtro)}`);
       return lerPagina(json);
     },
 
