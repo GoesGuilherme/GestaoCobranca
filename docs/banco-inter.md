@@ -39,6 +39,6 @@ Para voltar, o dono usa "Voltar a usar o Asaas nas cobranças novas". As credenc
 - Guarda linha digitável, código de barras e Pix copia-e-cola. O PDF sai em `/api/faturas/{id}/pdf` quando a API devolve o arquivo.
 - O webhook é `POST /api/webhooks/inter/{segredo}`. O segredo identifica a empresa. O corpo do Inter não é assinado de um jeito que a Vercel consiga checar (o banco espera mTLS na entrada). Por isso o Taguaro consulta a cobrança na API antes de marcar paga, cancelada ou expirada. Se a consulta falha, a rota responde 503 para o Inter tentar de novo.
 - Todo dia, `/api/cron/recorrencias` (11:00 UTC) gera a cobrança do mês das vendas mensais de empresas no Inter. O Asaas continua na assinatura dele e esse cron não mexe nele.
-- Todo dia, `/api/cron/conciliacao` (13:00 UTC) relê as cobranças do Inter ainda em aberto. É a rede se o webhook não chegar.
+- Todo dia, `/api/cron/conciliacao` (13:00 UTC) relê as cobranças do Inter ainda em aberto e, na mesma rota, concilia as cobranças do Asaas. É a rede se o webhook não chegar. O Asaas não ganhou um cron novo: o projeto já tem quatro rotinas diárias.
 
 Os dois crons usam o mesmo `CRON_SECRET` das outras rotas.

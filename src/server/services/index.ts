@@ -56,6 +56,7 @@ export {
 export { obterPreferenciasCobranca, salvarPreferenciasCobranca } from "./preferencia-cobranca-service";
 export { cancelarFatura, emitirFatura, importarFaturas, listarFaturas } from "./fatura-service";
 export { sincronizarVisualizacoesDoAutor } from "./visualizacao-fatura-service";
+export { sincronizarAsaasDoAutor } from "./asaas-conciliacao";
 export {
   atribuirReguaCliente,
   atualizarRegua,

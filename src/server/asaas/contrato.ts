@@ -73,6 +73,15 @@ export type PaginaCobrancasAsaas = {
   temMais: boolean;
 };
 
+// paymentDate[ge] e dateCreated[ge] são os filtros de data da lista de cobranças do Asaas.
+export type FiltroListaCobrancasAsaas = {
+  status?: string;
+  offset: number;
+  limit: number;
+  paymentDateGe?: string;
+  dateCreatedGe?: string;
+};
+
 // GET /v3/payments/{id}/viewingInfo. Datas vazias quando o pagador ainda não abriu.
 export type VisualizacaoCobrancaAsaas = {
   faturaEm: Date | null;
@@ -115,7 +124,7 @@ export interface ClienteHttpAsaas {
   cancelarAssinatura(id: string): Promise<void>;
   listarCobrancasDoCliente(customer: string, offset: number, limit: number): Promise<PaginaCobrancasAsaas>;
   listarCobrancasDaAssinatura(assinatura: string, offset: number, limit: number): Promise<PaginaCobrancasAsaas>;
-  listarCobrancas(filtro: { status?: string; offset: number; limit: number }): Promise<PaginaCobrancasAsaas>;
+  listarCobrancas(filtro: FiltroListaCobrancasAsaas): Promise<PaginaCobrancasAsaas>;
 }
 
 export class ErroAsaas extends Error {

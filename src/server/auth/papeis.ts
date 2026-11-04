@@ -89,7 +89,7 @@ export function exigirVerFaturas(autor: AutorEmpresa) {
 export function exigirAtualizarVisualizacoes(autor: AutorEmpresa) {
   if (!podeAtualizarVisualizacoes(autor.papel)) {
     throw new ErroAplicacao(
-      "Só o dono da empresa pode atualizar as visualizações.",
+      "Só o dono da empresa pode atualizar com o Asaas.",
       403,
       "sem_permissao",
     );

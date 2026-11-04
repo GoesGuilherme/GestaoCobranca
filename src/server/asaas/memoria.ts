@@ -7,6 +7,7 @@ import {
   type CobrancaAsaas,
   type EncargosAsaas,
   ErroAsaas,
+  type FiltroListaCobrancasAsaas,
   type NovaAssinaturaAsaas,
   type NovaCobrancaAsaas,
   type NovoClienteAsaas,
@@ -240,8 +241,12 @@ export class AsaasMemoria implements ClienteHttpAsaas {
     );
   }
 
-  async listarCobrancas(filtro: { status?: string; offset: number; limit: number }) {
-    const lista = [...this.cobrancas.values()].filter((cobranca) => !filtro.status || cobranca.status === filtro.status);
+  async listarCobrancas(filtro: FiltroListaCobrancasAsaas) {
+    const lista = [...this.cobrancas.values()].filter((cobranca) => {
+      if (filtro.status && cobranca.status !== filtro.status) return false;
+      if (filtro.paymentDateGe && (!cobranca.pagoEm || cobranca.pagoEm < filtro.paymentDateGe)) return false;
+      return true;
+    });
     return this.paginar(lista, filtro.offset, filtro.limit);
   }
 

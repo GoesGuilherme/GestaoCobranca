@@ -1,11 +1,12 @@
 import { hashTokenWebhook, tokensWebhookIguais } from "@/lib/asaas-cripto";
 import { Prisma } from "@/generated/prisma/client";
+import { logAsaasErro } from "@/server/asaas/log";
 import { prisma } from "@/server/db";
 import { ErroAplicacao } from "@/server/erros";
 import { CAPACIDADES_ASAAS } from "@/server/pagamentos/capacidades";
 import { confirmarEventoParaBaixa } from "@/server/pagamentos/baixa";
 import { provedorDaEmpresa } from "@/server/pagamentos/fabrica";
-import { normalizarWebhookAsaas } from "@/server/pagamentos/webhook-asaas";
+import { normalizarWebhookAsaas, sinalAsaasConfirmaPagamento } from "@/server/pagamentos/webhook-asaas";
 import { espelharPagamentoAsaas } from "./asaas-pagamento";
 import { conciliarPromessas } from "./promessa-service";
 import { enfileirarPagoWhatsapp } from "./whatsapp-fila";
@@ -33,6 +34,20 @@ function texto(valor: unknown, limite: number): string | null {
   const limpo = valor.trim();
   if (!limpo) return null;
   return limpo.slice(0, limite);
+}
+
+function idEventoSeguro(corpo: unknown): string {
+  if (!corpo || typeof corpo !== "object" || !("id" in corpo)) return "";
+  const id = (corpo as { id?: unknown }).id;
+  if (typeof id !== "string") return "";
+  const limpo = id.trim();
+  if (!limpo || limpo.length > 200) return "";
+  return limpo;
+}
+
+function recusarWebhook(motivo: "ausente" | "nao_confere", corpo: unknown): never {
+  logAsaasErro("webhook_recusado", { motivo, evento: idEventoSeguro(corpo) });
+  throw new ErroAplicacao("Token do webhook recusado.", 401, "webhook_recusado");
 }
 
 function idPagamento(pagamento: Record<string, unknown> | null): string | null {
@@ -65,11 +80,31 @@ async function marcarFaturaVisualizada(
   });
 }
 
+// Mesma gravação do webhook: espelha a cobrança e, na passagem para paga,
+// enfileira o WhatsApp de pagamento confirmado. A chave da fila impede segundo envio.
+export async function aplicarPagamentoAsaas(
+  tx: Prisma.TransactionClient,
+  empresaId: string,
+  pagamento: Record<string, unknown>,
+  tipo: string,
+) {
+  const efeito = await espelharPagamentoAsaas(tx, empresaId, pagamento, tipo);
+  if (!sinalAsaasConfirmaPagamento(tipo, pagamento)) return efeito;
+  const asaasPaymentId = texto(pagamento.id, 80);
+  if (!asaasPaymentId) return efeito;
+  const fatura = await tx.fatura.findFirst({
+    where: { empresaId, asaasPaymentId, excluida: false },
+    include: { cliente: true },
+  });
+  if (!fatura) return efeito;
+  const regua = await tx.configuracaoRegua.findUnique({ where: { empresaId } });
+  await enfileirarPagoWhatsapp(tx, fatura, regua?.modoTeste ?? true);
+  return efeito;
+}
+
 export async function processarWebhookAsaas(token: string | null, corpo: unknown) {
   const recebido = token?.trim() ?? "";
-  if (!recebido) {
-    throw new ErroAplicacao("Token do webhook recusado.", 401, "webhook_recusado");
-  }
+  if (!recebido) recusarWebhook("ausente", corpo);
   if (!corpo || typeof corpo !== "object") {
     throw new ErroAplicacao("Evento do Asaas inválido.", 400, "webhook_invalido");
   }
@@ -84,7 +119,7 @@ export async function processarWebhookAsaas(token: string | null, corpo: unknown
   const hash = hashTokenWebhook(recebido);
   const config = await prisma.configuracaoAsaas.findUnique({ where: { tokenWebhookHash: hash } });
   if (!config || !tokensWebhookIguais(recebido, config.tokenWebhookHash)) {
-    throw new ErroAplicacao("Token do webhook recusado.", 401, "webhook_recusado");
+    recusarWebhook("nao_confere", corpo);
   }
 
   const pagamento =
@@ -127,20 +162,7 @@ export async function processarWebhookAsaas(token: string | null, corpo: unknown
       }
       if (!normalizado.alteraCobranca || !pagamento) return;
 
-      await espelharPagamentoAsaas(tx, config.empresaId, pagamento, tipo);
-      if (normalizado.confirmaPagamento) {
-        const asaasPaymentId = texto(pagamento.id, 80);
-        if (asaasPaymentId) {
-          const fatura = await tx.fatura.findFirst({
-            where: { empresaId: config.empresaId, asaasPaymentId, excluida: false },
-            include: { cliente: true },
-          });
-          if (fatura) {
-            const regua = await tx.configuracaoRegua.findUnique({ where: { empresaId: config.empresaId } });
-            await enfileirarPagoWhatsapp(tx, fatura, regua?.modoTeste ?? true);
-          }
-        }
-      }
+      await aplicarPagamentoAsaas(tx, config.empresaId, pagamento, tipo);
     });
     if (normalizado.alteraCobranca) {
       await conciliarPromessas(config.empresaId);
