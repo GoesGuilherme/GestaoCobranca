@@ -12,7 +12,7 @@ Não há cron novo. O projeto já agenda quatro rotinas diárias em `vercel.json
 
 A resposta continua com os números do Inter na raiz (`empresas`, `consultadas`, `atualizadas`, `falhas`) e acrescenta `asaas` com o resumo do Asaas. Nenhuma variável nova. Não defina `ASAAS_MOCK` na Vercel e não troque `ASAAS_ENCRYPTION_KEY`.
 
-O dono também pode disparar a mesma conciliação da empresa no botão **Atualizar com o Asaas**, na tela Faturas. Esse clique faz as duas leituras que antes estavam separadas: status da cobrança e visualização da fatura ou do boleto. O botão antigo "Atualizar visualizações" saiu.
+O dono também pode disparar a mesma conciliação da empresa no botão **Atualizar**, na tela Faturas. Esse clique faz as duas leituras que antes estavam separadas: status da cobrança e visualização da fatura ou do boleto. O botão antigo "Atualizar visualizações" saiu.
 
 ## O que uma execução lê
 

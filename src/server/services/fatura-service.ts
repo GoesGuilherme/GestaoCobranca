@@ -1,5 +1,6 @@
 import { formaCobrancaDe } from "@/lib/cobranca";
-import { isoDeData } from "@/lib/data";
+import { dataIsoValida, isoDeData } from "@/lib/data";
+import type { ConsultaPeriodoFatura } from "@/lib/periodo-faturas";
 import { STATUS_NORMALIZADO, statusBrutos } from "@/lib/status-pagamento";
 import { somenteDocumento } from "@/lib/documento";
 import type { FaturaDTO, FiltroVisualizacao, LembreteReguaDTO, ModoReguaCliente, PromessaPendenteDTO, SituacaoFatura, StatusLembrete } from "@/lib/tipos";
@@ -149,6 +150,22 @@ function filtroVisualizada(vista: FiltroVisualizacao | undefined) {
   return {};
 }
 
+function diaConsulta(iso: string | null): Date | undefined {
+  if (!iso || !dataIsoValida(iso)) return undefined;
+  return new Date(`${iso}T00:00:00.000Z`);
+}
+
+function filtroPeriodo(periodo: ConsultaPeriodoFatura | undefined) {
+  if (!periodo) return {};
+  const faixa: { gte?: Date; lte?: Date } = {};
+  const inicio = diaConsulta(periodo.inicio);
+  const fim = diaConsulta(periodo.fim);
+  if (inicio) faixa.gte = inicio;
+  if (fim) faixa.lte = fim;
+  if (!faixa.gte && !faixa.lte) return {};
+  return periodo.campo === "pagamento" ? { pagoEm: faixa } : { vencimento: faixa };
+}
+
 function filtroSituacao(situacao: SituacaoFatura) {
   const semRascunho = { notIn: [...statusBrutos("CRIANDO")] };
   if (situacao === "todas") return { status: semRascunho };
@@ -169,6 +186,7 @@ export async function listarFaturas(
     busca?: string;
     clienteId?: string;
     ordem?: "asc" | "desc";
+    periodo?: ConsultaPeriodoFatura;
   } = {},
 ): Promise<FaturaDTO[]> {
   exigirVerFaturas(autor);
@@ -179,6 +197,7 @@ export async function listarFaturas(
       empresaId: autor.empresaId,
       ...filtroSituacao(filtro.situacao ?? "em_aberto"),
       ...filtroVisualizada(filtro.vista),
+      ...filtroPeriodo(filtro.periodo),
       ...(filtro.clienteId ? { clienteId: filtro.clienteId } : {}),
       ...(busca
         ? {

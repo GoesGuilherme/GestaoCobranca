@@ -43,7 +43,7 @@ export function BotaoAtualizarAsaas() {
   return (
     <div>
       <button type="button" className={classeBotaoSecundario} disabled={enviando} onClick={() => void atualizar()}>
-        {enviando ? "Atualizando..." : "Atualizar com o Asaas"}
+        {enviando ? "Atualizando..." : "Atualizar"}
       </button>
     </div>
   );
