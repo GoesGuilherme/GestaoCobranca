@@ -234,7 +234,7 @@ export function FormularioInter({ inicial }: { inicial: ConfiguracaoInterDTO }) 
         <section className="rounded-3xl border border-line bg-card p-6">
           <h2 className="font-display text-2xl">Webhook</h2>
           <p className="mt-2 text-sm leading-6 text-muted">
-            O Inter avisa cobrança paga, cancelada ou expirada. O Taguaro só dá baixa depois de consultar a cobrança na API. A URL leva um segredo e não deve ser publicada.
+            O Inter avisa cobrança paga, cancelada ou expirada. O Taguaro só dá baixa depois de consultar a cobrança na API. O endereço completo, com o segredo, fica só no cadastro do Inter. Aqui ele aparece sem o segredo. A URL antiga continua valendo.
           </p>
           <p className="mt-4 break-all rounded-2xl bg-sand px-4 py-3 font-mono text-sm">{configuracao.urlWebhook}</p>
         </section>

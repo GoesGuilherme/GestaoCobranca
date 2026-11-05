@@ -42,6 +42,24 @@ describe("limite de tentativas", () => {
     const corpo = await travado.json();
     expect(corpo.erro).toBe("Muitas tentativas. Tente de novo mais tarde.");
     expect(JSON.stringify(corpo)).not.toContain("senha-certa-123");
+
+    const outroIp = await entrar(
+      new Request("http://localhost/api/auth/entrar", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-forwarded-for": "203.0.113.9, 198.51.100.77" },
+        body: JSON.stringify({ email: "limite-login@exemplo.test", senha: "senha-certa-123" }),
+      }),
+    );
+    expect(outroIp.status).toBe(429);
+
+    const outraPessoa = await entrar(
+      new Request("http://localhost/api/auth/entrar", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-forwarded-for": "198.51.100.10" },
+        body: JSON.stringify({ email: "outra-pessoa@exemplo.test", senha: "qualquer" }),
+      }),
+    );
+    expect(outraPessoa.status).not.toBe(429);
   });
 
   it("responde 429 para rajada de webhook do Asaas sem assinatura válida", async () => {

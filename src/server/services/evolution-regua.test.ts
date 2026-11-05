@@ -145,16 +145,18 @@ describe("WhatsApp por Evolution", () => {
     `;
     expect(tabelas).toHaveLength(5);
     expect(tabelas.every((linha) => linha.relrowsecurity)).toBe(true);
-    const politicas = await prisma.$queryRaw<{ total: number }[]>`
-      SELECT count(*)::int AS total
-      FROM pg_policy
-      WHERE polrelid IN (
-        'configuracoes_pagamento'::regclass,
-        'eventos_pagamento'::regclass,
-        'configuracoes_canal_whatsapp'::regclass
+    const politicas = await prisma.$queryRaw<{ policyname: string; roles: string[] }[]>`
+      SELECT policyname, roles::text[] AS roles
+      FROM pg_policies
+      WHERE tablename IN (
+        'configuracoes_pagamento',
+        'eventos_pagamento',
+        'configuracoes_canal_whatsapp'
       )
     `;
-    expect(politicas[0]?.total).toBe(0);
+    expect(politicas.length).toBeGreaterThan(0);
+    expect(politicas.every((linha) => linha.policyname === "taguaro_app_acesso")).toBe(true);
+    expect(politicas.every((linha) => linha.roles.includes("taguaro_app"))).toBe(true);
   });
 
   it("nega financeiro, suporte e a empresa vizinha, e não devolve segredo nem QR inseguro", async () => {
@@ -381,6 +383,60 @@ describe("WhatsApp por Evolution", () => {
       ip: "198.51.100.32",
     });
     expect(repetido).toMatchObject({ duplicado: true });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("não envia cobrança com opt-out e grava PARAR vindo da Evolution sem responder", async () => {
+    const evolution = criarClienteEvolutionMemoria();
+    const twilio = criarClienteTwilioMemoria();
+    await ligar();
+    await prisma.configuracaoRegua.update({ where: { empresaId }, data: { modoTeste: false } });
+    await conectarEvolution(autor(), { evolution });
+    evolution.simular(nomeInstanciaDaEmpresa(empresaId), "CONECTADO");
+    await atualizarStatusEvolution(autor(), { evolution });
+    await passoComWhatsapp();
+    const cliente = await criarCliente(empresaId, {
+      nomeFantasia: "Cliente Opt",
+      razaoSocial: "Cliente Opt Ltda",
+      documento: completarCnpj("594000000007"),
+      segmento: "OUTRO",
+      contatoNome: "Eva",
+      whatsapp: "13988881001",
+      email: "opt.regua@exemplo.test",
+      cidade: "Santos",
+      uf: "SP",
+      status: "ATIVO",
+    });
+    await prisma.optOutWhatsapp.create({
+      data: { empresaId, telefone: "5513988881001", ativo: true, origem: "INBOUND" },
+    });
+    await abrirFatura(empresaId, cliente.id);
+    const resultado = await executarRegua({ agora: AGORA, empresaId, twilio, evolution });
+    expect(resultado.whatsappEnviados).toBe(0);
+    expect(evolution.enviados).toHaveLength(0);
+    const fila = await prisma.filaWhatsapp.findFirstOrThrow({ where: { clienteId: cliente.id } });
+    expect(fila.motivo).toBe("opt-out");
+    expect(fila.status).toBe("IGNORADO");
+
+    const nome = nomeInstanciaDaEmpresa(empresaId);
+    const entrada = await processarWebhookEvolution({
+      segredo: SEGREDO,
+      corpo: {
+        event: "messages.upsert",
+        instance: nome,
+        data: {
+          key: { remoteJid: "5513988881009@s.whatsapp.net", fromMe: false, id: "INBOUNDPARAR0001" },
+          message: { conversation: "PARAR" },
+        },
+      },
+      ip: "198.51.100.40",
+    });
+    expect(entrada).toMatchObject({ ignorado: false });
+    const opt = await prisma.optOutWhatsapp.findUniqueOrThrow({
+      where: { empresaId_telefone: { empresaId, telefone: "5513988881009" } },
+    });
+    expect(opt.ativo).toBe(true);
+    expect(evolution.enviados).toHaveLength(0);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 

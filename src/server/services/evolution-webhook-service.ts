@@ -1,3 +1,4 @@
+import { decisaoOptOut, digitosWhatsapp } from "@/lib/whatsapp-cobranca";
 import { prisma } from "@/server/db";
 import { ErroAplicacao } from "@/server/erros";
 import { evolutionLigada, segredoWebhookEvolution } from "@/server/evolution/fabrica";
@@ -171,6 +172,42 @@ export async function processarWebhookEvolution(dados: {
       await abrirAlerta(config.empresaId, "WHATSAPP_FALHA_ENVIO");
     }
     return { recebido: true, duplicado: false };
+  }
+
+  if (evento === "messagesupsert") {
+    const chave = objeto(data.key);
+    if (chave?.fromMe === true) return { recebido: true, ignorado: true };
+    const id = idMensagem(data);
+    const mensagem = objeto(data.message);
+    const corpoMensagem =
+      texto(mensagem?.conversation, 500) ??
+      texto(objeto(mensagem?.extendedTextMessage)?.text, 500);
+    const digitos = digitosWhatsapp(texto(chave?.remoteJid, 80) ?? "");
+    const decisao = decisaoOptOut({ corpo: corpoMensagem ?? "", optOutType: "" });
+    if (!id) return { recebido: true, ignorado: true };
+    try {
+      await prisma.eventoWhatsapp.create({
+        data: {
+          empresaId: config.empresaId,
+          messageSid: id,
+          tipo: "INBOUND",
+          status: decisao ?? "RECEBIDA",
+          de: digitos,
+          corpo: corpoMensagem,
+        },
+      });
+    } catch (erro) {
+      if (conflito(erro)) return { recebido: true, duplicado: true };
+      throw erro;
+    }
+    if (digitos && decisao) {
+      await prisma.optOutWhatsapp.upsert({
+        where: { empresaId_telefone: { empresaId: config.empresaId, telefone: digitos } },
+        create: { empresaId: config.empresaId, telefone: digitos, ativo: decisao === "PARAR", origem: "INBOUND" },
+        update: { ativo: decisao === "PARAR", origem: "INBOUND" },
+      });
+    }
+    return { recebido: true, ignorado: false };
   }
 
   return { recebido: true, ignorado: true };

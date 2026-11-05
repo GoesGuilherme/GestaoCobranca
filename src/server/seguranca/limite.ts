@@ -24,24 +24,31 @@ export async function exigirFolga(chave: string, limite: number, janelaMs: numbe
 
 const JANELA_LOGIN_MS = 15 * 60 * 1000;
 const LIMITE_LOGIN_EMAIL = 8;
-const LIMITE_LOGIN_IP = 40;
 
 function chaveEmail(email: string) {
   return `login:email:${email.trim().toLowerCase().slice(0, 160)}`;
 }
 
-function chaveIp(ip: string) {
-  return `login:ip:${ip.slice(0, 64)}`;
-}
-
-export async function exigirLimiteLogin(email: string, ip: string | null, agora = new Date()): Promise<void> {
+// O travamento do login é por e-mail. Um IP compartilhado não bloqueia outra pessoa
+// e um x-forwarded-for forjado não escolhe a vítima.
+export async function exigirLimiteLogin(email: string, agora = new Date()): Promise<void> {
   await exigirFolga(chaveEmail(email), LIMITE_LOGIN_EMAIL, JANELA_LOGIN_MS, agora);
-  if (ip) await exigirFolga(chaveIp(ip), LIMITE_LOGIN_IP, JANELA_LOGIN_MS, agora);
 }
 
-export async function registrarFalhaLogin(email: string, ip: string | null, agora = new Date()): Promise<void> {
+export async function registrarFalhaLogin(email: string, agora = new Date()): Promise<void> {
   await registrarTentativa(chaveEmail(email), agora);
-  if (ip) await registrarTentativa(chaveIp(ip), agora);
+}
+
+export async function consumirLimiteUsuario(
+  usuarioId: string,
+  acao: string,
+  limite: number,
+  janelaMs: number,
+  agora = new Date(),
+): Promise<void> {
+  const chave = `usr:${acao}:${usuarioId}`.slice(0, 180);
+  await exigirFolga(chave, limite, janelaMs, agora);
+  await registrarTentativa(chave, agora);
 }
 
 const JANELA_WEBHOOK_MS = 10 * 60 * 1000;

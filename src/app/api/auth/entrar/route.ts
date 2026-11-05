@@ -4,21 +4,20 @@ import { autenticar } from "@/server/auth/entrar";
 import { opcoesCookie } from "@/server/auth/sessao";
 import { emitirToken } from "@/server/auth/token";
 import { ErroAplicacao } from "@/server/erros";
-import { ipDaRequisicao, jsonErro, lerJson } from "@/server/http";
+import { jsonErro, lerJson } from "@/server/http";
 import { exigirLimiteLogin, registrarFalhaLogin } from "@/server/seguranca/limite";
 import { lerEsquema } from "@/server/validar";
 
 export async function POST(request: Request) {
   try {
     const dados = lerEsquema(esquemaLogin, await lerJson(request));
-    const ip = ipDaRequisicao(request);
-    await exigirLimiteLogin(dados.email, ip);
+    await exigirLimiteLogin(dados.email);
     let usuario;
     try {
       usuario = await autenticar(dados.email, dados.senha);
     } catch (erro) {
       if (erro instanceof ErroAplicacao && (erro.status === 401 || erro.status === 403)) {
-        await registrarFalhaLogin(dados.email, ip);
+        await registrarFalhaLogin(dados.email);
       }
       throw erro;
     }

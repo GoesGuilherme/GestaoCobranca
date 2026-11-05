@@ -1,5 +1,6 @@
 import { exigirAcesso } from "@/server/auth/acesso";
 import { jsonErro, jsonOk, lerJson } from "@/server/http";
+import { consumirLimiteUsuario } from "@/server/seguranca/limite";
 import {
   obterConfiguracaoAsaas,
   salvarConfiguracaoAsaas,
@@ -17,6 +18,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const acesso = await exigirAcesso();
+    await consumirLimiteUsuario(acesso.usuarioId, "asaas-config", 20, 10 * 60 * 1000);
     const configuracao = await salvarConfiguracaoAsaas(acesso, await lerJson(request));
     return jsonOk({ configuracao });
   } catch (erro) {

@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { NOME_PRODUTO } from "@/lib/marca";
 import { podeConfigurarAsaas, podeVerAssessor, podeVerFaturas, podeVerMetricas, podeVerRegua, podeVerResultado } from "@/lib/permissoes";
+import type { PapelUsuario } from "@/lib/tipos";
+import { privilegioParaMiddleware } from "@/server/auth/privilegio-consulta";
 import { COOKIE_SESSAO } from "@/server/auth/constantes";
+import { cabecalhosSeguranca, politicaConteudo } from "@/server/seguranca/cabecalhos";
 import { verificarToken } from "@/server/auth/token";
 
 function destinoSeguro(valor: string | null): string {
@@ -35,7 +38,25 @@ function resultadoProibido(pathname: string) {
   });
 }
 
+function pedidoComNonce(request: NextRequest, nonce: string, csp: string) {
+  const headers = new Headers(request.headers);
+  headers.set("x-nonce", nonce);
+  headers.set("content-security-policy", csp);
+  return headers;
+}
+
+function entregar(resposta: NextResponse, csp: string) {
+  for (const cabecalho of cabecalhosSeguranca()) {
+    resposta.headers.set(cabecalho.key, cabecalho.value);
+  }
+  resposta.headers.set("Content-Security-Policy", csp);
+  return resposta;
+}
+
 export async function middleware(request: NextRequest) {
+  const nonce = btoa(crypto.randomUUID());
+  const csp = politicaConteudo(nonce);
+  const seguir = () => entregar(NextResponse.next({ request: { headers: pedidoComNonce(request, nonce, csp) } }), csp);
   const { pathname } = request.nextUrl;
   const token = request.cookies.get(COOKIE_SESSAO)?.value;
   const sessao = token ? await verificarToken(token) : null;
@@ -48,10 +69,12 @@ export async function middleware(request: NextRequest) {
     pathname === "/api/auth/entrar" ||
     pathname === "/api/auth/esqueci-senha" ||
     pathname === "/api/auth/redefinir-senha" ||
+    pathname === "/api/auth/privilegio" ||
     pathname === "/api/cadastro" ||
     pathname === "/api/webhooks/asaas" ||
     pathname === "/api/webhooks/twilio" ||
     pathname === "/api/webhooks/evolution" ||
+    pathname === "/api/webhooks/inter" ||
     pathname.startsWith("/api/webhooks/inter/") ||
     pathname === "/api/cron/regua" ||
     pathname === "/api/cron/visualizacoes" ||
@@ -61,21 +84,25 @@ export async function middleware(request: NextRequest) {
   if (rotaPublica) {
     const empresaSuspensa = request.nextUrl.searchParams.get("motivo") === "suspensa";
     if (autenticado && pathname === "/login" && !empresaSuspensa) {
-      return NextResponse.redirect(
-        new URL(destinoSeguro(request.nextUrl.searchParams.get("next")), request.url),
+      return entregar(
+        NextResponse.redirect(new URL(destinoSeguro(request.nextUrl.searchParams.get("next")), request.url)),
+        csp,
       );
     }
-    return NextResponse.next();
+    return seguir();
   }
 
-  if (!autenticado || !sessao) {
+  const privilegio = sessao ? await privilegioParaMiddleware(request.url, request.headers.get("cookie")) : null;
+  if (!privilegio) {
     if (pathname.startsWith("/api/")) {
-      return NextResponse.json({ erro: "Não autenticado." }, { status: 401 });
+      return entregar(NextResponse.json({ erro: "Não autenticado." }, { status: 401 }), csp);
     }
     const login = new URL("/login", request.url);
     login.searchParams.set("next", pathname);
-    return NextResponse.redirect(login);
+    return entregar(NextResponse.redirect(login), csp);
   }
+  const papel: PapelUsuario = privilegio.papel;
+  const superadministrador = privilegio.superadministrador;
 
   const rotaResultado =
     pathname === "/resultado" ||
@@ -83,17 +110,17 @@ export async function middleware(request: NextRequest) {
     pathname === "/dashboards/resultado" ||
     pathname.startsWith("/dashboards/resultado/") ||
     pathname === "/api/resultado";
-  if (rotaResultado && !podeVerResultado(sessao.papel)) {
-    return resultadoProibido(pathname);
+  if (rotaResultado && !podeVerResultado(papel)) {
+    return entregar(resultadoProibido(pathname), csp);
   }
 
   const rotaMetricas = pathname === "/dashboards/metricas" || pathname.startsWith("/dashboards/metricas/");
-  if (rotaMetricas && !podeVerMetricas(sessao.papel)) {
-    return paginaProibida(
+  if (rotaMetricas && !podeVerMetricas(papel)) {
+    return entregar(paginaProibida(
       pathname,
       "Só o dono vê as métricas",
       "MRR, churn e LTV ficam com o dono da empresa. Financeiro e suporte não entram aqui.",
-    );
+    ), csp);
   }
 
   const rotaPainelFinanceiro =
@@ -103,12 +130,12 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/dashboards/financeiro/") ||
     pathname === "/api/painel-financeiro" ||
     pathname.startsWith("/api/painel-financeiro/");
-  if (rotaPainelFinanceiro && !podeVerFaturas(sessao.papel)) {
-    return paginaProibida(
+  if (rotaPainelFinanceiro && !podeVerFaturas(papel)) {
+    return entregar(paginaProibida(
       pathname,
       "O painel financeiro fica com o dono e o financeiro",
       "Só o dono ou o financeiro pode ver o painel financeiro.",
-    );
+    ), csp);
   }
 
   const rotaFaturas =
@@ -119,12 +146,12 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/api/recorrencias") ||
     /^\/api\/clientes\/[^/]+\/faturas\/?$/.test(pathname) ||
     /^\/api\/servicos-cliente\/[^/]+\/recorrencia(\/|$)/.test(pathname);
-  if (rotaFaturas && !podeVerFaturas(sessao.papel)) {
-    return paginaProibida(
+  if (rotaFaturas && !podeVerFaturas(papel)) {
+    return entregar(paginaProibida(
       pathname,
       "Faturas ficam com o dono e o financeiro",
       "Só o dono ou o financeiro pode ver as faturas.",
-    );
+    ), csp);
   }
 
   const rotaRegua =
@@ -133,12 +160,12 @@ export async function middleware(request: NextRequest) {
     pathname === "/api/regua" ||
     pathname.startsWith("/api/regua/") ||
     /^\/api\/clientes\/[^/]+\/regua\/?$/.test(pathname);
-  if (rotaRegua && !podeVerRegua(sessao.papel)) {
-    return paginaProibida(
+  if (rotaRegua && !podeVerRegua(papel)) {
+    return entregar(paginaProibida(
       pathname,
       "A régua fica com o dono e o financeiro",
       "Só o dono ou o financeiro pode ver a régua de cobrança.",
-    );
+    ), csp);
   }
 
   const rotaAssessor =
@@ -146,12 +173,12 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/assessor/") ||
     pathname === "/api/assessor" ||
     pathname.startsWith("/api/assessor/");
-  if (rotaAssessor && !podeVerAssessor(sessao.papel)) {
-    return paginaProibida(
+  if (rotaAssessor && !podeVerAssessor(papel)) {
+    return entregar(paginaProibida(
       pathname,
       "O assessor fica com o dono e o financeiro",
       "Só o dono ou o financeiro pode ver o assessor de cobrança.",
-    );
+    ), csp);
   }
 
   const rotaAsaas =
@@ -161,15 +188,15 @@ export async function middleware(request: NextRequest) {
     pathname === "/banco" ||
     pathname.startsWith("/banco/") ||
     pathname.startsWith("/api/banco");
-  if (rotaAsaas && !podeConfigurarAsaas(sessao.papel)) {
+  if (rotaAsaas && !podeConfigurarAsaas(papel)) {
     const banco = pathname === "/banco" || pathname.startsWith("/banco/") || pathname.startsWith("/api/banco");
-    return paginaProibida(
+    return entregar(paginaProibida(
       pathname,
       banco ? "Só o dono configura o banco" : "Só o dono configura o Asaas",
       banco
         ? "Certificado, chave e segredos do banco ficam com o dono da empresa. Financeiro e suporte não entram aqui."
         : "A chave da API e o token do webhook ficam com o dono da empresa. Financeiro e suporte não entram aqui.",
-    );
+    ), csp);
   }
 
   const rotaPlataforma =
@@ -177,15 +204,15 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/admin/") ||
     pathname === "/api/admin/empresas" ||
     pathname.startsWith("/api/admin/empresas/");
-  if (rotaPlataforma && !sessao.superadministrador) {
-    return paginaProibida(
+  if (rotaPlataforma && !superadministrador) {
+    return entregar(paginaProibida(
       pathname,
       "Só a plataforma entra aqui",
       "Empresas e as ferramentas da Taguaro ficam com o superadministrador. O dono da empresa assinante não acessa esta área.",
-    );
+    ), csp);
   }
 
-  return NextResponse.next();
+  return seguir();
 }
 
 export const config = {
