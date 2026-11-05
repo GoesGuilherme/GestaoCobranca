@@ -5,7 +5,8 @@ import { decifrarSegredoAsaas } from "@/lib/asaas-cripto";
 import { completarCnpj } from "@/lib/documento";
 import { assinaturaTwilio } from "@/lib/twilio-assinatura";
 import { prisma } from "@/server/db";
-import { criarClienteTwilioMemoria } from "@/server/twilio/memoria";
+import { criarClienteTwilioMemoria, type ClienteTwilioMemoria } from "@/server/twilio/memoria";
+import type { CredencialTwilio } from "@/server/twilio/contrato";
 import { salvarConfiguracaoAsaas } from "./asaas-config-service";
 import { criarCliente } from "./cliente-service";
 import { executarRegua } from "./regua-job";
@@ -39,6 +40,12 @@ beforeAll(() => {
 
 beforeEach(async () => {
   fetchSpy.mockClear();
+  delete process.env.TWILIO_WHATSAPP_SANDBOX;
+  delete process.env.TWILIO_WHATSAPP_FROM;
+  delete process.env.TWILIO_CONTENT_SID_BOLETO_GERADO;
+  delete process.env.TWILIO_CONTENT_SID_VENCE_EM_DIAS;
+  delete process.env.TWILIO_CONTENT_SID_VENCEU;
+  delete process.env.TWILIO_CONTENT_SID_PAGO;
   empresaId = (await criarEmpresaDeTeste({ nomeFantasia: "Empresa WhatsApp", cnpj: completarCnpj("592000000001") })).id;
   await prisma.usuario.create({
     data: {
@@ -321,4 +328,144 @@ describe("WhatsApp na régua via Twilio", () => {
     expect(twilio.enviados[0]?.variaveis["4"]).toBe("https://www.asaas.com/i/pago-exemplo");
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
+  it("no sandbox manda só para o número de teste, com a conta pai, sem Sender online", async () => {
+    process.env.TWILIO_WHATSAPP_SANDBOX = "true";
+    const sidPai = `HX${"b".repeat(32)}`;
+    process.env.TWILIO_CONTENT_SID_VENCE_EM_DIAS = sidPai;
+    const { twilio, contas } = observarTwilio();
+    await ligar();
+    await passoComWhatsapp(0);
+    const cliente = await criarCliente(empresaId, pessoa(completarCnpj("592000000008")));
+    await abrirFatura(cliente.id);
+
+    const resultado = await executarRegua({ agora: AGORA, empresaId, twilio });
+    expect(resultado.whatsappEnviados).toBe(1);
+    expect(twilio.enviados).toHaveLength(1);
+    expect(twilio.enviados[0]?.de).toBe("whatsapp:+14155238886");
+    expect(twilio.enviados[0]?.para).toBe("whatsapp:+5511999990000");
+    expect(twilio.enviados[0]?.para).not.toContain("13988881001");
+    expect(twilio.enviados[0]?.contentSid).toBe(sidPai);
+    expect(contas).toEqual([process.env.TWILIO_ACCOUNT_SID]);
+    expect(await prisma.configuracaoTwilio.findUnique({ where: { empresaId } })).toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("sem ContentSid da conta pai o sandbox espera e não chama a Twilio", async () => {
+    process.env.TWILIO_WHATSAPP_FROM = "whatsapp:+14155238886";
+    const twilio = criarClienteTwilioMemoria();
+    await ligar();
+    await passoComWhatsapp(0);
+    const cliente = await criarCliente(empresaId, pessoa(completarCnpj("592000000009")));
+    await abrirFatura(cliente.id);
+    const resultado = await executarRegua({ agora: AGORA, empresaId, twilio });
+    expect(resultado.whatsappEnviados).toBe(0);
+    expect(twilio.enviados).toHaveLength(0);
+    const fila = await prisma.filaWhatsapp.findFirstOrThrow({ where: { empresaId } });
+    expect(fila.status).toBe("PENDENTE");
+    expect(fila.modoTeste).toBe(true);
+    expect(fila.motivo).toBe("sandbox sem ContentSid da conta pai");
+    expect(fila.destino).toBe("whatsapp:+5511999990000");
+  });
+
+  it("com o sandbox ligado o Sender online continua na subconta e no ContentSid dela", async () => {
+    process.env.TWILIO_WHATSAPP_SANDBOX = "true";
+    process.env.TWILIO_CONTENT_SID_VENCE_EM_DIAS = `HX${"c".repeat(32)}`;
+    const { twilio, contas } = observarTwilio();
+    await ligar();
+    await conectarTwilio(
+      autor(),
+      { telefone: "11988887777", nomeExibicao: "Empresa WhatsApp", wabaId: "", coexistencia: false },
+      { twilio },
+    );
+    await passoComWhatsapp(0);
+    const cliente = await criarCliente(empresaId, pessoa(completarCnpj("592000000010")));
+    await abrirFatura(cliente.id);
+    await executarRegua({ agora: AGORA, empresaId, twilio });
+    const linha = await prisma.configuracaoTwilio.findUniqueOrThrow({ where: { empresaId } });
+    expect(twilio.enviados[0]?.de).toBe("whatsapp:+5511988887777");
+    expect(twilio.enviados[0]?.para).toBe("whatsapp:+5511999990000");
+    expect(twilio.enviados[0]?.contentSid).not.toBe(process.env.TWILIO_CONTENT_SID_VENCE_EM_DIAS);
+    expect(contas.at(-1)).toBe(linha.subaccountSid);
+  });
+
+  it("fora do modo teste o sandbox não envia para o cliente", async () => {
+    process.env.TWILIO_WHATSAPP_SANDBOX = "true";
+    process.env.TWILIO_CONTENT_SID_VENCE_EM_DIAS = `HX${"d".repeat(32)}`;
+    const twilio = criarClienteTwilioMemoria();
+    await ligar({ modoTeste: false });
+    await passoComWhatsapp(0);
+    const cliente = await criarCliente(empresaId, pessoa(completarCnpj("592000000011")));
+    await abrirFatura(cliente.id);
+    const resultado = await executarRegua({ agora: AGORA, empresaId, twilio });
+    expect(resultado.whatsappEnviados).toBe(0);
+    expect(twilio.enviados).toHaveLength(0);
+    const fila = await prisma.filaWhatsapp.findFirstOrThrow({ where: { clienteId: cliente.id } });
+    expect(fila.status).toBe("IGNORADO");
+    expect(fila.motivo).toBe("WhatsApp não conectado");
+    expect(fila.destino).toBeNull();
+  });
+
+  it("aceita o status do sandbox na conta pai e recusa a mesma chamada com o sandbox desligado", async () => {
+    process.env.TWILIO_WHATSAPP_SANDBOX = "true";
+    const cliente = await criarCliente(empresaId, pessoa(completarCnpj("592000000012")));
+    const fatura = await abrirFatura(cliente.id);
+    const fila = await prisma.filaWhatsapp.create({
+      data: {
+        empresaId,
+        faturaId: fatura.id,
+        clienteId: cliente.id,
+        tipo: "VENCE_EM_DIAS",
+        chaveIdempotencia: `wa:${empresaId}:${fatura.id}:sandbox:VENCE_EM_DIAS`,
+        status: "ENVIADO",
+        destino: "whatsapp:+5511999990000",
+        messageSid: "SMsandboxstatus00000000000001",
+        modoTeste: true,
+        rotulo: "WhatsApp · vence em 0 dias",
+        variaveis: "{}",
+        disponivelEm: AGORA,
+      },
+    });
+    const parametros = {
+      AccountSid: process.env.TWILIO_ACCOUNT_SID ?? "",
+      MessageSid: fila.messageSid ?? "",
+      MessageStatus: "failed",
+      ErrorCode: "63016",
+      From: "whatsapp:+14155238886",
+      To: "whatsapp:+5511999990000",
+    };
+    const assinatura = assinaturaTwilio(
+      process.env.TWILIO_WEBHOOK_URL ?? "",
+      parametros,
+      process.env.TWILIO_AUTH_TOKEN ?? "",
+    );
+    const status = await processarWebhookTwilio({ assinatura, parametros });
+    expect(status.duplicado).toBe(false);
+    expect(await prisma.filaWhatsapp.findUniqueOrThrow({ where: { id: fila.id } })).toMatchObject({ status: "FALHOU" });
+
+    delete process.env.TWILIO_WHATSAPP_SANDBOX;
+    const outro = {
+      ...parametros,
+      MessageSid: "SMsandboxstatus00000000000002",
+      MessageStatus: "delivered",
+    };
+    await expect(
+      processarWebhookTwilio({
+        assinatura: assinaturaTwilio(process.env.TWILIO_WEBHOOK_URL ?? "", outro, process.env.TWILIO_AUTH_TOKEN ?? ""),
+        parametros: outro,
+      }),
+    ).rejects.toMatchObject({ status: 403 });
+  });
 });
+
+function observarTwilio(base: ClienteTwilioMemoria = criarClienteTwilioMemoria()) {
+  const contas: string[] = [];
+  const twilio: ClienteTwilioMemoria = {
+    ...base,
+    async enviarMensagem(conta: CredencialTwilio, mensagem) {
+      contas.push(conta.accountSid);
+      return base.enviarMensagem(conta, mensagem);
+    },
+  };
+  return { twilio, contas };
+}

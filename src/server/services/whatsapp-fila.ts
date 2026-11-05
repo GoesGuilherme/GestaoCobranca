@@ -12,8 +12,9 @@ import {
 import { sinalAsaasConfirmaPagamento } from "@/server/pagamentos/webhook-asaas";
 import { prisma } from "@/server/db";
 import { ErroTwilio } from "@/server/twilio/contrato";
-import type { ClienteTwilio } from "@/server/twilio/contrato";
-import { numeroTesteWhatsapp } from "@/server/twilio/fabrica";
+import type { ClienteTwilio, CredencialTwilio, MensagemTemplate } from "@/server/twilio/contrato";
+import { credenciaisPaiTwilio, numeroTesteWhatsapp, urlWebhookTwilio } from "@/server/twilio/fabrica";
+import { contentSidSandbox, REMETENTE_SANDBOX_WHATSAPP, usarSandboxWhatsapp } from "@/server/twilio/sandbox";
 import { decifrarSegredoAsaas } from "@/lib/asaas-cripto";
 import { conciliarPromessas } from "@/server/services/promessa-service";
 
@@ -128,6 +129,7 @@ async function montar(
   agora: Date,
 ): Promise<DadosFila> {
   const conexao = await db.configuracaoTwilio.findUnique({ where: { empresaId: fatura.empresaId } });
+  const sandbox = usarSandboxWhatsapp(modoTeste);
   const base = {
     empresaId: fatura.empresaId,
     faturaId: fatura.id,
@@ -139,10 +141,10 @@ async function montar(
     rotulo: rotuloTemplateWhatsapp(tipo, dias),
     disponivelEm: agora,
   };
-  if (!conexao) {
+  if (!conexao && !sandbox) {
     return { ...base, status: "IGNORADO", destino: null, motivo: "WhatsApp não conectado", variaveis: "{}" };
   }
-  if (conexao.senderStatus !== "ONLINE") {
+  if (conexao && conexao.senderStatus !== "ONLINE" && !sandbox) {
     return { ...base, status: "IGNORADO", destino: null, motivo: "sender ainda não está online", variaveis: "{}" };
   }
   const regra = await destinoEMotivo(db, fatura.empresaId, fatura.cliente, modoTeste);
@@ -214,6 +216,54 @@ async function marcar(
   data: { status: StatusFila; motivo?: string | null; destino?: string | null; messageSid?: string; disponivelEm?: Date },
 ) {
   await prisma.filaWhatsapp.update({ where: { id }, data });
+}
+
+async function adiarOuIgnorar(id: string, criadoEm: Date, agora: Date, aguardando: string, esgotado = aguardando) {
+  const venceuPrazo = agora.getTime() - criadoEm.getTime() > ESPERA_MAX_MS;
+  if (venceuPrazo) {
+    await marcar(id, { status: "IGNORADO", motivo: esgotado });
+    return "ignorado" as const;
+  }
+  await marcar(id, {
+    status: "PENDENTE",
+    motivo: aguardando,
+    disponivelEm: new Date(agora.getTime() + 60 * 60 * 1000),
+  });
+  return "adiado" as const;
+}
+
+async function concluirEnvio(
+  twilio: ClienteTwilio,
+  item: { id: string; tentativas: number },
+  agora: Date,
+  conta: CredencialTwilio,
+  mensagem: MensagemTemplate,
+) {
+  try {
+    const envio = await twilio.enviarMensagem(conta, mensagem);
+    await marcar(item.id, { status: "ENVIADO", messageSid: envio.sid, destino: mensagem.para, motivo: null });
+    return "enviado" as const;
+  } catch (erro) {
+    const tentativas = item.tentativas + 1;
+    const motivo = (erro instanceof ErroTwilio ? erro.message : "Falha ao enviar WhatsApp.").slice(0, 180);
+    if (tentativas >= TENTATIVAS_MAX) {
+      await prisma.filaWhatsapp.update({
+        where: { id: item.id },
+        data: { status: "FALHOU", tentativas, motivo },
+      });
+      return "falha" as const;
+    }
+    await prisma.filaWhatsapp.update({
+      where: { id: item.id },
+      data: {
+        status: "PENDENTE",
+        tentativas,
+        motivo,
+        disponivelEm: new Date(agora.getTime() + 15 * 60 * 1000),
+      },
+    });
+    return "adiado" as const;
+  }
 }
 
 export async function processarFilaWhatsapp(
@@ -290,18 +340,23 @@ export async function processarFilaWhatsapp(
         continue;
       }
     }
-    if (!conexao || conexao.senderStatus !== "ONLINE" || !conexao.senderTelefone || !template || !template.contentSid || template.status !== "APROVADO") {
-      const venceuPrazo = agora.getTime() - item.criadoEm.getTime() > ESPERA_MAX_MS;
-      if (venceuPrazo) {
-        await marcar(item.id, { status: "IGNORADO", motivo: "template ou sender não ficou pronto a tempo" });
-        resultado.ignorados += 1;
-      } else {
-        await marcar(item.id, {
-          status: "PENDENTE",
-          motivo: "template aguardando aprovação",
-          disponivelEm: new Date(agora.getTime() + 60 * 60 * 1000),
-        });
-      }
+    const producaoPronta = Boolean(
+      conexao &&
+        conexao.senderStatus === "ONLINE" &&
+        conexao.senderTelefone &&
+        template?.contentSid &&
+        template.status === "APROVADO",
+    );
+    const sandbox = usarSandboxWhatsapp(modoTeste) && !producaoPronta;
+    if (!producaoPronta && !sandbox) {
+      const espera = await adiarOuIgnorar(
+        item.id,
+        item.criadoEm,
+        agora,
+        "template aguardando aprovação",
+        "template ou sender não ficou pronto a tempo",
+      );
+      if (espera === "ignorado") resultado.ignorados += 1;
       continue;
     }
     const variaveis = variaveisGravadas(item.variaveis);
@@ -310,48 +365,70 @@ export async function processarFilaWhatsapp(
       resultado.falhas += 1;
       continue;
     }
-    let token = "";
-    try {
-      token = decifrarSegredoAsaas(conexao.authTokenCifrado);
-    } catch {
-      await marcar(item.id, { status: "FALHOU", motivo: "token ilegível" });
-      resultado.falhas += 1;
+
+    let conta: CredencialTwilio;
+    let mensagem: MensagemTemplate;
+    if (sandbox) {
+      const teste = whatsappE164(numeroTesteWhatsapp() ?? "");
+      if (!teste || regra.destino !== `whatsapp:${teste}`) {
+        await marcar(item.id, { status: "IGNORADO", motivo: "modo teste não envia para o cliente", destino: null });
+        resultado.ignorados += 1;
+        continue;
+      }
+      const contentSid = contentSidSandbox(item.tipo);
+      if (!contentSid) {
+        const espera = await adiarOuIgnorar(item.id, item.criadoEm, agora, "sandbox sem ContentSid da conta pai");
+        if (espera === "ignorado") resultado.ignorados += 1;
+        continue;
+      }
+      let statusCallback = "";
+      try {
+        statusCallback = urlWebhookTwilio();
+      } catch {
+        const espera = await adiarOuIgnorar(item.id, item.criadoEm, agora, "sandbox sem webhook");
+        if (espera === "ignorado") resultado.ignorados += 1;
+        continue;
+      }
+      try {
+        conta = credenciaisPaiTwilio();
+      } catch {
+        const espera = await adiarOuIgnorar(item.id, item.criadoEm, agora, "sandbox sem credencial da conta pai");
+        if (espera === "ignorado") resultado.ignorados += 1;
+        continue;
+      }
+      mensagem = {
+        de: REMETENTE_SANDBOX_WHATSAPP,
+        para: regra.destino,
+        contentSid,
+        variaveis,
+        statusCallback,
+      };
+    } else if (conexao?.senderTelefone && template?.contentSid) {
+      let token = "";
+      try {
+        token = decifrarSegredoAsaas(conexao.authTokenCifrado);
+      } catch {
+        await marcar(item.id, { status: "FALHOU", motivo: "token ilegível" });
+        resultado.falhas += 1;
+        continue;
+      }
+      conta = { accountSid: conexao.subaccountSid, authToken: token };
+      mensagem = {
+        de: `whatsapp:${whatsappE164(conexao.senderTelefone) ?? conexao.senderTelefone}`,
+        para: regra.destino,
+        contentSid: template.contentSid,
+        variaveis,
+        statusCallback: conexao.webhookUrl,
+      };
+    } else {
+      await marcar(item.id, { status: "IGNORADO", motivo: "template ou sender não ficou pronto a tempo" });
+      resultado.ignorados += 1;
       continue;
     }
-    try {
-      const envio = await twilio.enviarMensagem(
-        { accountSid: conexao.subaccountSid, authToken: token },
-        {
-          de: `whatsapp:${whatsappE164(conexao.senderTelefone) ?? conexao.senderTelefone}`,
-          para: regra.destino,
-          contentSid: template.contentSid,
-          variaveis,
-          statusCallback: conexao.webhookUrl,
-        },
-      );
-      await marcar(item.id, { status: "ENVIADO", messageSid: envio.sid, destino: regra.destino, motivo: null });
-      resultado.enviados += 1;
-    } catch (erro) {
-      const tentativas = item.tentativas + 1;
-      const motivo = (erro instanceof ErroTwilio ? erro.message : "Falha ao enviar WhatsApp.").slice(0, 180);
-      if (tentativas >= TENTATIVAS_MAX) {
-        await prisma.filaWhatsapp.update({
-          where: { id: item.id },
-          data: { status: "FALHOU", tentativas, motivo },
-        });
-        resultado.falhas += 1;
-      } else {
-        await prisma.filaWhatsapp.update({
-          where: { id: item.id },
-          data: {
-            status: "PENDENTE",
-            tentativas,
-            motivo,
-            disponivelEm: new Date(agora.getTime() + 15 * 60 * 1000),
-          },
-        });
-      }
-    }
+
+    const envio = await concluirEnvio(twilio, item, agora, conta, mensagem);
+    if (envio === "enviado") resultado.enviados += 1;
+    if (envio === "falha") resultado.falhas += 1;
   }
 
   return resultado;

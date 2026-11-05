@@ -10,7 +10,8 @@ import { ErroAplicacao } from "@/server/erros";
 import { criarProvedorAssessorMemoria } from "@/server/assessor/memoria";
 import type { ProvedorAssessor } from "@/server/assessor/provedor";
 import { criarFerramentasAssessor } from "@/server/assessor/ferramentas";
-import { criarClienteTwilioMemoria } from "@/server/twilio/memoria";
+import type { CredencialTwilio } from "@/server/twilio/contrato";
+import { criarClienteTwilioMemoria, type ClienteTwilioMemoria } from "@/server/twilio/memoria";
 import {
   assumirConversa,
   devolverConversa,
@@ -42,6 +43,8 @@ beforeAll(() => {
 
 beforeEach(() => {
   fetchSpy.mockClear();
+  delete process.env.TWILIO_WHATSAPP_SANDBOX;
+  delete process.env.TWILIO_WHATSAPP_FROM;
   delete process.env.ASSESSOR_LIMITE_TELEFONE;
   delete process.env.ASSESSOR_LIMITE_EMPRESA;
   delete process.env.ASSESSOR_TETO_TOKENS_DIA;
@@ -454,4 +457,122 @@ describe("assessor de WhatsApp", () => {
     expect(saidas).toBe(1);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
+  it("no sandbox responde em texto livre para o número de teste sem Sender online", async () => {
+    process.env.TWILIO_WHATSAPP_SANDBOX = "true";
+    const casa = await empresa("Empresa Sandbox", "611000000001");
+    await ligar(casa.id, true);
+    await prisma.configuracaoTwilio.update({
+      where: { empresaId: casa.id },
+      data: { senderStatus: "AUSENTE", senderTelefone: null, senderSid: null },
+    });
+    const { twilio, contas } = observarTexto();
+    const resposta = await falar(casa.id, "11999990000", "oi", { twilio });
+    expect(resposta.twilio.textos).toHaveLength(1);
+    expect(resposta.twilio.textos[0]?.de).toBe("whatsapp:+14155238886");
+    expect(resposta.twilio.textos[0]?.para).toBe("whatsapp:+5511999990000");
+    expect(contas).toEqual([process.env.TWILIO_ACCOUNT_SID]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    const conversa = await prisma.conversaAssessor.findFirstOrThrow({ where: { empresaId: casa.id } });
+    const humano = observarTexto();
+    await responderConversa(
+      { empresaId: casa.id, papel: "DONO" },
+      conversa.id,
+      { texto: "Segue o boleto de teste." },
+      { twilio: humano.twilio, agora: AGORA },
+    );
+    expect(humano.twilio.textos[0]?.de).toBe("whatsapp:+14155238886");
+    expect(humano.twilio.textos[0]?.para).toBe("whatsapp:+5511999990000");
+    expect(humano.contas).toEqual([process.env.TWILIO_ACCOUNT_SID]);
+  });
+
+  it("não usa o sandbox fora do modo teste nem quando o Sender já está online", async () => {
+    process.env.TWILIO_WHATSAPP_SANDBOX = "true";
+    const semSender = await empresa("Empresa Sem Sender", "611000000002");
+    await ligar(semSender.id, false);
+    await prisma.configuracaoTwilio.update({
+      where: { empresaId: semSender.id },
+      data: { senderStatus: "AUSENTE", senderTelefone: null },
+    });
+    const bloqueado = await falar(semSender.id, "11988880111", "oi");
+    expect(bloqueado.twilio.textos).toHaveLength(0);
+    const nota = await prisma.mensagemAssessor.findFirst({ where: { empresaId: semSender.id, papel: "SISTEMA" } });
+    expect(nota?.corpo).toContain("não está online");
+
+    const casa = await empresa("Empresa Online", "611000000003");
+    await ligar(casa.id, true);
+    const { twilio, contas } = observarTexto();
+    const resposta = await falar(casa.id, "11999990000", "oi", { twilio });
+    const linha = await prisma.configuracaoTwilio.findUniqueOrThrow({ where: { empresaId: casa.id } });
+    expect(resposta.twilio.textos[0]?.de).toBe("whatsapp:+5511988877665");
+    expect(contas).toEqual([linha.subaccountSid]);
+  });
+
+  it("entra pelo webhook do sandbox só para a única empresa em modo teste", async () => {
+    process.env.TWILIO_WHATSAPP_SANDBOX = "true";
+    const casa = await empresa("Empresa Hook Sandbox", "611000000004");
+    await ligar(casa.id, true);
+    await prisma.configuracaoTwilio.update({
+      where: { empresaId: casa.id },
+      data: { senderStatus: "AUSENTE", senderTelefone: null },
+    });
+    const url = process.env.TWILIO_WEBHOOK_URL ?? "";
+    const token = process.env.TWILIO_AUTH_TOKEN ?? "";
+    const parametros = {
+      AccountSid: process.env.TWILIO_ACCOUNT_SID ?? "",
+      MessageSid: "SMsandboxinbound000000000001",
+      From: "whatsapp:+5511999990000",
+      To: "whatsapp:+14155238886",
+      Body: "oi",
+      SmsStatus: "received",
+    };
+    const primeiro = await processarWebhookTwilio({
+      assinatura: assinaturaTwilio(url, parametros, token),
+      parametros,
+    });
+    expect(primeiro.duplicado).toBe(false);
+    expect(await prisma.mensagemAssessor.count({ where: { empresaId: casa.id, papel: "ASSESSOR" } })).toBe(1);
+
+    const alheio = {
+      ...parametros,
+      MessageSid: "SMsandboxinbound000000000002",
+      From: "whatsapp:+5511988880111",
+    };
+    await processarWebhookTwilio({
+      assinatura: assinaturaTwilio(url, alheio, token),
+      parametros: alheio,
+    });
+    expect(await prisma.conversaAssessor.count({ where: { empresaId: casa.id } })).toBe(1);
+
+    const outra = await empresa("Empresa Ambígua", "611000000005");
+    await ligar(outra.id, true);
+    const ambiguo = {
+      ...parametros,
+      MessageSid: "SMsandboxinbound000000000003",
+    };
+    await processarWebhookTwilio({
+      assinatura: assinaturaTwilio(url, ambiguo, token),
+      parametros: ambiguo,
+    });
+    expect(await prisma.mensagemAssessor.count({ where: { empresaId: casa.id, papel: "CLIENTE", messageSid: ambiguo.MessageSid } })).toBe(0);
+    expect(await prisma.mensagemAssessor.count({ where: { empresaId: outra.id } })).toBe(0);
+
+    await expect(
+      processarWebhookTwilio({ assinatura: "assinatura-invalida", parametros: ambiguo }),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 });
+
+function observarTexto(base: ClienteTwilioMemoria = criarClienteTwilioMemoria()) {
+  const contas: string[] = [];
+  const twilio: ClienteTwilioMemoria = {
+    ...base,
+    async enviarTexto(conta: CredencialTwilio, mensagem) {
+      contas.push(conta.accountSid);
+      return base.enviarTexto(conta, mensagem);
+    },
+  };
+  return { twilio, contas };
+}

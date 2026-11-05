@@ -96,7 +96,7 @@ export function PainelAssessor({
       <form onSubmit={salvar} className="rounded-3xl border border-line bg-card p-6">
         <h2 className="font-display text-3xl">Configuração</h2>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
-          Cada empresa liga o próprio assessor. Ele usa o WhatsApp desta empresa e só vê os dados dela. O modo teste começa ligado: a resposta sai só para o número em TWILIO_WHATSAPP_TESTE.
+          Cada empresa liga o próprio assessor. Ele usa o WhatsApp desta empresa e só vê os dados dela. O modo teste começa ligado: a resposta sai só para o número em TWILIO_WHATSAPP_TESTE. Se o Sender ainda não estiver online e o sandbox estiver ligado no servidor, o texto livre sai da conta pai, dentro da janela de 24 horas.
         </p>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           <label className="flex items-center gap-2 text-sm">
