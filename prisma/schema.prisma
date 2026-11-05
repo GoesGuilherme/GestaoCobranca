@@ -151,6 +151,8 @@ model Empresa {
   passosRegua      PassoRegua[]
   lembretesRegua   LembreteRegua[]
   configuracaoTwilio ConfiguracaoTwilio?
+  configuracaoCanalWhatsapp ConfiguracaoCanalWhatsapp?
+  alertasEmpresa     AlertaEmpresa[]
   templatesWhatsapp  TemplateWhatsapp[]
   filaWhatsapp       FilaWhatsapp[]
   eventosWhatsapp    EventoWhatsapp[]
@@ -166,6 +168,17 @@ model Empresa {
   promessas            PromessaPagamento[]
 
   @@map("empresas")
+}
+
+// Tentativas recentes de login, webhook e conexão de WhatsApp.
+// A chave não guarda senha, token nem corpo da requisição.
+model LimiteTentativa {
+  id       String   @id @default(cuid())
+  chave    String
+  criadoEm DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
+
+  @@index([chave, criadoEm])
+  @@map("limites_tentativa")
 }
 
 // Contagem simples de tentativas de autocadastro, por IP e por e-mail.
@@ -613,6 +626,41 @@ model LembreteRegua {
   @@index([faturaId, criadoEm])
   @@index([empresaId])
   @@map("lembretes_regua")
+}
+
+// Escolha do provedor de WhatsApp da régua. Sem linha, a empresa segue na Twilio.
+// A chave da Evolution não fica aqui: só em EVOLUTION_API_KEY, no servidor.
+model ConfiguracaoCanalWhatsapp {
+  id             String    @id @default(cuid())
+  empresaId      String    @unique @map("empresa_id")
+  provedor       String    @default("TWILIO")
+  instanceName   String?   @unique @map("instance_name")
+  statusConexao  String    @default("DESCONECTADO") @map("status_conexao")
+  telefone       String?
+  erro           String?   @db.Text
+  ultimoEventoEm DateTime? @map("ultimo_evento_em") @db.Timestamptz(3)
+  criadoEm       DateTime  @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm   DateTime  @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  empresa        Empresa   @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+
+  @@map("configuracoes_canal_whatsapp")
+}
+
+// Um aviso aberto por código e empresa. A tela da régua mostra os não lidos.
+model AlertaEmpresa {
+  id           String   @id @default(cuid())
+  empresaId    String   @map("empresa_id")
+  codigo       String
+  titulo       String
+  texto        String   @db.Text
+  lido         Boolean  @default(false)
+  criadoEm     DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm DateTime @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  empresa      Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+
+  @@unique([empresaId, codigo])
+  @@index([empresaId, lido])
+  @@map("alertas_empresa")
 }
 
 // Uma subconta e um Sender de WhatsApp por empresa. O auth token da subconta

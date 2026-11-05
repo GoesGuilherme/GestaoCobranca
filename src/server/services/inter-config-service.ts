@@ -8,7 +8,7 @@ import { ErroAplicacao } from "@/server/erros";
 import { certificadoPertoDoVencimento, contaCorrenteInter, validarParCertificado } from "@/server/inter/certificado";
 import type { ClienteHttpInter } from "@/server/inter/contrato";
 import { logInter, logInterErro } from "@/server/inter/log";
-import { urlWebhookInter } from "@/server/inter/url-publica";
+import { urlWebhookInter, urlWebhookInterVisivel } from "@/server/inter/url-publica";
 import { provedorDaEmpresa } from "@/server/pagamentos/fabrica";
 import { lerCredenciaisPagamento, salvarCredenciaisPagamento, type AmbientePagamento } from "@/server/pagamentos/credenciais";
 import { lerEsquema } from "@/server/validar";
@@ -75,7 +75,7 @@ export async function obterConfiguracaoInter(autor: AutorEmpresa, origem?: strin
     certificadoValidoAte: validade ? validade.toISOString() : null,
     certificadoPertoDoVencimento: perto,
     certificadoVencido: vencido,
-    urlWebhook: segredo ? urlWebhookInter(segredo, origem) ?? `/api/webhooks/inter/${segredo}` : null,
+    urlWebhook: segredo ? urlWebhookInterVisivel(origem) : null,
     aviso,
   };
 }

@@ -4,6 +4,8 @@ import { Notificador } from "@/components/notificador";
 import { NOME_PRODUTO } from "@/lib/marca";
 import "./globals.css";
 
+export const dynamic = "force-dynamic";
+
 const outfit = Outfit({
   subsets: ["latin"],
   variable: "--font-outfit",

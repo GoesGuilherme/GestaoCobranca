@@ -14,6 +14,9 @@ export function usarBancoDeTeste() {
     await prisma.limiteAssessor.deleteMany();
     await prisma.configuracaoAssessor.deleteMany();
     await prisma.eventoWhatsapp.deleteMany();
+    await prisma.alertaEmpresa.deleteMany();
+    await prisma.configuracaoCanalWhatsapp.deleteMany();
+    await prisma.limiteTentativa.deleteMany();
     await prisma.filaWhatsapp.deleteMany();
     await prisma.optOutWhatsapp.deleteMany();
     await prisma.templateWhatsapp.deleteMany();

@@ -1,5 +1,6 @@
 import { exigirAcesso } from "@/server/auth/acesso";
 import { jsonErro, jsonOk, lerJson } from "@/server/http";
+import { consumirLimiteUsuario } from "@/server/seguranca/limite";
 import { obterConfiguracaoInter, salvarConfiguracaoInter, usarAsaas } from "@/server/services/inter-config-service";
 
 export const runtime = "nodejs";
@@ -23,6 +24,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const acesso = await exigirAcesso();
+    await consumirLimiteUsuario(acesso.usuarioId, "inter-config", 12, 10 * 60 * 1000);
     const corpo = await lerJson(request);
     if (corpo && typeof corpo === "object" && (corpo as { provedor?: unknown }).provedor === "ASAAS") {
       await usarAsaas(acesso);

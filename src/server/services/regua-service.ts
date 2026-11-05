@@ -28,6 +28,7 @@ import { ErroAplicacao } from "@/server/erros";
 import { dispararLembrete } from "@/server/regua/envio";
 import { clienteResendPadrao, remetenteResend, type ClienteResend } from "@/server/regua/resend";
 import { lerEsquema } from "@/server/validar";
+import { obterCanalDaEmpresa } from "./evolution-service";
 import { obterWhatsappDaEmpresa } from "./twilio-service";
 
 type LinhaPasso = {
@@ -147,11 +148,12 @@ async function listarReguas(empresaId: string): Promise<ReguaDTO[]> {
 export async function obterPainelRegua(autor: AutorEmpresa) {
   exigirVerRegua(autor);
   const config = await prisma.configuracaoRegua.findUnique({ where: { empresaId: autor.empresaId } });
-  const [reguas, whatsapp] = await Promise.all([
+  const [reguas, whatsapp, canal] = await Promise.all([
     listarReguas(autor.empresaId),
     obterWhatsappDaEmpresa(autor.empresaId),
+    obterCanalDaEmpresa(autor.empresaId),
   ]);
-  return { config: paraConfig(config), reguas, whatsapp };
+  return { config: paraConfig(config), reguas, whatsapp, canal };
 }
 
 function ehNomeDuplicado(erro: unknown): boolean {

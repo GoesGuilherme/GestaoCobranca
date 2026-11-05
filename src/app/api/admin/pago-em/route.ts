@@ -1,6 +1,7 @@
 import { exigirAcesso } from "@/server/auth/acesso";
 import { ErroAplicacao } from "@/server/erros";
 import { jsonErro, jsonOk } from "@/server/http";
+import { consumirLimiteUsuario } from "@/server/seguranca/limite";
 import {
   contarFaturasSemPagoEm,
   empresasComAsaas,
@@ -35,6 +36,7 @@ async function lerCorpo(request: Request): Promise<unknown> {
 export async function POST(request: Request) {
   try {
     const acesso = await exigirAcesso();
+    await consumirLimiteUsuario(acesso.usuarioId, "pago-em", 4, 60 * 60 * 1000);
     const corpo = await lerCorpo(request);
     const pedida = empresaPedida(corpo);
     if (!acesso.superadministrador && acesso.papel !== "DONO") {

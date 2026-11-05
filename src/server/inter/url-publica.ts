@@ -17,3 +17,9 @@ export function urlWebhookInter(segredo: string, origem?: string | null): string
   if (!base) return null;
   return `${base}/api/webhooks/inter/${segredo}`;
 }
+
+export function urlWebhookInterVisivel(origem?: string | null): string {
+  const base = origemPublica(origem);
+  const caminho = "/api/webhooks/inter/••••";
+  return base ? `${base}${caminho}` : caminho;
+}

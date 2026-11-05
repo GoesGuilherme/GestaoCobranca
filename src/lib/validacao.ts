@@ -675,6 +675,14 @@ export const esquemaConexaoTwilio = z.object({
   coexistencia: z.boolean("Informe se quer pedir coexistência com o app WhatsApp Business."),
 });
 
+export const esquemaProvedorWhatsapp = z.object({
+  provedor: z.enum(["TWILIO", "EVOLUTION"], "Escolha Twilio ou QR Code."),
+});
+
+export const esquemaAlertaWhatsapp = z.object({
+  codigo: z.enum(["WHATSAPP_DESCONECTADO", "WHATSAPP_FALHA_ENVIO"], "Aviso desconhecido."),
+});
+
 export const esquemaCodigoTwilio = z.object({
   codigo: z
     .string()

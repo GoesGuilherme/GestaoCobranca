@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   TEMPLATES_COBRANCA_WHATSAPP,
   decisaoOptOut,
+  textoDaCobrancaWhatsapp,
   tipoTemplateDoPasso,
   variaveisDoTemplate,
   whatsappE164,
@@ -59,5 +60,19 @@ describe("templates de cobrança", () => {
     expect(decisaoOptOut({ corpo: "oi", optOutType: "STOP" })).toBe("PARAR");
     expect(decisaoOptOut({ corpo: "RETOMAR", optOutType: "" })).toBe("RETOMAR");
     expect(decisaoOptOut({ corpo: "qual o valor?", optOutType: "" })).toBeNull();
+  });
+
+  it("monta o texto da cobrança com as mesmas variáveis do template", () => {
+    const texto = textoDaCobrancaWhatsapp("VENCE_EM_DIAS", {
+      "1": "Ana",
+      "2": "R$ 10,00",
+      "3": "30/10/2026",
+      "4": "https://www.asaas.com/i/abc",
+      "5": "5",
+    });
+    expect(texto).toContain("Ana");
+    expect(texto).toContain("https://www.asaas.com/i/abc");
+    expect(texto).toContain("5 dias");
+    expect(texto).not.toContain("{{");
   });
 });
