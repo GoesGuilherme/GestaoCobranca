@@ -160,6 +160,12 @@ describe("WhatsApp na régua via Twilio", () => {
     expect(painel.templates.every((item) => item.status === "APROVADO")).toBe(true);
     expect(JSON.stringify(painel)).not.toContain(twilio.subcontas[0]?.authToken);
     expect(twilio.aprovacoes.every((item) => item.categoria === "UTILITY")).toBe(true);
+    expect(twilio.aprovacoes.map((item) => item.nome).sort()).toEqual([
+      "taguaro_boleto_gerado_v2",
+      "taguaro_pago_v2",
+      "taguaro_vence_em_dias_v2",
+      "taguaro_venceu_v2",
+    ]);
     expect(twilio.chamouRede).toBe(false);
     expect(fetchSpy).not.toHaveBeenCalled();
 
@@ -209,7 +215,9 @@ describe("WhatsApp na régua via Twilio", () => {
     expect(twilio.enviados[0]?.para).toBe("whatsapp:+5511999990000");
     expect(twilio.enviados[0]?.para).not.toContain("13988881001");
     expect(twilio.enviados[0]?.variaveis["1"]).toBe("Cliente da Régua");
-    expect(twilio.enviados[0]?.variaveis["4"]).toContain("asaas.com");
+    expect(twilio.enviados[0]?.variaveis["3"]).toBe("0");
+    expect(twilio.enviados[0]?.variaveis["4"]).toBe("26/10/2026");
+    expect(twilio.enviados[0]?.variaveis["5"]).toContain("asaas.com");
     expect(fetchSpy).not.toHaveBeenCalled();
 
     await executarRegua({ agora: AGORA, empresaId, twilio });
