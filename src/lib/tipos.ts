@@ -316,6 +316,27 @@ export type TemplateWhatsappDTO = {
   motivo: string | null;
 };
 
+export type ProvedorWhatsapp = "TWILIO" | "EVOLUTION";
+
+export type StatusCanalEvolution = "AUSENTE" | "DESCONECTADO" | "CONECTANDO" | "CONECTADO" | "ERRO";
+
+export type AlertaEmpresaDTO = {
+  codigo: "WHATSAPP_DESCONECTADO" | "WHATSAPP_FALHA_ENVIO";
+  titulo: string;
+  texto: string;
+  lido: boolean;
+};
+
+export type CanalWhatsappDTO = {
+  evolutionHabilitada: boolean;
+  provedor: ProvedorWhatsapp;
+  status: StatusCanalEvolution;
+  telefone: string | null;
+  erro: string | null;
+  qrCode: string | null;
+  alertas: AlertaEmpresaDTO[];
+};
+
 export type ConfiguracaoTwilioDTO = {
   conectada: boolean;
   subaccountSid: string | null;

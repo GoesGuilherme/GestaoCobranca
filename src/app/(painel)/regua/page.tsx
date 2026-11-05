@@ -24,7 +24,7 @@ export default async function PaginaRegua() {
       <CabecalhoPagina
         olho={acesso.nomeEmpresa}
         titulo="Régua de cobrança"
-        descricao="Cada empresa monta as próprias réguas. O cliente pode usar a padrão, outra régua, nenhuma, ou ficar pausado. O e-mail sai pela Resend e o WhatsApp, se marcado no passo, pela Twilio."
+        descricao="Cada empresa monta as próprias réguas. O cliente pode usar a padrão, outra régua, nenhuma, ou ficar pausado. O e-mail sai pela Resend. O WhatsApp do passo sai pela Twilio, ou pelo QR Code quando esse canal estiver ligado e conectado."
       />
       <PainelRegua
         podeEditar={podeConfigurarRegua(acesso.papel)}
@@ -32,6 +32,7 @@ export default async function PaginaRegua() {
         config={painel.config}
         reguas={painel.reguas}
         whatsapp={painel.whatsapp}
+        canal={painel.canal}
       />
     </>
   );

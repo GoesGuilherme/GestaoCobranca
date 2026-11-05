@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { valoresAposSalvar } from "@/lib/apos-salvar";
 import { enviarJson } from "@/lib/api-cliente";
-import type { ConfiguracaoTwilioDTO } from "@/lib/tipos";
+import type { CanalWhatsappDTO, ConfiguracaoTwilioDTO, ProvedorWhatsapp } from "@/lib/tipos";
 import { esquemaCodigoTwilio, esquemaConexaoTwilio, mensagensDoZod } from "@/lib/validacao";
 import { Campo, classeCampo } from "./campo";
 import { classeBotaoPrimario, classeBotaoSecundario } from "./estilos";
@@ -38,14 +38,31 @@ const COEXISTENCIA: Record<ConfiguracaoTwilioDTO["coexistencia"], string> = {
   INDISPONIVEL: "Indisponível nesta conta",
 };
 
+const STATUS_CANAL: Record<CanalWhatsappDTO["status"], string> = {
+  AUSENTE: "QR Code ainda não gerado",
+  DESCONECTADO: "Desconectado",
+  CONECTANDO: "Aguardando a leitura do QR Code",
+  CONECTADO: "Conectado",
+  ERRO: "Falha na conexão",
+};
+
+function qrSeguro(valor: string | null): string | null {
+  if (!valor) return null;
+  if (!/^data:image\/(?:png|jpeg);base64,[A-Za-z0-9+/]+={0,2}$/.test(valor)) return null;
+  if (valor.length > 180_000) return null;
+  return valor;
+}
+
 export function PainelWhatsapp({
   podeEditar,
   nomeEmpresa,
   inicial,
+  canalInicial,
 }: {
   podeEditar: boolean;
   nomeEmpresa: string;
   inicial: ConfiguracaoTwilioDTO;
+  canalInicial: CanalWhatsappDTO;
 }) {
   const router = useRouter();
   const [estado, setEstado] = useState(inicial);
@@ -56,6 +73,8 @@ export function PainelWhatsapp({
   const [codigo, setCodigo] = useState("");
   const [campos, setCampos] = useState<Record<string, string>>({});
   const [enviando, setEnviando] = useState(false);
+  const [canal, setCanal] = useState(canalInicial);
+  const [qr, setQr] = useState<string | null>(null);
 
   function aplicar(proximo: ConfiguracaoTwilioDTO, texto: string) {
     setEstado(proximo);
@@ -91,7 +110,174 @@ export function PainelWhatsapp({
     <section id="whatsapp" className="mt-6 scroll-mt-24 rounded-3xl border border-line bg-card p-6">
       <h2 className="font-display text-3xl">WhatsApp</h2>
       <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
-        Cada empresa ganha uma subconta e um Sender na Twilio. O e-mail continua pela Resend. O WhatsApp sai no mesmo passo, se estiver marcado, usando template UTILITY. No modo teste nada vai para o cliente.
+        O e-mail continua pela Resend. O WhatsApp do passo sai pela Twilio ou, se a empresa escolher e estiver conectada, pelo QR Code. No modo teste nada vai para o cliente. A chave da API não aparece nesta tela.
+      </p>
+      <div className="mt-4 rounded-2xl border border-line bg-paper p-4">
+        <h3 className="text-lg font-medium">Canal da régua</h3>
+        {canal.evolutionHabilitada ? (
+          <p className="mt-2 text-sm leading-6 text-muted">
+            Twilio continua disponível. O QR Code usa o WhatsApp da própria empresa. Se desconectar, a cobrança fica na fila e este aviso permanece até a conexão voltar.
+          </p>
+        ) : (
+          <p className="mt-2 text-sm leading-6 text-muted">
+            A conexão por QR Code está desligada neste ambiente. A régua segue pela Twilio.
+          </p>
+        )}
+        <p className="mt-3 text-sm">
+          Canal em uso: {canal.provedor === "EVOLUTION" ? "QR Code" : "Twilio"} · {STATUS_CANAL[canal.status]}
+          {canal.telefone ? ` · ${canal.telefone}` : ""}
+        </p>
+        {canal.erro ? <p className="mt-2 text-sm text-gold-ink">{canal.erro}</p> : null}
+        {canal.alertas.length > 0 ? (
+          <ul className="mt-3 space-y-2">
+            {canal.alertas.map((alerta) => (
+              <li key={alerta.codigo} className="rounded-xl border border-gold/40 bg-gold-soft px-3 py-2 text-sm text-gold-ink">
+                <strong>{alerta.titulo}.</strong> {alerta.texto}
+                {podeEditar ? (
+                  <button
+                    type="button"
+                    className={`${classeBotaoSecundario} ml-2`}
+                    disabled={enviando}
+                    onClick={() => {
+                      void (async () => {
+                        setEnviando(true);
+                        const resposta = await enviarJson<CanalWhatsappDTO>("/api/regua/whatsapp/evolution/alerta", "POST", { codigo: alerta.codigo });
+                        setEnviando(false);
+                        if (!resposta.ok) {
+                          avisarErro(resposta.erro);
+                          return;
+                        }
+                        setCanal(resposta.dados);
+                        setQr(null);
+                      })();
+                    }}
+                  >
+                    Marcar como visto
+                  </button>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {podeEditar && canal.evolutionHabilitada ? (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {(["TWILIO", "EVOLUTION"] as ProvedorWhatsapp[]).map((opcao) => (
+              <button
+                key={opcao}
+                type="button"
+                className={canal.provedor === opcao ? classeBotaoPrimario : classeBotaoSecundario}
+                disabled={enviando}
+                onClick={() => {
+                  void (async () => {
+                    setEnviando(true);
+                    const resposta = await enviarJson<CanalWhatsappDTO>("/api/regua/whatsapp/evolution/provedor", "POST", { provedor: opcao });
+                    setEnviando(false);
+                    if (!resposta.ok) {
+                      avisarErro(resposta.erro);
+                      return;
+                    }
+                    setCanal(resposta.dados);
+                    setQr(null);
+                    avisarSucesso(opcao === "EVOLUTION" ? "A régua vai usar o QR Code quando estiver conectado." : "A régua voltou para a Twilio.");
+                    router.refresh();
+                  })();
+                }}
+              >
+                {opcao === "EVOLUTION" ? "Usar QR Code" : "Usar Twilio"}
+              </button>
+            ))}
+            <button
+              type="button"
+              className={classeBotaoSecundario}
+              disabled={enviando}
+              onClick={() => {
+                void (async () => {
+                  setEnviando(true);
+                  const resposta = await enviarJson<CanalWhatsappDTO>("/api/regua/whatsapp/evolution/conectar", "POST", {});
+                  setEnviando(false);
+                  if (!resposta.ok) {
+                    avisarErro(resposta.erro);
+                    return;
+                  }
+                  setCanal(resposta.dados);
+                  setQr(qrSeguro(resposta.dados.qrCode));
+                  avisarSucesso("QR Code gerado. Leia com o WhatsApp desta empresa.");
+                })();
+              }}
+            >
+              Gerar QR Code
+            </button>
+            <button
+              type="button"
+              className={classeBotaoSecundario}
+              disabled={enviando || canal.status === "AUSENTE"}
+              onClick={() => {
+                void (async () => {
+                  setEnviando(true);
+                  const resposta = await enviarJson<CanalWhatsappDTO>("/api/regua/whatsapp/evolution/reconectar", "POST", {});
+                  setEnviando(false);
+                  if (!resposta.ok) {
+                    avisarErro(resposta.erro);
+                    return;
+                  }
+                  setCanal(resposta.dados);
+                  setQr(qrSeguro(resposta.dados.qrCode));
+                })();
+              }}
+            >
+              Reconectar
+            </button>
+            <button
+              type="button"
+              className={classeBotaoSecundario}
+              disabled={enviando || canal.status === "AUSENTE"}
+              onClick={() => {
+                void (async () => {
+                  setEnviando(true);
+                  const resposta = await enviarJson<CanalWhatsappDTO>("/api/regua/whatsapp/evolution/desconectar", "POST", {});
+                  setEnviando(false);
+                  if (!resposta.ok) {
+                    avisarErro(resposta.erro);
+                    return;
+                  }
+                  setCanal(resposta.dados);
+                  setQr(null);
+                  avisarSucesso("WhatsApp desconectado. As cobranças ficam na fila.");
+                })();
+              }}
+            >
+              Desconectar
+            </button>
+            <button
+              type="button"
+              className={classeBotaoSecundario}
+              disabled={enviando || canal.status === "AUSENTE"}
+              onClick={() => {
+                void (async () => {
+                  setEnviando(true);
+                  const resposta = await enviarJson<CanalWhatsappDTO>("/api/regua/whatsapp/evolution/status", "POST", {});
+                  setEnviando(false);
+                  if (!resposta.ok) {
+                    avisarErro(resposta.erro);
+                    return;
+                  }
+                  setCanal(resposta.dados);
+                  setQr(null);
+                })();
+              }}
+            >
+              Atualizar conexão
+            </button>
+          </div>
+        ) : null}
+        {qr ? (
+          // O QR é data URL efêmero. Não passa pelo otimizador de imagem.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={qr} alt="QR Code para conectar o WhatsApp desta empresa" className="mt-4 h-56 w-56 rounded-xl border border-line bg-paper" />
+        ) : null}
+      </div>
+      <p className="mt-4 max-w-3xl text-sm leading-6 text-muted">
+        A Twilio usa uma subconta e um Sender por empresa, com template UTILITY.
       </p>
       <p className="mt-3 flex flex-wrap items-center gap-2 text-sm">
         <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${estado.senderStatus === "ONLINE" ? "bg-leaf text-ok" : estado.senderStatus ? "bg-gold-soft text-gold-ink" : "bg-sand text-ink"}`} title={estado.senderStatus ?? "não conectado"}>

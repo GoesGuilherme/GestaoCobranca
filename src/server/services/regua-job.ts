@@ -19,6 +19,7 @@ import {
 import { prisma } from "@/server/db";
 import { dispararLembrete, registrarIgnorado, textoErroEnvio } from "@/server/regua/envio";
 import { clienteResendPadrao, remetenteResend, type ClienteResend } from "@/server/regua/resend";
+import type { ClienteEvolution } from "@/server/evolution/contrato";
 import type { ClienteTwilio } from "@/server/twilio/contrato";
 import { clienteTwilioPadrao } from "@/server/twilio/fabrica";
 import { conciliarPromessas, faturaIdsComPromessaAtiva } from "@/server/services/promessa-service";
@@ -49,7 +50,7 @@ function chaveOuNula(cifra: string | null): { chave: string | null; motivo: stri
 }
 
 export async function executarRegua(
-  opcoes: { agora?: Date; empresaId?: string; resend?: ClienteResend; twilio?: ClienteTwilio } = {},
+  opcoes: { agora?: Date; empresaId?: string; resend?: ClienteResend; twilio?: ClienteTwilio; evolution?: ClienteEvolution } = {},
 ): Promise<ResultadoRegua> {
   const agora = opcoes.agora ?? new Date();
   const hoje = dataSaoPaulo(agora);
@@ -257,7 +258,7 @@ export async function executarRegua(
     }
   }
 
-  const fila = await processarFilaWhatsapp({ agora, empresaId: opcoes.empresaId, twilio });
+  const fila = await processarFilaWhatsapp({ agora, empresaId: opcoes.empresaId, twilio, evolution: opcoes.evolution });
   resultado.whatsappEnviados = fila.enviados;
   resultado.whatsappFalhas = fila.falhas;
   resultado.whatsappIgnorados += fila.ignorados;

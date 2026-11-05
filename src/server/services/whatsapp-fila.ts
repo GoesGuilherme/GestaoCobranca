@@ -4,6 +4,7 @@ import { formatarDataIso } from "@/lib/formatacao";
 import {
   digitosWhatsapp,
   rotuloTemplateWhatsapp,
+  textoDaCobrancaWhatsapp,
   tipoTemplateDoPasso,
   variaveisDoTemplate,
   whatsappE164,
@@ -11,11 +12,16 @@ import {
 } from "@/lib/whatsapp-cobranca";
 import { sinalAsaasConfirmaPagamento } from "@/server/pagamentos/webhook-asaas";
 import { prisma } from "@/server/db";
+import { ErroEvolution, type ClienteEvolution } from "@/server/evolution/contrato";
+import { clienteEvolutionPadrao } from "@/server/evolution/fabrica";
 import { ErroTwilio } from "@/server/twilio/contrato";
 import type { ClienteTwilio } from "@/server/twilio/contrato";
 import { numeroTesteWhatsapp } from "@/server/twilio/fabrica";
 import { decifrarSegredoAsaas } from "@/lib/asaas-cripto";
 import { conciliarPromessas } from "@/server/services/promessa-service";
+import { evolutionWhatsappHabilitada, provedorEfetivo, type ProvedorWhatsapp } from "@/server/whatsapp/selecao";
+import { proximaEsperaDesconexao } from "@/server/whatsapp/espera";
+import { abrirAlerta } from "@/server/services/alerta-empresa";
 
 const ESPERA_MAX_MS = 7 * 24 * 60 * 60 * 1000;
 const TENTATIVAS_MAX = 3;
@@ -127,7 +133,14 @@ async function montar(
   modoTeste: boolean,
   agora: Date,
 ): Promise<DadosFila> {
-  const conexao = await db.configuracaoTwilio.findUnique({ where: { empresaId: fatura.empresaId } });
+  const canal = await prisma.configuracaoCanalWhatsapp.findUnique({
+    where: { empresaId: fatura.empresaId },
+    select: { provedor: true, statusConexao: true },
+  });
+  const provedor = provedorEfetivo(evolutionWhatsappHabilitada(), canal?.provedor);
+  const conexao = provedor === "TWILIO"
+    ? await db.configuracaoTwilio.findUnique({ where: { empresaId: fatura.empresaId } })
+    : null;
   const base = {
     empresaId: fatura.empresaId,
     faturaId: fatura.id,
@@ -139,10 +152,10 @@ async function montar(
     rotulo: rotuloTemplateWhatsapp(tipo, dias),
     disponivelEm: agora,
   };
-  if (!conexao) {
+  if (provedor === "TWILIO" && !conexao) {
     return { ...base, status: "IGNORADO", destino: null, motivo: "WhatsApp não conectado", variaveis: "{}" };
   }
-  if (conexao.senderStatus !== "ONLINE") {
+  if (provedor === "TWILIO" && conexao?.senderStatus !== "ONLINE") {
     return { ...base, status: "IGNORADO", destino: null, motivo: "sender ainda não está online", variaveis: "{}" };
   }
   const regra = await destinoEMotivo(db, fatura.empresaId, fatura.cliente, modoTeste);
@@ -159,13 +172,17 @@ async function montar(
   if (!variaveis) {
     return { ...base, status: "IGNORADO", destino: null, motivo: "cobrança sem link do Asaas", variaveis: "{}" };
   }
-  return {
+  const pendente = {
     ...base,
-    status: "PENDENTE",
+    status: "PENDENTE" as const,
     destino: regra.destino,
-    motivo: null,
+    motivo: null as string | null,
     variaveis: JSON.stringify(variaveis),
   };
+  if (provedor === "EVOLUTION" && canal?.statusConexao !== "CONECTADO") {
+    return { ...pendente, motivo: "WhatsApp desconectado" };
+  }
+  return pendente;
 }
 
 export async function enfileirarWhatsappDoPasso(
@@ -216,14 +233,102 @@ async function marcar(
   await prisma.filaWhatsapp.update({ where: { id }, data });
 }
 
+function tipoFila(valor: string): TipoTemplateWhatsapp | null {
+  if (valor === "BOLETO_GERADO" || valor === "VENCE_EM_DIAS" || valor === "VENCEU" || valor === "PAGO") return valor;
+  return null;
+}
+
+async function enviarPelaEvolution(
+  item: { id: string; empresaId: string; tipo: string; variaveis: string; tentativas: number; criadoEm: Date },
+  destino: string,
+  agora: Date,
+  evolution: ClienteEvolution | null,
+  resultado: { enviados: number; falhas: number; ignorados: number },
+  avisadas: Set<string>,
+) {
+  const canal = await prisma.configuracaoCanalWhatsapp.findUnique({ where: { empresaId: item.empresaId } });
+  const numero = destino.replace(/^whatsapp:/i, "").replace(/\D/g, "");
+  const espera = proximaEsperaDesconexao(agora, item.criadoEm);
+  if (!canal || canal.statusConexao !== "CONECTADO" || !canal.instanceName || !evolution || numero.length < 10) {
+    if (espera.esgotou) {
+      await marcar(item.id, { status: "FALHOU", motivo: "WhatsApp permaneceu desconectado" });
+      resultado.falhas += 1;
+      if (!avisadas.has(item.empresaId)) {
+        avisadas.add(item.empresaId);
+        await abrirAlerta(item.empresaId, "WHATSAPP_FALHA_ENVIO");
+      }
+      return;
+    }
+    await marcar(item.id, {
+      status: "PENDENTE",
+      motivo: "WhatsApp desconectado",
+      disponivelEm: espera.disponivelEm,
+    });
+    if (!avisadas.has(item.empresaId)) {
+      avisadas.add(item.empresaId);
+      await abrirAlerta(item.empresaId, "WHATSAPP_DESCONECTADO");
+    }
+    return;
+  }
+  const tipo = tipoFila(item.tipo);
+  const variaveis = variaveisGravadas(item.variaveis);
+  if (!tipo || !variaveis) {
+    await marcar(item.id, { status: "FALHOU", motivo: "variáveis inválidas" });
+    resultado.falhas += 1;
+    return;
+  }
+  const texto = textoDaCobrancaWhatsapp(tipo, variaveis);
+  if (!texto || texto.length < 8) {
+    await marcar(item.id, { status: "FALHOU", motivo: "mensagem vazia" });
+    resultado.falhas += 1;
+    return;
+  }
+  try {
+    const envio = await evolution.enviarTexto(canal.instanceName, numero, texto);
+    await marcar(item.id, { status: "ENVIADO", messageSid: envio.id, destino, motivo: null });
+    resultado.enviados += 1;
+  } catch (erro) {
+    const tentativas = item.tentativas + 1;
+    const motivo = (erro instanceof ErroEvolution ? erro.message : "Falha ao enviar WhatsApp.").slice(0, 180);
+    if (tentativas >= TENTATIVAS_MAX) {
+      await prisma.filaWhatsapp.update({
+        where: { id: item.id },
+        data: { status: "FALHOU", tentativas, motivo },
+      });
+      resultado.falhas += 1;
+      await abrirAlerta(item.empresaId, "WHATSAPP_FALHA_ENVIO");
+    } else {
+      await prisma.filaWhatsapp.update({
+        where: { id: item.id },
+        data: {
+          status: "PENDENTE",
+          tentativas,
+          motivo,
+          disponivelEm: new Date(agora.getTime() + 15 * 60 * 1000),
+        },
+      });
+    }
+  }
+}
+
+async function provedorDaEmpresa(empresaId: string): Promise<ProvedorWhatsapp> {
+  const canal = await prisma.configuracaoCanalWhatsapp.findUnique({
+    where: { empresaId },
+    select: { provedor: true },
+  });
+  return provedorEfetivo(evolutionWhatsappHabilitada(), canal?.provedor);
+}
+
 export async function processarFilaWhatsapp(
-  opcoes: { agora?: Date; empresaId?: string; twilio?: ClienteTwilio; limite?: number } = {},
+  opcoes: { agora?: Date; empresaId?: string; twilio?: ClienteTwilio; evolution?: ClienteEvolution; limite?: number } = {},
 ): Promise<{ enviados: number; falhas: number; ignorados: number }> {
   const agora = opcoes.agora ?? new Date();
   const twilio = opcoes.twilio;
-  if (!twilio) return { enviados: 0, falhas: 0, ignorados: 0 };
+  const podeEvolution = Boolean(opcoes.evolution) || evolutionWhatsappHabilitada();
+  if (!twilio && !podeEvolution) return { enviados: 0, falhas: 0, ignorados: 0 };
   const filtroEmpresa = opcoes.empresaId ? { empresaId: opcoes.empresaId } : {};
   const resultado = { enviados: 0, falhas: 0, ignorados: 0 };
+  const avisadas = new Set<string>();
   const travado = new Date(agora.getTime() - 10 * 60 * 1000);
   await prisma.filaWhatsapp.updateMany({
     where: { ...filtroEmpresa, status: "PROCESSANDO", messageSid: null, atualizadoEm: { lt: travado } },
@@ -289,6 +394,19 @@ export async function processarFilaWhatsapp(
         resultado.ignorados += 1;
         continue;
       }
+    }
+    const provedor = await provedorDaEmpresa(item.empresaId);
+    if (provedor === "EVOLUTION") {
+      await enviarPelaEvolution(item, regra.destino, agora, opcoes.evolution ?? clienteEvolutionPadrao(), resultado, avisadas);
+      continue;
+    }
+    if (!twilio) {
+      await marcar(item.id, {
+        status: "PENDENTE",
+        motivo: "provedor indisponível",
+        disponivelEm: new Date(agora.getTime() + 15 * 60 * 1000),
+      });
+      continue;
     }
     if (!conexao || conexao.senderStatus !== "ONLINE" || !conexao.senderTelefone || !template || !template.contentSid || template.status !== "APROVADO") {
       const venceuPrazo = agora.getTime() - item.criadoEm.getTime() > ESPERA_MAX_MS;

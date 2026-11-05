@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { mensagemLogSegura } from "./seguranca/redacao";
 import { ErroAplicacao } from "./erros";
 
 export function jsonOk(dados: unknown, status = 200) {
@@ -27,7 +28,7 @@ export function jsonErro(erro: unknown) {
       { status: erro.status },
     );
   }
-  console.error(erro);
+  console.error(mensagemLogSegura(erro));
   return NextResponse.json(
     { erro: "Não foi possível concluir a operação." },
     { status: 500 },

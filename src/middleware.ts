@@ -51,6 +51,7 @@ export async function middleware(request: NextRequest) {
     pathname === "/api/cadastro" ||
     pathname === "/api/webhooks/asaas" ||
     pathname === "/api/webhooks/twilio" ||
+    pathname === "/api/webhooks/evolution" ||
     pathname.startsWith("/api/webhooks/inter/") ||
     pathname === "/api/cron/regua" ||
     pathname === "/api/cron/visualizacoes" ||

@@ -112,6 +112,15 @@ export function decisaoOptOut(dados: { corpo: string; optOutType: string }): "PA
   return null;
 }
 
+export function textoDaCobrancaWhatsapp(tipo: TipoTemplateWhatsapp, variaveis: Record<string, string>): string {
+  const corpo = templateCobrancaWhatsapp(tipo).corpo;
+  return corpo
+    .replace(/\{\{([1-5])\}\}/g, (_, indice: string) => (variaveis[indice] ?? "").replace(/[{}]/g, "").trim())
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 1000);
+}
+
 export function variaveisDoTemplate(
   tipo: TipoTemplateWhatsapp,
   dados: { nome: string; valor: string; vencimento: string; link: string; dias?: string },

@@ -14,7 +14,7 @@ import {
   rotuloPassoRascunho,
   textoDiasDe,
 } from "@/lib/regua-rascunho";
-import type { ConfiguracaoReguaDTO, ConfiguracaoTwilioDTO, ReguaDTO } from "@/lib/tipos";
+import type { CanalWhatsappDTO, ConfiguracaoReguaDTO, ConfiguracaoTwilioDTO, ReguaDTO } from "@/lib/tipos";
 import { esquemaConfiguracaoRegua, mensagensDoZod } from "@/lib/validacao";
 import { LinhaDoTempoRegua } from "./linha-tempo-regua";
 import { PainelWhatsapp } from "./painel-whatsapp";
@@ -77,12 +77,14 @@ export function PainelRegua({
   config,
   reguas,
   whatsapp,
+  canal,
 }: {
   podeEditar: boolean;
   nomeEmpresa: string;
   config: ConfiguracaoReguaDTO;
   reguas: ReguaDTO[];
   whatsapp: ConfiguracaoTwilioDTO;
+  canal: CanalWhatsappDTO;
 }) {
   const router = useRouter();
   const [ativa, setAtiva] = useState(config.ativa);
@@ -369,7 +371,7 @@ export function PainelRegua({
         ) : null}
       </form>
 
-      <PainelWhatsapp podeEditar={podeEditar} nomeEmpresa={nomeEmpresa} inicial={whatsapp} />
+      <PainelWhatsapp podeEditar={podeEditar} nomeEmpresa={nomeEmpresa} inicial={whatsapp} canalInicial={canal} />
 
       <section className="mt-8 min-w-0 rounded-3xl border border-line bg-card p-6">
         <h2 className="font-display text-3xl">Réguas</h2>
