@@ -11,14 +11,24 @@ export type TemplateCobrancaWhatsapp = {
   variaveisExemplo: Record<string, string>;
 };
 
-// Textos UTILITY. A variável não fica no começo nem no fim: a Twilio/Meta recusam isso.
-// {{1}} nome, {{2}} valor, {{3}} vencimento, {{4}} link do Asaas.
-// No lembrete "vence em X dias", {{5}} é o X (quantidade de dias).
+// Textos UTILITY em pt_BR. A Meta recusa o corpo com o subcódigo 2388299
+// ("Leading or trailing parameters not allowed"): a variável não pode abrir nem
+// fechar o texto. A Twilio trata placeholder seguido só de pontuação, como
+// "{{4}}.", como variável no fim e exige palavras fixas depois.
+// https://www.twilio.com/docs/content/using-variables-with-content-api
+// Os números seguem a ordem em que aparecem. A revisão da Meta cita como erro
+// parâmetros fora de sequência, por exemplo {{1}}, {{2}}, {{5}}, {{4}}.
+// Nos três avisos de boleto, atraso e pagamento: {{1}} nome, {{2}} valor,
+// {{3}} vencimento, {{4}} link do Asaas.
+// Em VENCE_EM_DIAS: {{1}} nome, {{2}} valor, {{3}} dias, {{4}} vencimento, {{5}} link.
+// O sufixo _v2 troca o nome: a Meta bloqueia por cerca de 30 dias o nome de um template rejeitado.
+const FECHO_TEMPLATE = "Qualquer dúvida, responda esta mensagem.";
+
 export const TEMPLATES_COBRANCA_WHATSAPP: TemplateCobrancaWhatsapp[] = [
   {
     tipo: "BOLETO_GERADO",
-    nome: "taguaro_boleto_gerado",
-    corpo: "Olá, {{1}}. Seu boleto de {{2}}, com vencimento em {{3}}, foi gerado. Acesse o link do Asaas: {{4}}.",
+    nome: "taguaro_boleto_gerado_v2",
+    corpo: `Olá, {{1}}. Seu boleto de {{2}}, com vencimento em {{3}}, foi gerado. Acesse o link do Asaas: {{4}}. ${FECHO_TEMPLATE}`,
     variaveisExemplo: {
       "1": "Maria Exemplo",
       "2": "R$ 150,00",
@@ -28,20 +38,20 @@ export const TEMPLATES_COBRANCA_WHATSAPP: TemplateCobrancaWhatsapp[] = [
   },
   {
     tipo: "VENCE_EM_DIAS",
-    nome: "taguaro_vence_em_dias",
-    corpo: "Olá, {{1}}. Sua cobrança de {{2}} vence em {{5}} dias, na data {{3}}. Acesse o link do Asaas: {{4}}.",
+    nome: "taguaro_vence_em_dias_v2",
+    corpo: `Olá, {{1}}. Sua cobrança de {{2}} vence em {{3}} dias, na data {{4}}. Acesse o link do Asaas: {{5}}. ${FECHO_TEMPLATE}`,
     variaveisExemplo: {
       "1": "Maria Exemplo",
       "2": "R$ 150,00",
-      "3": "30/10/2026",
-      "4": "https://www.asaas.com/i/exemplo",
-      "5": "5",
+      "3": "5",
+      "4": "30/10/2026",
+      "5": "https://www.asaas.com/i/exemplo",
     },
   },
   {
     tipo: "VENCEU",
-    nome: "taguaro_venceu",
-    corpo: "Olá, {{1}}. A cobrança de {{2}}, com vencimento em {{3}}, está em atraso. Acesse o link do Asaas: {{4}}.",
+    nome: "taguaro_venceu_v2",
+    corpo: `Olá, {{1}}. A cobrança de {{2}}, com vencimento em {{3}}, está em atraso. Acesse o link do Asaas: {{4}}. ${FECHO_TEMPLATE}`,
     variaveisExemplo: {
       "1": "Maria Exemplo",
       "2": "R$ 150,00",
@@ -51,8 +61,8 @@ export const TEMPLATES_COBRANCA_WHATSAPP: TemplateCobrancaWhatsapp[] = [
   },
   {
     tipo: "PAGO",
-    nome: "taguaro_pago",
-    corpo: "Olá, {{1}}. Confirmamos o pagamento de {{2}} da cobrança com vencimento em {{3}}. O link do Asaas é {{4}}.",
+    nome: "taguaro_pago_v2",
+    corpo: `Olá, {{1}}. Confirmamos o pagamento de {{2}} da cobrança com vencimento em {{3}}. O link do Asaas é {{4}}. ${FECHO_TEMPLATE}`,
     variaveisExemplo: {
       "1": "Maria Exemplo",
       "2": "R$ 150,00",
@@ -118,16 +128,13 @@ export function variaveisDoTemplate(
 ): Record<string, string> | null {
   const link = dados.link.trim();
   if (!/^https?:\/\/\S+$/i.test(link) || link.length > 500) return null;
-  const base: Record<string, string> = {
-    "1": dados.nome.replace(/\s+/g, " ").trim().slice(0, 120) || "cliente",
-    "2": dados.valor.replace(/\s+/g, " ").trim().slice(0, 40) || "valor",
-    "3": dados.vencimento.replace(/\s+/g, " ").trim().slice(0, 20) || "vencimento",
-    "4": link,
-  };
+  const nome = dados.nome.replace(/\s+/g, " ").trim().slice(0, 120) || "cliente";
+  const valor = dados.valor.replace(/\s+/g, " ").trim().slice(0, 40) || "valor";
+  const vencimento = dados.vencimento.replace(/\s+/g, " ").trim().slice(0, 20) || "vencimento";
   if (tipo === "VENCE_EM_DIAS") {
     const dias = (dados.dias ?? "").replace(/\D/g, "").slice(0, 3);
     if (!dias) return null;
-    base["5"] = dias;
+    return { "1": nome, "2": valor, "3": dias, "4": vencimento, "5": link };
   }
-  return base;
+  return { "1": nome, "2": valor, "3": vencimento, "4": link };
 }

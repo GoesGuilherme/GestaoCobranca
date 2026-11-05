@@ -66,7 +66,7 @@ describe("cliente HTTP da Twilio", () => {
     expect(chamadas.filter((item) => item.url.endsWith("/Channels/Senders"))).toHaveLength(2);
 
     const template = await cliente.publicarTemplate(CONTA, {
-      nome: "taguaro_boleto_gerado",
+      nome: "taguaro_boleto_gerado_v2",
       idioma: "pt_BR",
       corpo: "Olá, {{1}}. Link {{4}}.",
       variaveisExemplo: { "1": "Ana", "4": "https://www.asaas.com/i/exemplo" },
