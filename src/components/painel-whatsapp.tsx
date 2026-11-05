@@ -91,7 +91,7 @@ export function PainelWhatsapp({
     <section id="whatsapp" className="mt-6 scroll-mt-24 rounded-3xl border border-line bg-card p-6">
       <h2 className="font-display text-3xl">WhatsApp</h2>
       <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
-        Cada empresa ganha uma subconta e um Sender na Twilio. O e-mail continua pela Resend. O WhatsApp sai no mesmo passo, se estiver marcado, usando template UTILITY. No modo teste nada vai para o cliente.
+        Cada empresa ganha uma subconta e um Sender na Twilio. O e-mail continua pela Resend. O WhatsApp sai no mesmo passo, se estiver marcado, usando template UTILITY. No modo teste nada vai para o cliente. Enquanto o Sender não fica online, o servidor pode usar o sandbox da Twilio, e mesmo assim só o número de teste recebe.
       </p>
       <p className="mt-3 flex flex-wrap items-center gap-2 text-sm">
         <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${estado.senderStatus === "ONLINE" ? "bg-leaf text-ok" : estado.senderStatus ? "bg-gold-soft text-gold-ink" : "bg-sand text-ink"}`} title={estado.senderStatus ?? "não conectado"}>

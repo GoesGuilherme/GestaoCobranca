@@ -35,8 +35,9 @@ import { esquemaAssessor, esquemaRespostaAssessor } from "@/lib/validacao";
 import { provedorAssessorPadrao } from "@/server/assessor/fabrica";
 import { criarFerramentasAssessor } from "@/server/assessor/ferramentas";
 import type { ProvedorAssessor } from "@/server/assessor/provedor";
-import type { ClienteTwilio } from "@/server/twilio/contrato";
-import { clienteTwilioPadrao, numeroTesteWhatsapp } from "@/server/twilio/fabrica";
+import type { ClienteTwilio, CredencialTwilio } from "@/server/twilio/contrato";
+import { clienteTwilioPadrao, credenciaisPaiTwilio, numeroTesteWhatsapp, urlWebhookTwilio } from "@/server/twilio/fabrica";
+import { REMETENTE_SANDBOX_WHATSAPP, usarSandboxWhatsapp } from "@/server/twilio/sandbox";
 import { lerEsquema } from "@/server/validar";
 import type { ConfiguracaoAssessorDTO, ConversaAssessorDTO, ConversaAssessorDetalhe } from "@/lib/tipos";
 
@@ -101,6 +102,59 @@ function limites(env: Ambiente) {
 
 function numeroTeste(env: Ambiente) {
   return digitosWhatsapp(numeroTesteWhatsapp(env) ?? "");
+}
+
+type LinhaTwilioEnvio = {
+  subaccountSid: string;
+  authTokenCifrado: string;
+  senderTelefone: string | null;
+  senderStatus: string;
+  webhookUrl: string;
+};
+
+function remetenteDe(telefone: string) {
+  if (telefone.startsWith("whatsapp:")) return telefone;
+  if (telefone.startsWith("+")) return `whatsapp:${telefone}`;
+  return `whatsapp:+${telefone}`;
+}
+
+// Sender ONLINE continua na subconta. O sandbox da conta pai só entra no modo
+// teste, e só enquanto esse Sender não está online.
+function canalAssessor(
+  twilioConfig: LinhaTwilioEnvio | null,
+  modoTeste: boolean,
+  env: Ambiente,
+): { conta: CredencialTwilio; de: string; statusCallback: string } | { erro: "offline" | "sandbox" | "token" } {
+  if (twilioConfig?.senderTelefone && twilioConfig.senderStatus === "ONLINE") {
+    try {
+      return {
+        conta: {
+          accountSid: twilioConfig.subaccountSid,
+          authToken: decifrarSegredoAsaas(twilioConfig.authTokenCifrado),
+        },
+        de: remetenteDe(twilioConfig.senderTelefone),
+        statusCallback: twilioConfig.webhookUrl,
+      };
+    } catch {
+      return { erro: "token" };
+    }
+  }
+  if (!usarSandboxWhatsapp(modoTeste, env)) return { erro: "offline" };
+  try {
+    return {
+      conta: credenciaisPaiTwilio(env),
+      de: REMETENTE_SANDBOX_WHATSAPP,
+      statusCallback: urlWebhookTwilio(env),
+    };
+  } catch {
+    return { erro: "sandbox" };
+  }
+}
+
+function sandboxSoNoTeste(de: string, destino: string | null, modoTeste: boolean, env: Ambiente) {
+  if (de !== REMETENTE_SANDBOX_WHATSAPP) return true;
+  const teste = numeroTeste(env);
+  return modoTeste && Boolean(teste) && destino === teste;
 }
 
 async function consumirLimite(empresaId: string, chave: string, agora: Date, maximo: number) {
@@ -227,30 +281,34 @@ export async function processarEntradaAssessor(
     const limpo = texto.replace(/\s+\n/g, "\n").trim().slice(0, 1500);
     if (!limpo) return false;
     const twilioConfig = await prisma.configuracaoTwilio.findUnique({ where: { empresaId: entrada.empresaId } });
-    if (!twilioConfig?.senderTelefone || twilioConfig.senderStatus !== "ONLINE") {
-      await anotar("Não enviei a resposta: o WhatsApp da empresa não está online.");
-      return false;
-    }
     const destino = modoTeste ? numeroTeste(env) : telefone;
     if (!destino || (modoTeste && destino !== telefone)) {
       await anotar("Não enviei a resposta: o modo teste só fala com TWILIO_WHATSAPP_TESTE.");
       return false;
     }
+    const canal = canalAssessor(twilioConfig, modoTeste, env);
+    if ("erro" in canal) {
+      const texto =
+        canal.erro === "sandbox"
+          ? "Não enviei a resposta: o sandbox da Twilio não está configurado."
+          : canal.erro === "token"
+            ? "Não enviei a resposta: o token da Twilio está ilegível."
+            : "Não enviei a resposta: o WhatsApp da empresa não está online.";
+      await anotar(texto);
+      return false;
+    }
+    if (!sandboxSoNoTeste(canal.de, destino, modoTeste, env)) {
+      await anotar("Não enviei a resposta: o sandbox só fala com TWILIO_WHATSAPP_TESTE.");
+      return false;
+    }
     const para = `whatsapp:+${destino}`;
-    const de = twilioConfig.senderTelefone.startsWith("+")
-      ? `whatsapp:${twilioConfig.senderTelefone}`
-      : `whatsapp:+${twilioConfig.senderTelefone}`;
     try {
-      const conta = {
-        accountSid: twilioConfig.subaccountSid,
-        authToken: decifrarSegredoAsaas(twilioConfig.authTokenCifrado),
-      };
       const twilio = opcoes.twilio ?? clienteTwilioPadrao(env);
-      const enviada = await twilio.enviarTexto(conta, {
-        de,
+      const enviada = await twilio.enviarTexto(canal.conta, {
+        de: canal.de,
         para,
         corpo: limpo,
-        statusCallback: twilioConfig.webhookUrl,
+        statusCallback: canal.statusCallback,
       });
       await prisma.mensagemAssessor.create({
         data: {
@@ -656,19 +714,29 @@ export async function responderConversa(autor: AutorEmpresa, conversaId: string,
     throw new ErroAplicacao("No modo teste a resposta só sai para TWILIO_WHATSAPP_TESTE.", 400, "modo_teste");
   }
   const twilioConfig = await prisma.configuracaoTwilio.findUnique({ where: { empresaId: autor.empresaId } });
-  if (!twilioConfig?.senderTelefone || twilioConfig.senderStatus !== "ONLINE") {
-    throw new ErroAplicacao("O WhatsApp da empresa ainda não está online.", 400, "whatsapp_offline");
-  }
   const destino = config?.modoTeste ? numeroTeste(env) : conversa.telefone;
   if (!destino) throw new ErroAplicacao("Defina TWILIO_WHATSAPP_TESTE para responder no modo teste.", 400, "modo_teste");
-  const de = twilioConfig.senderTelefone.startsWith("+")
-    ? `whatsapp:${twilioConfig.senderTelefone}`
-    : `whatsapp:+${twilioConfig.senderTelefone}`;
+  const modoTeste = config?.modoTeste === true;
+  const canal = canalAssessor(twilioConfig, modoTeste, env);
+  if ("erro" in canal) {
+    if (canal.erro === "sandbox") {
+      throw new ErroAplicacao("O sandbox da Twilio não está configurado no servidor.", 400, "whatsapp_offline");
+    }
+    if (canal.erro === "token") {
+      throw new ErroAplicacao("Não consegui ler o token da Twilio.", 400, "whatsapp_offline");
+    }
+    throw new ErroAplicacao("O WhatsApp da empresa ainda não está online.", 400, "whatsapp_offline");
+  }
+  if (!sandboxSoNoTeste(canal.de, destino, modoTeste, env)) {
+    throw new ErroAplicacao("No modo teste a resposta só sai para TWILIO_WHATSAPP_TESTE.", 400, "modo_teste");
+  }
   const twilio = opcoes.twilio ?? clienteTwilioPadrao(env);
-  const enviada = await twilio.enviarTexto(
-    { accountSid: twilioConfig.subaccountSid, authToken: decifrarSegredoAsaas(twilioConfig.authTokenCifrado) },
-    { de, para: `whatsapp:+${destino}`, corpo: dados.texto, statusCallback: twilioConfig.webhookUrl },
-  );
+  const enviada = await twilio.enviarTexto(canal.conta, {
+    de: canal.de,
+    para: `whatsapp:+${destino}`,
+    corpo: dados.texto,
+    statusCallback: canal.statusCallback,
+  });
   await prisma.mensagemAssessor.create({
     data: {
       empresaId: autor.empresaId,
