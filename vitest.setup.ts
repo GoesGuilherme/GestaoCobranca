@@ -14,6 +14,9 @@ url.pathname = "/gestaocobranca_test";
 process.env.DATABASE_URL = url.toString();
 process.env.DIRECT_URL = url.toString();
 process.env.AUTH_SECRET ??= "segredo-de-teste-com-32-caracteres-ok";
+delete process.env.TWILIO_SMS_ENABLED;
+delete process.env.TWILIO_SMS_FROM;
+delete process.env.TWILIO_SMS_TESTE;
 
 if (!process.env.DATABASE_URL.includes("/gestaocobranca_test")) {
   throw new Error("Os testes só podem usar o banco gestaocobranca_test.");

@@ -62,6 +62,16 @@ type FaturaComNomes = {
     rotulo: string;
     criadoEm: Date;
   }[];
+  filaSms?: {
+    id: string;
+    passoId: string | null;
+    status: string;
+    motivo: string | null;
+    destino: string | null;
+    modoTeste: boolean;
+    rotulo: string;
+    criadoEm: Date;
+  }[];
 };
 
 function statusLembrete(valor: string): StatusLembrete {
@@ -109,10 +119,30 @@ function paraFatura(fatura: FaturaComNomes, promessaPendente: PromessaPendenteDT
     email: fatura.cliente.email,
     reguaModo: modoRegua(fatura.cliente.reguaModo),
     reguaId: fatura.cliente.reguaId,
-    lembretes: [...(fatura.lembretes ?? []).map(paraLembrete), ...(fatura.filaWhatsapp ?? []).map(paraFilaWhatsapp)]
+    lembretes: [
+      ...(fatura.lembretes ?? []).map(paraLembrete),
+      ...(fatura.filaWhatsapp ?? []).map(paraFilaWhatsapp),
+      ...(fatura.filaSms ?? []).map(paraFilaSms),
+    ]
       .sort((a, b) => b.criadoEm.localeCompare(a.criadoEm))
       .slice(0, 20),
     promessaPendente,
+  };
+}
+
+function paraFilaSms(item: NonNullable<FaturaComNomes["filaSms"]>[number]): LembreteReguaDTO {
+  const status = item.status === "ENVIADO" || item.status === "FALHOU" || item.status === "IGNORADO" ? item.status : "NA_FILA";
+  return {
+    id: item.id,
+    passoId: item.passoId,
+    canal: "SMS",
+    status,
+    motivo: item.motivo,
+    destino: item.destino,
+    automatico: true,
+    modoTeste: item.modoTeste,
+    rotulo: item.rotulo,
+    criadoEm: item.criadoEm.toISOString(),
   };
 }
 
@@ -137,6 +167,7 @@ const includeNomes = {
   clienteServico: { select: { servico: { select: { nome: true } } } },
   lembretes: { orderBy: { criadoEm: "desc" as const }, take: 20 },
   filaWhatsapp: { orderBy: { criadoEm: "desc" as const }, take: 20 },
+  filaSms: { orderBy: { criadoEm: "desc" as const }, take: 20 },
 } as const;
 
 function modoRegua(valor: string): ModoReguaCliente {

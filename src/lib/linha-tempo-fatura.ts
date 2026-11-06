@@ -58,6 +58,7 @@ function passoParaLinha(passo: PassoDaRegua): PassoLinhaTempo {
     dias: passo.dias,
     assunto: passo.assunto ?? "",
     enviarWhatsapp: passo.enviarWhatsapp === true,
+    enviarSms: passo.enviarSms === true,
   };
 }
 
@@ -65,6 +66,7 @@ function canalDeEnvio(canal: string): CanalMarcador | null {
   const texto = canal.trim().toUpperCase();
   if (texto === "EMAIL") return "email";
   if (texto === "WHATSAPP") return "whatsapp";
+  if (texto === "SMS") return "sms";
   return null;
 }
 
@@ -91,7 +93,7 @@ function enviosPorPasso(envios: Pick<EnvioReguaLista, "passoId" | "canal" | "sta
   const resultado = new Map<string, EnvioEfetivo[]>();
   for (const [passoId, porCanal] of mapa) {
     const lista: EnvioEfetivo[] = [];
-    for (const canal of ["email", "whatsapp"] as const) {
+    for (const canal of ["email", "whatsapp", "sms"] as const) {
       if (!porCanal.has(canal)) continue;
       lista.push({ canal, enviadoEm: porCanal.get(canal) ?? null });
     }
@@ -146,14 +148,17 @@ function diaChegou(fase: FaseLinhaTempo, dias: number | null, vencimento: string
 }
 
 function nomeCanal(canal: CanalMarcador): string {
-  return canal === "email" ? "E-mail" : "WhatsApp";
+  if (canal === "email") return "E-mail";
+  if (canal === "whatsapp") return "WhatsApp";
+  return "SMS";
 }
 
 function textoCanais(canais: CanalMarcador[]): string {
   const nomes = canais.map(nomeCanal);
   if (nomes.length === 0) return "";
   if (nomes.length === 1) return nomes[0] ?? "";
-  return `${nomes[0]} e ${nomes[1]}`;
+  if (nomes.length === 2) return `${nomes[0]} e ${nomes[1]}`;
+  return `${nomes.slice(0, -1).join(", ")} e ${nomes[nomes.length - 1]}`;
 }
 
 function statusDoPasso(ocorrido: boolean, enviado: boolean, neutra: boolean): string {

@@ -1,5 +1,6 @@
 import { decifrarSegredoAsaas } from "@/lib/asaas-cripto";
 import { assinaturaTwilioValida } from "@/lib/twilio-assinatura";
+import { digitosTelefoneCobranca, numeroTesteSms } from "@/lib/sms-cobranca";
 import { decisaoOptOut, digitosWhatsapp } from "@/lib/whatsapp-cobranca";
 import { prisma } from "@/server/db";
 import { ErroAplicacao } from "@/server/erros";
@@ -21,8 +22,11 @@ function recusar() {
   throw new ErroAplicacao("Assinatura da Twilio recusada.", 403, "twilio_assinatura");
 }
 
-function contaPaiDoSandbox(accountSid: string) {
-  if (!sandboxWhatsappLigado()) return null;
+function canalWhatsapp(de: string | null, para: string | null) {
+  return (de ?? "").toLowerCase().startsWith("whatsapp:") || (para ?? "").toLowerCase().startsWith("whatsapp:");
+}
+
+function credencialPaiSeConfere(accountSid: string) {
   try {
     const pai = credenciaisPaiTwilio();
     if (pai.accountSid !== accountSid) return null;
@@ -30,6 +34,44 @@ function contaPaiDoSandbox(accountSid: string) {
   } catch {
     return null;
   }
+}
+
+async function registrarStatusSms(dados: {
+  messageSid: string;
+  messageStatus: string;
+  errorCode: string | null;
+}) {
+  const fila = await prisma.filaSms.findFirst({ where: { messageSid: dados.messageSid } });
+  if (!fila?.modoTeste) return { recebido: true, duplicado: false };
+  if (dados.messageStatus === "failed" || dados.messageStatus === "undelivered") {
+    await prisma.filaSms.updateMany({
+      where: { id: fila.id, empresaId: fila.empresaId },
+      data: { status: "FALHOU", motivo: `Twilio ${dados.errorCode ?? dados.messageStatus}`.slice(0, 180) },
+    });
+  }
+  return { recebido: true, duplicado: false };
+}
+
+async function registrarPararSms(dados: { de: string | null; corpo: string | null; optOutType: string }) {
+  const digitos = digitosTelefoneCobranca(dados.de ?? "");
+  const teste = digitosTelefoneCobranca(numeroTesteSms() ?? "");
+  const decisao = decisaoOptOut({ corpo: dados.corpo ?? "", optOutType: dados.optOutType });
+  if (!digitos || !teste || digitos !== teste || decisao !== "PARAR") {
+    return { recebido: true, duplicado: false };
+  }
+  const empresas = await prisma.filaSms.findMany({
+    where: { modoTeste: true, destino: numeroTesteSms() },
+    select: { empresaId: true },
+    distinct: ["empresaId"],
+  });
+  for (const empresa of empresas) {
+    await prisma.optOutWhatsapp.upsert({
+      where: { empresaId_telefone: { empresaId: empresa.empresaId, telefone: digitos } },
+      create: { empresaId: empresa.empresaId, telefone: digitos, ativo: true, origem: "SMS" },
+      update: { ativo: true, origem: "SMS" },
+    });
+  }
+  return { recebido: true, duplicado: false };
 }
 
 async function registrarStatus(empresaId: string, dados: {
@@ -178,7 +220,7 @@ export async function processarWebhookTwilio(dados: {
     return registrarEntrada(config.empresaId, evento);
   }
 
-  const pai = contaPaiDoSandbox(accountSid);
+  const pai = credencialPaiSeConfere(accountSid);
   if (!pai || !assinaturaTwilioValida({
     url: pai.webhookUrl,
     parametros: dados.parametros,
@@ -189,6 +231,15 @@ export async function processarWebhookTwilio(dados: {
   }
 
   const evento = eventoAutenticado(dados.parametros);
+  if (!canalWhatsapp(evento.de, evento.para)) {
+    if (!evento.inbound && evento.messageStatus) {
+      return registrarStatusSms({ ...evento, messageStatus: evento.messageStatus });
+    }
+    return registrarPararSms(evento);
+  }
+
+  if (!sandboxWhatsappLigado()) recusar();
+
   if (!evento.inbound && evento.messageStatus) {
     const fila = await prisma.filaWhatsapp.findFirst({ where: { messageSid: evento.messageSid } });
     if (!fila?.modoTeste) return { recebido: true, duplicado: false };

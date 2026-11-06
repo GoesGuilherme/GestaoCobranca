@@ -39,6 +39,7 @@ type LinhaPasso = {
   assunto: string;
   corpo: string;
   enviarWhatsapp: boolean;
+  enviarSms: boolean;
 };
 
 type LinhaRegua = {
@@ -72,6 +73,7 @@ function paraPasso(passo: LinhaPasso): PassoReguaDTO {
     corpo: passo.corpo,
     rotulo: rotuloPasso(passo),
     enviarWhatsapp: passo.enviarWhatsapp,
+    enviarSms: passo.enviarSms,
   };
 }
 
@@ -226,7 +228,7 @@ async function gravarPassos(
   },
   empresaId: string,
   reguaId: string,
-  passos: { id?: string; naEmissao: boolean; dias: number | null; assunto: string; corpo: string; enviarWhatsapp?: boolean }[],
+  passos: { id?: string; naEmissao: boolean; dias: number | null; assunto: string; corpo: string; enviarWhatsapp?: boolean; enviarSms?: boolean }[],
 ) {
   const ids = passos.flatMap((passo) => (passo.id ? [passo.id] : []));
   await tx.passoRegua.deleteMany({
@@ -242,6 +244,7 @@ async function gravarPassos(
       assunto: passo.assunto,
       corpo: passo.corpo,
       enviarWhatsapp: passo.enviarWhatsapp === true,
+      enviarSms: passo.enviarSms === true,
     };
     if (passo.id) {
       const atualizado = await tx.passoRegua.updateMany({

@@ -12,6 +12,7 @@ function passo(parcial: Partial<PassoLinhaTempo> & Pick<PassoLinhaTempo, "naEmis
   return {
     assunto: "Modelo",
     enviarWhatsapp: false,
+    enviarSms: false,
     ...parcial,
   };
 }
@@ -132,6 +133,14 @@ describe("marcadores da linha do tempo", () => {
     ]);
     expect(marcadores[4]?.dica).toBe("2 dias antes do vencimento · E-mail · Terceiro");
     expect(marcadores[3]?.dica).toBe("2 dias antes do vencimento · E-mail · Segundo");
+  });
+
+  it("lista SMS junto com e-mail e WhatsApp", () => {
+    const marcadores = marcadoresDaLinhaTempo([
+      passo({ id: "aviso", naEmissao: false, dias: -3, assunto: "Três antes", enviarWhatsapp: true, enviarSms: true }),
+    ]);
+    expect(marcadores[0]?.canais).toEqual(["email", "whatsapp", "sms"]);
+    expect(marcadores[0]?.dica).toBe("3 dias antes do vencimento · E-mail, WhatsApp e SMS · Três antes");
   });
 
   it("ainda fecha com Pago quando a régua não tem passos válidos", () => {

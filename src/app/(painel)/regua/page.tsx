@@ -24,7 +24,7 @@ export default async function PaginaRegua() {
       <CabecalhoPagina
         olho={acesso.nomeEmpresa}
         titulo="Régua de cobrança"
-        descricao="Cada empresa monta as próprias réguas. O cliente pode usar a padrão, outra régua, nenhuma, ou ficar pausado. O e-mail sai pela Resend e o WhatsApp, se marcado no passo, pela Twilio."
+        descricao="Cada empresa monta as próprias réguas. O cliente pode usar a padrão, outra régua, nenhuma, ou ficar pausado. O e-mail sai pela Resend. WhatsApp e SMS, se marcados no passo, saem pela mesma conta Twilio. O SMS nasce desligado no servidor e, mesmo ligado, só vai para o número de teste."
       />
       <PainelRegua
         podeEditar={podeConfigurarRegua(acesso.papel)}

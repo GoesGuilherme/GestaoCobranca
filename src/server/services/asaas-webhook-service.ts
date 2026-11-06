@@ -9,6 +9,7 @@ import { provedorDaEmpresa } from "@/server/pagamentos/fabrica";
 import { normalizarWebhookAsaas, sinalAsaasConfirmaPagamento } from "@/server/pagamentos/webhook-asaas";
 import { espelharPagamentoAsaas } from "./asaas-pagamento";
 import { conciliarPromessas } from "./promessa-service";
+import { enfileirarPagoSms } from "./sms-fila";
 import { enfileirarPagoWhatsapp } from "./whatsapp-fila";
 
 function brutoJson(valor: unknown): Prisma.InputJsonValue | undefined {
@@ -98,7 +99,9 @@ export async function aplicarPagamentoAsaas(
   });
   if (!fatura) return efeito;
   const regua = await tx.configuracaoRegua.findUnique({ where: { empresaId } });
-  await enfileirarPagoWhatsapp(tx, fatura, regua?.modoTeste ?? true);
+  const modoTeste = regua?.modoTeste ?? true;
+  await enfileirarPagoWhatsapp(tx, fatura, modoTeste);
+  await enfileirarPagoSms(tx, fatura, modoTeste);
   return efeito;
 }
 

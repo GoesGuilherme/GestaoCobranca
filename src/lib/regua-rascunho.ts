@@ -18,6 +18,7 @@ export type PassoRascunho = {
   assunto: string;
   corpo: string;
   enviarWhatsapp: boolean;
+  enviarSms: boolean;
 };
 
 export type ReguaRascunho = {
@@ -37,6 +38,7 @@ export type PassoParaSalvar = {
   assunto: string;
   corpo: string;
   enviarWhatsapp: boolean;
+  enviarSms: boolean;
 };
 
 export type ReguaParaSalvar = {
@@ -89,6 +91,7 @@ export function montarReguaParaSalvar(
         assunto: passo.assunto,
         corpo: passo.corpo,
         enviarWhatsapp: passo.enviarWhatsapp,
+        enviarSms: passo.enviarSms,
       });
       continue;
     }
@@ -104,6 +107,7 @@ export function montarReguaParaSalvar(
       assunto: passo.assunto,
       corpo: passo.corpo,
       enviarWhatsapp: passo.enviarWhatsapp,
+      enviarSms: passo.enviarSms,
     });
   }
 

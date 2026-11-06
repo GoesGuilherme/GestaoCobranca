@@ -5,7 +5,7 @@ export const VERDE_LINHA_TEMPO = "#146c43";
 
 export type FaseLinhaTempo = "emissao" | "antes" | "noDia" | "depois" | "pago";
 
-export type CanalMarcador = "email" | "whatsapp";
+export type CanalMarcador = "email" | "whatsapp" | "sms";
 
 export type CoresFase = {
   marca: string;
@@ -54,6 +54,7 @@ export type PassoLinhaTempo = {
   dias: number | string | null;
   assunto: string;
   enviarWhatsapp: boolean;
+  enviarSms?: boolean;
 };
 
 export type MarcadorLinhaTempo = {
@@ -103,11 +104,21 @@ export function textoQuandoMarcador(fase: FaseLinhaTempo, dias: number | null): 
   return `${quantidade} ${unidade} depois do vencimento`;
 }
 
-function textoCanais(canais: CanalMarcador[]): string {
-  const nomes = canais.map((canal) => (canal === "email" ? "E-mail" : "WhatsApp"));
+function nomeCanal(canal: CanalMarcador): string {
+  if (canal === "email") return "E-mail";
+  if (canal === "whatsapp") return "WhatsApp";
+  return "SMS";
+}
+
+function juntarNomes(nomes: string[]): string {
   if (nomes.length === 0) return "";
   if (nomes.length === 1) return nomes[0] ?? "";
-  return `${nomes[0]} e ${nomes[1]}`;
+  if (nomes.length === 2) return `${nomes[0]} e ${nomes[1]}`;
+  return `${nomes.slice(0, -1).join(", ")} e ${nomes[nomes.length - 1]}`;
+}
+
+function textoCanais(canais: CanalMarcador[]): string {
+  return juntarNomes(canais.map(nomeCanal));
 }
 
 function dicaMarcador(fase: FaseLinhaTempo, dias: number | null, canais: CanalMarcador[], assunto: string): string {
@@ -119,6 +130,7 @@ function dicaMarcador(fase: FaseLinhaTempo, dias: number | null, canais: CanalMa
 function canaisDoPasso(passo: PassoLinhaTempo): CanalMarcador[] {
   const canais: CanalMarcador[] = ["email"];
   if (passo.enviarWhatsapp) canais.push("whatsapp");
+  if (passo.enviarSms) canais.push("sms");
   return canais;
 }
 

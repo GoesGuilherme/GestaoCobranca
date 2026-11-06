@@ -22,6 +22,7 @@ import { clienteResendPadrao, remetenteResend, type ClienteResend } from "@/serv
 import type { ClienteTwilio } from "@/server/twilio/contrato";
 import { clienteTwilioPadrao } from "@/server/twilio/fabrica";
 import { conciliarPromessas, faturaIdsComPromessaAtiva } from "@/server/services/promessa-service";
+import { enfileirarSmsDoPasso, processarFilaSms } from "@/server/services/sms-fila";
 import { enfileirarWhatsappDoPasso, processarFilaWhatsapp } from "@/server/services/whatsapp-fila";
 
 const ABERTAS_POR_PROVEDOR = PROVEDORES_PAGAMENTO.flatMap((provedor) =>
@@ -36,6 +37,10 @@ export type ResultadoRegua = {
   whatsappIgnorados: number;
   whatsappEnviados: number;
   whatsappFalhas: number;
+  smsEnfileirados: number;
+  smsIgnorados: number;
+  smsEnviados: number;
+  smsFalhas: number;
 };
 
 function chaveOuNula(cifra: string | null): { chave: string | null; motivo: string | null } {
@@ -65,6 +70,10 @@ export async function executarRegua(
     whatsappIgnorados: 0,
     whatsappEnviados: 0,
     whatsappFalhas: 0,
+    smsEnfileirados: 0,
+    smsIgnorados: 0,
+    smsEnviados: 0,
+    smsFalhas: 0,
   };
 
   await conciliarPromessas(opcoes.empresaId ?? null, hoje);
@@ -141,7 +150,7 @@ export async function executarRegua(
       const emissao = dataSaoPaulo(fatura.criadoEm);
 
       for (const passo of regua.passos) {
-        if (passo.canal !== "EMAIL" && !passo.enviarWhatsapp) continue;
+        if (passo.canal !== "EMAIL" && !passo.enviarWhatsapp && !passo.enviarSms) continue;
         const alvo = passo.naEmissao ? emissao : somarDias(vencimento, passo.dias ?? 0);
         if (!passoCombina(hoje, alvo, regua.enviarFimDeSemana)) continue;
 
@@ -176,6 +185,10 @@ export async function executarRegua(
           if (passo.enviarWhatsapp) {
             const fila = await enfileirarWhatsappDoPasso(fatura, passo, config.modoTeste, agora);
             if (fila === "ignorado") resultado.whatsappIgnorados += 1;
+          }
+          if (passo.enviarSms) {
+            const filaSms = await enfileirarSmsDoPasso(fatura, passo, config.modoTeste, nomeEmpresa, agora);
+            if (filaSms === "ignorado") resultado.smsIgnorados += 1;
           }
           continue;
         }
@@ -253,6 +266,11 @@ export async function executarRegua(
           if (fila === "enfileirado") resultado.whatsappEnfileirados += 1;
           if (fila === "ignorado") resultado.whatsappIgnorados += 1;
         }
+        if (passo.enviarSms) {
+          const filaSms = await enfileirarSmsDoPasso(fatura, passo, config.modoTeste, nomeEmpresa, agora);
+          if (filaSms === "enfileirado") resultado.smsEnfileirados += 1;
+          if (filaSms === "ignorado") resultado.smsIgnorados += 1;
+        }
       }
     }
   }
@@ -261,6 +279,11 @@ export async function executarRegua(
   resultado.whatsappEnviados = fila.enviados;
   resultado.whatsappFalhas = fila.falhas;
   resultado.whatsappIgnorados += fila.ignorados;
+
+  const sms = await processarFilaSms({ agora, empresaId: opcoes.empresaId, twilio });
+  resultado.smsEnviados = sms.enviados;
+  resultado.smsFalhas = sms.falhas;
+  resultado.smsIgnorados += sms.ignorados;
 
   return resultado;
 }

@@ -19,6 +19,7 @@ function rotuloStatus(status: StatusLembrete) {
 function rotuloCanal(canal: string) {
   if (canal === "EMAIL") return "E-mail";
   if (canal === "WHATSAPP") return "WhatsApp";
+  if (canal === "SMS") return "SMS";
   return canal;
 }
 
