@@ -17,6 +17,7 @@ function rascunho(parcial: Partial<ReguaRascunho> & { dias?: string; naEmissao?:
         assunto: "Sua cobrança vence hoje",
         corpo: "Olá, {cliente}.",
         enviarWhatsapp: false,
+        enviarSms: false,
       },
     ],
     ...resto,

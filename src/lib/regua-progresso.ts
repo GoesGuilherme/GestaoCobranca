@@ -5,6 +5,7 @@ export type PassoDaRegua = {
   dias: number | null;
   assunto?: string;
   enviarWhatsapp?: boolean;
+  enviarSms?: boolean;
 };
 
 export type ReguaParaProgresso = {

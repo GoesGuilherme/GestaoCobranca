@@ -34,6 +34,12 @@ export async function listarEnviosRegua(empresaId: string, faturaIds: string[]):
     WHERE empresa_id = ${empresaId}
       AND status = 'ENVIADO'
       AND fatura_id IN (${Prisma.join(faturaIds)})
+    UNION ALL
+    SELECT fatura_id, passo_id, 'SMS', atualizado_em AS enviado_em
+    FROM fila_sms
+    WHERE empresa_id = ${empresaId}
+      AND status = 'ENVIADO'
+      AND fatura_id IN (${Prisma.join(faturaIds)})
   `;
   return linhas.map((linha) => ({
     faturaId: linha.fatura_id,

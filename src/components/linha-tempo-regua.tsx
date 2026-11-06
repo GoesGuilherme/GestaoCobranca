@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Mail } from "lucide-react";
+import { Check, Mail, MessageSquare } from "lucide-react";
 import { useState } from "react";
 import {
   COR_FASE_LINHA_TEMPO,
@@ -118,6 +118,7 @@ export function LinhaDoTempoRegua({
                     <div className="mt-1.5 flex h-5 items-center justify-center gap-1.5" style={{ color: cor.apoio }}>
                       {marcador.canais.includes("email") ? <Mail className="size-5" strokeWidth={1.75} aria-hidden /> : null}
                       {marcador.canais.includes("whatsapp") ? <IconeWhatsapp className="size-5" /> : null}
+                      {marcador.canais.includes("sms") ? <MessageSquare className="size-5" strokeWidth={1.75} aria-hidden /> : null}
                     </div>
                   </li>
                 );

@@ -153,6 +153,7 @@ model Empresa {
   configuracaoTwilio ConfiguracaoTwilio?
   templatesWhatsapp  TemplateWhatsapp[]
   filaWhatsapp       FilaWhatsapp[]
+  filaSms            FilaSms[]
   eventosWhatsapp    EventoWhatsapp[]
   optoutsWhatsapp    OptOutWhatsapp[]
   configuracaoAssessor ConfiguracaoAssessor?
@@ -249,6 +250,7 @@ model Cliente {
   faturas         Fatura[]
   lembretesRegua  LembreteRegua[]
   filaWhatsapp    FilaWhatsapp[]
+  filaSms         FilaSms[]
   conversasAssessor ConversaAssessor[]
   pedidosAtendimento PedidoAtendimento[]
   promessas          PromessaPagamento[]
@@ -456,6 +458,7 @@ model Fatura {
   clienteServico   ClienteServico? @relation(fields: [clienteServicoId], references: [id], onDelete: SetNull)
   lembretes        LembreteRegua[]
   filaWhatsapp     FilaWhatsapp[]
+  filaSms          FilaSms[]
   promessas        PromessaPagamento[]
 
   @@unique([empresaId, asaasPaymentId])
@@ -577,12 +580,14 @@ model PassoRegua {
   assunto    String
   corpo      String   @db.Text
   enviarWhatsapp Boolean @default(false) @map("enviar_whatsapp")
+  enviarSms  Boolean @default(false) @map("enviar_sms")
   criadoEm   DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
   atualizadoEm DateTime @updatedAt @map("atualizado_em") @db.Timestamptz(3)
   regua      ReguaCobranca @relation(fields: [reguaId], references: [id], onDelete: Cascade)
   empresa    Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   lembretes  LembreteRegua[]
   filaWhatsapp FilaWhatsapp[]
+  filaSms    FilaSms[]
 
   @@index([reguaId, ordem])
   @@index([empresaId])
@@ -693,6 +698,40 @@ model FilaWhatsapp {
   @@index([empresaId])
   @@index([messageSid])
   @@map("fila_whatsapp")
+}
+
+// Fila do SMS da régua. A mesma conta Twilio do WhatsApp, pela API Messages
+// (Body), sem template da Meta. O destino gravado, quando existe, é só o
+// número de teste. O telefone do cliente nunca entra aqui como To.
+model FilaSms {
+  id                String   @id @default(cuid())
+  empresaId         String   @map("empresa_id")
+  faturaId          String   @map("fatura_id")
+  clienteId         String   @map("cliente_id")
+  passoId           String?  @map("passo_id")
+  tipo              String
+  chaveIdempotencia String   @unique @map("chave_idempotencia")
+  status            String
+  destino           String?
+  messageSid        String?  @map("message_sid")
+  tentativas        Int      @default(0)
+  disponivelEm      DateTime @map("disponivel_em") @db.Timestamptz(3)
+  motivo            String?
+  modoTeste         Boolean  @map("modo_teste")
+  rotulo            String
+  corpo             String   @default("") @db.Text
+  criadoEm          DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm      DateTime @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  empresa           Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  fatura            Fatura   @relation(fields: [faturaId], references: [id], onDelete: Cascade)
+  cliente           Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  passo             PassoRegua? @relation(fields: [passoId], references: [id], onDelete: SetNull)
+
+  @@index([status, disponivelEm])
+  @@index([faturaId, criadoEm])
+  @@index([empresaId])
+  @@index([messageSid])
+  @@map("fila_sms")
 }
 
 // Histórico de status e de mensagens recebidas. O índice único torna o webhook idempotente.

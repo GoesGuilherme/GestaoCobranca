@@ -6,6 +6,8 @@ import { valoresAposSalvar } from "@/lib/apos-salvar";
 import { enviarJson } from "@/lib/api-cliente";
 import { inteiroDeCampo, textoHoraPermitido, textoInteiroPermitido } from "@/lib/inteiro-campo";
 import { AMOSTRA_REGUA, textoRegua } from "@/lib/regua";
+import { montarMensagemSms } from "@/lib/sms-cobranca";
+import { tipoTemplateDoPasso } from "@/lib/whatsapp-cobranca";
 import {
   MENSAGEM_DIAS_REGUA,
   MENSAGEM_HORA_REGUA,
@@ -30,6 +32,7 @@ type PassoEditavel = {
   assunto: string;
   corpo: string;
   enviarWhatsapp: boolean;
+  enviarSms: boolean;
 };
 
 type Rascunho = {
@@ -57,6 +60,7 @@ function rascunhoDe(regua: ReguaDTO): Rascunho {
       assunto: passo.assunto,
       corpo: passo.corpo,
       enviarWhatsapp: passo.enviarWhatsapp,
+      enviarSms: passo.enviarSms,
     })),
   };
 }
@@ -68,6 +72,7 @@ function passoNovo(): PassoEditavel {
     assunto: "Sua cobrança vence hoje",
     corpo: "Olá, {cliente}. A cobrança de {servico}, no valor de {valor}, vence em {vencimento}: {link}",
     enviarWhatsapp: false,
+    enviarSms: false,
   };
 }
 
@@ -311,6 +316,20 @@ export function PainelRegua({
     return textoRegua(passo.corpo, { ...AMOSTRA_REGUA, empresa: nomeEmpresa });
   }, [passo, nomeEmpresa]);
   const previaAssunto = passo ? textoRegua(passo.assunto, { ...AMOSTRA_REGUA, empresa: nomeEmpresa }) : "";
+  const previaSms = useMemo(() => {
+    if (!passo?.enviarSms) return "";
+    const dias = passo.naEmissao ? null : inteiroDeCampo(passo.dias);
+    if (!passo.naEmissao && dias === null) return "";
+    const tipo = tipoTemplateDoPasso({ naEmissao: passo.naEmissao, dias });
+    return montarMensagemSms(tipo, {
+      empresa: nomeEmpresa || "Sua empresa",
+      nome: AMOSTRA_REGUA.cliente,
+      valor: AMOSTRA_REGUA.valor,
+      vencimento: AMOSTRA_REGUA.vencimento,
+      link: AMOSTRA_REGUA.link,
+      dias: String(Math.abs(dias ?? 0)),
+    }) ?? "";
+  }, [passo, nomeEmpresa]);
 
   return (
     <>
@@ -579,6 +598,19 @@ export function PainelRegua({
                   />
                   Também enviar por WhatsApp, no mesmo dia deste passo
                 </label>
+                <label className="flex items-center gap-2 text-sm md:col-span-2">
+                  <input
+                    id="passo-sms"
+                    type="checkbox"
+                    checked={passo.enviarSms}
+                    disabled={!podeEditar}
+                    onChange={(evento) => atualizarPasso(passoAberto, { enviarSms: evento.target.checked })}
+                  />
+                  Também enviar por SMS, no mesmo dia deste passo
+                </label>
+                <p className="text-sm text-muted md:col-span-2">
+                  O SMS usa o telefone já cadastrado do cliente. No servidor ele nasce desligado. Mesmo ligado, só o número de teste recebe. Esta tela não dispara a mensagem.
+                </p>
                 <Campo label="Assunto" htmlFor="passo-assunto" erro={campos[`assunto-${passoAberto}`]}>
                   <input id="passo-assunto" className={classeCampo} disabled={!podeEditar} value={passo.assunto} onChange={(evento) => atualizarPasso(passoAberto, { assunto: evento.target.value })} />
                 </Campo>
@@ -591,6 +623,12 @@ export function PainelRegua({
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted">Prévia</p>
                   <p id="passo-preview-assunto" className="mt-2 text-sm font-medium">{previaAssunto}</p>
                   <p id="passo-preview" className="mt-2 whitespace-pre-wrap text-sm">{previa}</p>
+                  {passo.enviarSms && previaSms ? (
+                    <div className="mt-4 border-t border-line pt-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted">Prévia do SMS</p>
+                      <p id="passo-preview-sms" className="mt-2 whitespace-pre-wrap text-sm">{previaSms}</p>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             ) : (

@@ -305,6 +305,7 @@ export type PassoReguaDTO = {
   corpo: string;
   rotulo: string;
   enviarWhatsapp: boolean;
+  enviarSms: boolean;
 };
 
 export type CoexistenciaTwilioDTO = "NAO_SOLICITADA" | "SOLICITADA" | "ATIVA" | "INDISPONIVEL";
