@@ -4,6 +4,10 @@ import { TIPOS_TEMPLATE_WHATSAPP, type TipoTemplateWhatsapp } from "@/lib/whatsa
 // com a credencial da conta pai: o sandbox só existe nesse número.
 export const REMETENTE_SANDBOX_WHATSAPP = "whatsapp:+14155238886";
 
+// Sender de WhatsApp já Online na conta pai. Não é o número do sandbox.
+// A flag abaixo é o único jeito de a régua usá-lo, e só no modo teste.
+export const REMETENTE_OFICIAL_WHATSAPP = "whatsapp:+16504762069";
+
 const SID_CONTEUDO = /^HX[0-9a-fA-F]{32}$/;
 
 type AmbienteSandbox = Record<string, string | undefined>;
@@ -33,6 +37,17 @@ export function sandboxWhatsappLigado(env: AmbienteSandbox = process.env) {
 // O sandbox nunca substitui o Sender ONLINE e nunca vale fora do modo teste.
 export function usarSandboxWhatsapp(modoTeste: boolean, env: AmbienteSandbox = process.env) {
   return modoTeste && sandboxWhatsappLigado(env);
+}
+
+// Liga o teste controlado do Sender da conta pai. Qualquer valor que não seja
+// "true" fica desligado. Fora do modo teste a função é falsa: a flag não
+// autoriza envio para cliente nem troca o Sender da subconta.
+export function remetenteOficialTesteLigado(env: AmbienteSandbox = process.env) {
+  return ligadoPelaFlag(env.TWILIO_WHATSAPP_SENDER_OFICIAL);
+}
+
+export function usarRemetenteOficialTeste(modoTeste: boolean, env: AmbienteSandbox = process.env) {
+  return modoTeste && remetenteOficialTesteLigado(env);
 }
 
 // ContentSid criado na conta pai. O da subconta não serve no sandbox.

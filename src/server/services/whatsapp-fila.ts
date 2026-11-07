@@ -5,16 +5,24 @@ import {
   digitosWhatsapp,
   rotuloTemplateWhatsapp,
   tipoTemplateDoPasso,
+  variaveisCompativeisComTemplate,
   variaveisDoTemplate,
   whatsappE164,
   type TipoTemplateWhatsapp,
 } from "@/lib/whatsapp-cobranca";
+import { provedorCodigo, statusEh } from "@/lib/status-pagamento";
 import { sinalAsaasConfirmaPagamento } from "@/server/pagamentos/webhook-asaas";
 import { prisma } from "@/server/db";
 import { ErroTwilio } from "@/server/twilio/contrato";
 import type { ClienteTwilio, CredencialTwilio, MensagemTemplate } from "@/server/twilio/contrato";
 import { credenciaisPaiTwilio, numeroTesteWhatsapp, urlWebhookTwilio } from "@/server/twilio/fabrica";
-import { contentSidSandbox, REMETENTE_SANDBOX_WHATSAPP, usarSandboxWhatsapp } from "@/server/twilio/sandbox";
+import {
+  contentSidSandbox,
+  REMETENTE_OFICIAL_WHATSAPP,
+  REMETENTE_SANDBOX_WHATSAPP,
+  usarRemetenteOficialTeste,
+  usarSandboxWhatsapp,
+} from "@/server/twilio/sandbox";
 import { decifrarSegredoAsaas } from "@/lib/asaas-cripto";
 import { conciliarPromessas } from "@/server/services/promessa-service";
 
@@ -129,7 +137,7 @@ async function montar(
   agora: Date,
 ): Promise<DadosFila> {
   const conexao = await db.configuracaoTwilio.findUnique({ where: { empresaId: fatura.empresaId } });
-  const sandbox = usarSandboxWhatsapp(modoTeste);
+  const canalPai = usarSandboxWhatsapp(modoTeste) || usarRemetenteOficialTeste(modoTeste);
   const base = {
     empresaId: fatura.empresaId,
     faturaId: fatura.id,
@@ -141,10 +149,10 @@ async function montar(
     rotulo: rotuloTemplateWhatsapp(tipo, dias),
     disponivelEm: agora,
   };
-  if (!conexao && !sandbox) {
+  if (!conexao && !canalPai) {
     return { ...base, status: "IGNORADO", destino: null, motivo: "WhatsApp não conectado", variaveis: "{}" };
   }
-  if (conexao && conexao.senderStatus !== "ONLINE" && !sandbox) {
+  if (conexao && conexao.senderStatus !== "ONLINE" && !canalPai) {
     return { ...base, status: "IGNORADO", destino: null, motivo: "sender ainda não está online", variaveis: "{}" };
   }
   const regra = await destinoEMotivo(db, fatura.empresaId, fatura.cliente, modoTeste);
@@ -194,6 +202,18 @@ export async function enfileirarPagoWhatsapp(
 ): Promise<ResultadoFila> {
   if (fatura.excluida) return "nao_aplica";
   return gravar(db, await montar(db, fatura, "PAGO", null, null, modoTeste, agora));
+}
+
+function motivoInelegivel(
+  tipo: string,
+  fatura: { status: string; excluida: boolean; provedor: string },
+): string | null {
+  if (fatura.excluida) return "fatura excluída";
+  const provedor = provedorCodigo(fatura.provedor);
+  if (tipo === "PAGO") return statusEh(fatura.status, "PAGO", provedor) ? null : "fatura não está paga";
+  if (statusEh(fatura.status, "REGUA_ABERTA", provedor)) return null;
+  if (statusEh(fatura.status, "PAGO", provedor)) return "fatura paga";
+  return "fatura não está em aberto";
 }
 
 function variaveisGravadas(texto: string): Record<string, string> | null {
@@ -317,6 +337,17 @@ export async function processarFilaWhatsapp(
       continue;
     }
 
+    const inelegivel = motivoInelegivel(item.tipo, {
+      status: item.fatura.status,
+      excluida: item.fatura.excluida,
+      provedor: item.fatura.provedor,
+    });
+    if (inelegivel) {
+      await marcar(item.id, { status: "IGNORADO", motivo: inelegivel, destino: null });
+      resultado.ignorados += 1;
+      continue;
+    }
+
     const [conexao, regua, template] = await Promise.all([
       prisma.configuracaoTwilio.findUnique({ where: { empresaId: item.empresaId } }),
       prisma.configuracaoRegua.findUnique({ where: { empresaId: item.empresaId } }),
@@ -347,8 +378,11 @@ export async function processarFilaWhatsapp(
         template?.contentSid &&
         template.status === "APROVADO",
     );
-    const sandbox = usarSandboxWhatsapp(modoTeste) && !producaoPronta;
-    if (!producaoPronta && !sandbox) {
+    // No modo teste a flag do Sender oficial usa a conta pai, mesmo com subconta
+    // ONLINE. Fora do modo teste a flag não entra e a subconta segue como está.
+    const oficial = usarRemetenteOficialTeste(modoTeste);
+    const sandbox = usarSandboxWhatsapp(modoTeste) && !producaoPronta && !oficial;
+    if (!oficial && !sandbox && !producaoPronta) {
       const espera = await adiarOuIgnorar(
         item.id,
         item.criadoEm,
@@ -360,7 +394,7 @@ export async function processarFilaWhatsapp(
       continue;
     }
     const variaveis = variaveisGravadas(item.variaveis);
-    if (!variaveis) {
+    if (!variaveis || !variaveisCompativeisComTemplate(item.tipo, variaveis)) {
       await marcar(item.id, { status: "FALHOU", motivo: "variáveis inválidas" });
       resultado.falhas += 1;
       continue;
@@ -368,7 +402,7 @@ export async function processarFilaWhatsapp(
 
     let conta: CredencialTwilio;
     let mensagem: MensagemTemplate;
-    if (sandbox) {
+    if (oficial || sandbox) {
       const teste = whatsappE164(numeroTesteWhatsapp() ?? "");
       if (!teste || regra.destino !== `whatsapp:${teste}`) {
         await marcar(item.id, { status: "IGNORADO", motivo: "modo teste não envia para o cliente", destino: null });
@@ -377,7 +411,12 @@ export async function processarFilaWhatsapp(
       }
       const contentSid = contentSidSandbox(item.tipo);
       if (!contentSid) {
-        const espera = await adiarOuIgnorar(item.id, item.criadoEm, agora, "sandbox sem ContentSid da conta pai");
+        const espera = await adiarOuIgnorar(
+          item.id,
+          item.criadoEm,
+          agora,
+          oficial ? "remetente oficial sem ContentSid da conta pai" : "sandbox sem ContentSid da conta pai",
+        );
         if (espera === "ignorado") resultado.ignorados += 1;
         continue;
       }
@@ -385,25 +424,35 @@ export async function processarFilaWhatsapp(
       try {
         statusCallback = urlWebhookTwilio();
       } catch {
-        const espera = await adiarOuIgnorar(item.id, item.criadoEm, agora, "sandbox sem webhook");
+        const espera = await adiarOuIgnorar(
+          item.id,
+          item.criadoEm,
+          agora,
+          oficial ? "remetente oficial sem webhook" : "sandbox sem webhook",
+        );
         if (espera === "ignorado") resultado.ignorados += 1;
         continue;
       }
       try {
         conta = credenciaisPaiTwilio();
       } catch {
-        const espera = await adiarOuIgnorar(item.id, item.criadoEm, agora, "sandbox sem credencial da conta pai");
+        const espera = await adiarOuIgnorar(
+          item.id,
+          item.criadoEm,
+          agora,
+          oficial ? "remetente oficial sem credencial da conta pai" : "sandbox sem credencial da conta pai",
+        );
         if (espera === "ignorado") resultado.ignorados += 1;
         continue;
       }
       mensagem = {
-        de: REMETENTE_SANDBOX_WHATSAPP,
-        para: regra.destino,
+        de: oficial ? REMETENTE_OFICIAL_WHATSAPP : REMETENTE_SANDBOX_WHATSAPP,
+        para: `whatsapp:${teste}`,
         contentSid,
         variaveis,
         statusCallback,
       };
-    } else if (conexao?.senderTelefone && template?.contentSid) {
+    } else if (!oficial && conexao?.senderTelefone && template?.contentSid) {
       let token = "";
       try {
         token = decifrarSegredoAsaas(conexao.authTokenCifrado);

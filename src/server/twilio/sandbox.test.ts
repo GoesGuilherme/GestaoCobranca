@@ -1,5 +1,13 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { contentSidSandbox, REMETENTE_SANDBOX_WHATSAPP, sandboxWhatsappLigado, usarSandboxWhatsapp } from "./sandbox";
+import {
+  contentSidSandbox,
+  REMETENTE_OFICIAL_WHATSAPP,
+  REMETENTE_SANDBOX_WHATSAPP,
+  remetenteOficialTesteLigado,
+  sandboxWhatsappLigado,
+  usarRemetenteOficialTeste,
+  usarSandboxWhatsapp,
+} from "./sandbox";
 
 const SID = `HX${"ab".repeat(16)}`;
 
@@ -7,6 +15,7 @@ afterEach(() => {
   delete process.env.TWILIO_WHATSAPP_SANDBOX;
   delete process.env.TWILIO_WHATSAPP_FROM;
   delete process.env.TWILIO_CONTENT_SID_PAGO;
+  delete process.env.TWILIO_WHATSAPP_SENDER_OFICIAL;
 });
 
 describe("sandbox de WhatsApp", () => {
@@ -25,5 +34,15 @@ describe("sandbox de WhatsApp", () => {
     expect(contentSidSandbox("PAGO", { TWILIO_CONTENT_SID_PAGO: SID })).toBe(SID);
     expect(contentSidSandbox("PAGO", { TWILIO_CONTENT_SID_PAGO: "HXcurto" })).toBeNull();
     expect(contentSidSandbox("OUTRO", { TWILIO_CONTENT_SID_PAGO: SID })).toBeNull();
+  });
+
+  it("o Sender oficial só liga com a flag exata e só no modo teste", () => {
+    expect(REMETENTE_OFICIAL_WHATSAPP).toBe("whatsapp:+16504762069");
+    expect(remetenteOficialTesteLigado({ TWILIO_WHATSAPP_SENDER_OFICIAL: "true" })).toBe(true);
+    expect(remetenteOficialTesteLigado({ TWILIO_WHATSAPP_SENDER_OFICIAL: "false" })).toBe(false);
+    expect(remetenteOficialTesteLigado({})).toBe(false);
+    expect(usarRemetenteOficialTeste(true, { TWILIO_WHATSAPP_SENDER_OFICIAL: "true" })).toBe(true);
+    expect(usarRemetenteOficialTeste(false, { TWILIO_WHATSAPP_SENDER_OFICIAL: "true" })).toBe(false);
+    expect(sandboxWhatsappLigado({ TWILIO_WHATSAPP_SENDER_OFICIAL: "true" })).toBe(false);
   });
 });
