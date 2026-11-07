@@ -1,4 +1,5 @@
 import type { LembreteReguaDTO, StatusLembrete } from "@/lib/tipos";
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db";
 import { ErroAplicacao } from "@/server/erros";
 import { redigirSegredoResend, type ClienteResend } from "./resend";
@@ -75,7 +76,7 @@ export async function registrarIgnorado(dados: {
   }
 }
 
-export async function dispararLembrete(dados: {
+type PedidoLembrete = {
   empresaId: string;
   faturaId: string;
   clienteId: string;
@@ -90,19 +91,14 @@ export async function dispararLembrete(dados: {
   replyTo: string | null;
   chave: string;
   resend: ClienteResend;
-}): Promise<{ lembrete: LembreteReguaDTO; repetido: boolean }> {
-  if (dados.automatico && dados.passoId) {
-    const jaEnviado = await prisma.lembreteRegua.findFirst({
-      where: {
-        faturaId: dados.faturaId,
-        passoId: dados.passoId,
-        automatico: true,
-        status: "ENVIADO",
-      },
-    });
-    if (jaEnviado) return { lembrete: paraLembrete(jaEnviado), repetido: true };
-  }
+};
 
+type GravadorLembrete = Prisma.TransactionClient | typeof prisma;
+
+async function registrarEnvio(
+  db: GravadorLembrete,
+  dados: PedidoLembrete,
+): Promise<{ lembrete: LembreteReguaDTO; repetido: boolean }> {
   try {
     await dados.resend.enviar({
       chave: dados.chave,
@@ -114,7 +110,7 @@ export async function dispararLembrete(dados: {
     });
   } catch (erro) {
     const motivo = textoErroEnvio(erro);
-    const falha = await prisma.lembreteRegua.create({
+    const falha = await db.lembreteRegua.create({
       data: {
         empresaId: dados.empresaId,
         faturaId: dados.faturaId,
@@ -134,7 +130,7 @@ export async function dispararLembrete(dados: {
   }
 
   try {
-    const lembrete = await prisma.lembreteRegua.create({
+    const lembrete = await db.lembreteRegua.create({
       data: {
         empresaId: dados.empresaId,
         faturaId: dados.faturaId,
@@ -152,11 +148,26 @@ export async function dispararLembrete(dados: {
     return { lembrete: paraLembrete(lembrete), repetido: false };
   } catch (erro) {
     if (ehConflitoUnico(erro) && dados.automatico) {
-      const existente = await prisma.lembreteRegua.findFirst({
+      const existente = await db.lembreteRegua.findFirst({
         where: { faturaId: dados.faturaId, passoId: dados.passoId, automatico: true, status: "ENVIADO" },
       });
       if (existente) return { lembrete: paraLembrete(existente), repetido: true };
     }
     throw erro;
   }
+}
+
+export async function dispararLembrete(dados: PedidoLembrete): Promise<{ lembrete: LembreteReguaDTO; repetido: boolean }> {
+  const passoId = dados.passoId;
+  if (dados.automatico && passoId) {
+    return prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${dados.faturaId}), hashtext(${passoId}))`;
+      const jaEnviado = await tx.lembreteRegua.findFirst({
+        where: { faturaId: dados.faturaId, passoId, automatico: true, status: "ENVIADO" },
+      });
+      if (jaEnviado) return { lembrete: paraLembrete(jaEnviado), repetido: true };
+      return registrarEnvio(tx, dados);
+    }, { timeout: 20_000 });
+  }
+  return registrarEnvio(prisma, dados);
 }

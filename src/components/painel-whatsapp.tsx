@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import { valoresAposSalvar } from "@/lib/apos-salvar";
 import { enviarJson } from "@/lib/api-cliente";
 import type { ConfiguracaoTwilioDTO } from "@/lib/tipos";
+import { descreverCanalWhatsapp } from "@/lib/whatsapp-canal";
 import { esquemaCodigoTwilio, esquemaConexaoTwilio, mensagensDoZod } from "@/lib/validacao";
 import { Campo, classeCampo } from "./campo";
-import { classeBotaoPrimario, classeBotaoSecundario } from "./estilos";
+import { classeBotaoSecundario } from "./estilos";
 import { avisarCamposObrigatorios, avisarErro, avisarSucesso } from "./notificador";
 
 const ROTULO: Record<string, string> = {
@@ -42,10 +43,12 @@ export function PainelWhatsapp({
   podeEditar,
   nomeEmpresa,
   inicial,
+  modoTeste,
 }: {
   podeEditar: boolean;
   nomeEmpresa: string;
   inicial: ConfiguracaoTwilioDTO;
+  modoTeste: boolean;
 }) {
   const router = useRouter();
   const [estado, setEstado] = useState(inicial);
@@ -87,32 +90,57 @@ export function PainelWhatsapp({
     return true;
   }
 
+  const numeroEmpresaPronto =
+    estado.senderStatus === "ONLINE" &&
+    Boolean(estado.senderTelefone) &&
+    estado.templates.some((template) => template.status === "APROVADO");
+  const canal = descreverCanalWhatsapp({
+    modoTeste,
+    remetenteOficialLigado: estado.canal.remetenteOficialLigado,
+    sandboxLigado: estado.canal.sandboxLigado,
+    numeroTesteConfigurado: estado.canal.numeroTesteConfigurado,
+    templatesContaPaiProntos: estado.canal.templatesContaPaiProntos,
+    numeroEmpresaPronto,
+  });
+
   return (
     <section id="whatsapp" className="mt-6 scroll-mt-24 rounded-3xl border border-line bg-card p-6">
       <h2 className="font-display text-3xl">WhatsApp</h2>
-      <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
-        Cada empresa ganha uma subconta e um Sender na Twilio. O e-mail continua pela Resend. O WhatsApp sai no mesmo passo, se estiver marcado, usando template UTILITY. No modo teste nada vai para o cliente. Enquanto o Sender não fica online, o servidor pode usar o sandbox da Twilio, e mesmo assim só o número de teste recebe.
+      <p className="mt-3">
+        <span className="inline-flex rounded-full bg-sand px-2.5 py-1 text-xs font-semibold text-ink">{canal.selo}</span>
       </p>
-      <p className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${estado.senderStatus === "ONLINE" ? "bg-leaf text-ok" : estado.senderStatus ? "bg-gold-soft text-gold-ink" : "bg-sand text-ink"}`} title={estado.senderStatus ?? "não conectado"}>
-          {estado.senderStatus === "ONLINE" ? "WhatsApp conectado" : estado.senderStatus === "OFFLINE" ? "WhatsApp desconectado" : estado.senderStatus ? `WhatsApp: ${estado.senderStatus}` : "WhatsApp não conectado"}
-        </span>
-        {estado.tokenMascarado ? <span className="text-muted">Token {estado.tokenMascarado}</span> : null}
-      </p>
-      <p className="mt-1 text-sm">Coexistência: {COEXISTENCIA[estado.coexistencia]}</p>
-      {estado.templates.length > 0 ? (
-        <ul className="mt-3 space-y-1 text-sm text-muted">
-          {estado.templates.map((template) => (
-            <li key={template.tipo}>
-              {ROTULO[template.tipo] ?? template.nome}: {rotuloTemplate(template.status)}
-              {template.motivo ? ` · ${template.motivo}` : ""}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="mt-3 text-sm text-muted">Os quatro templates (boleto gerado, vence em X dias, venceu e pago) são criados na conexão.</p>
-      )}
-      {podeEditar ? (
+      {canal.paragrafos.map((paragrafo) => (
+        <p key={paragrafo} className="mt-3 max-w-3xl text-sm leading-6 text-muted">
+          {paragrafo}
+        </p>
+      ))}
+      <details className="mt-6 rounded-2xl border border-line p-4">
+        <summary className="cursor-pointer text-sm font-medium">Número próprio da empresa (em breve)</summary>
+        <p className="mt-3 max-w-3xl text-sm leading-6 text-muted">{canal.notaNumeroProprio}</p>
+        {estado.conectada ? (
+          <p className="mt-3 text-sm">
+            Número guardado: {estado.senderStatus ?? "sem status"}
+            {estado.senderTelefone ? ` · ${estado.senderTelefone}` : ""}.
+            {canal.usaNumeroEmpresa ? " É este número que envia no estado acima." : " Ele não é o remetente descrito acima."}
+          </p>
+        ) : null}
+        {estado.tokenMascarado ? <p className="mt-1 text-sm text-muted">Token {estado.tokenMascarado}</p> : null}
+        <p className="mt-2 text-sm">Coexistência: {COEXISTENCIA[estado.coexistencia]}</p>
+        {estado.templates.length > 0 ? (
+          <ul className="mt-3 space-y-1 text-sm text-muted">
+            {estado.templates.map((template) => (
+              <li key={template.tipo}>
+                {ROTULO[template.tipo] ?? template.nome}: {rotuloTemplate(template.status)}
+                {template.motivo ? ` · ${template.motivo}` : ""}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-3 text-sm text-muted">
+            Os templates do número da empresa (boleto gerado, vence em X dias, venceu e pago) só são criados se esta conexão for usada.
+          </p>
+        )}
+        {podeEditar ? (
         <form
           className="mt-4 grid gap-4 md:grid-cols-2"
           onSubmit={(evento) => {
@@ -140,7 +168,7 @@ export function PainelWhatsapp({
             Pedir coexistência com o app WhatsApp Business, se a Twilio oferecer
           </label>
           <div className="flex flex-wrap gap-2 md:col-span-2">
-            <button type="submit" className={classeBotaoPrimario} disabled={enviando}>
+            <button type="submit" className={classeBotaoSecundario} disabled={enviando}>
               {estado.conectada ? "Atualizar Sender" : "Conectar Twilio"}
             </button>
             <button
@@ -179,6 +207,7 @@ export function PainelWhatsapp({
           </button>
         </form>
       ) : null}
+      </details>
     </section>
   );
 }

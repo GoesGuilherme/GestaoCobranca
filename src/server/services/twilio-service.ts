@@ -8,20 +8,26 @@ import { prisma } from "@/server/db";
 import { ErroAplicacao } from "@/server/erros";
 import { ErroTwilio, statusAprovacao, type ClienteTwilio, type CredencialTwilio } from "@/server/twilio/contrato";
 import { clienteTwilioPadrao, credenciaisPaiTwilio, urlWebhookTwilio } from "@/server/twilio/fabrica";
+import { sinaisCanalWhatsapp } from "@/server/twilio/sandbox";
 import { lerEsquema } from "@/server/validar";
 
-const whatsappVazio: ConfiguracaoTwilioDTO = {
-  conectada: false,
-  subaccountSid: null,
-  senderTelefone: null,
-  senderStatus: null,
-  coexistencia: "NAO_SOLICITADA",
-  nomeExibicao: "",
-  wabaId: null,
-  erro: null,
-  tokenMascarado: null,
-  templates: [],
-};
+function comCanal(dados: Omit<ConfiguracaoTwilioDTO, "canal">): ConfiguracaoTwilioDTO {
+  return { ...dados, canal: sinaisCanalWhatsapp() };
+}
+
+const whatsappVazio = (): ConfiguracaoTwilioDTO =>
+  comCanal({
+    conectada: false,
+    subaccountSid: null,
+    senderTelefone: null,
+    senderStatus: null,
+    coexistencia: "NAO_SOLICITADA",
+    nomeExibicao: "",
+    wabaId: null,
+    erro: null,
+    tokenMascarado: null,
+    templates: [],
+  });
 
 function coexistenciaDe(valor: string): CoexistenciaTwilioDTO {
   if (valor === "SOLICITADA" || valor === "ATIVA" || valor === "INDISPONIVEL") return valor;
@@ -35,12 +41,12 @@ function paraTemplate(linha: { tipo: string; nome: string; status: string; motiv
 
 export async function obterWhatsappDaEmpresa(empresaId: string): Promise<ConfiguracaoTwilioDTO> {
   const linha = await prisma.configuracaoTwilio.findUnique({ where: { empresaId } });
-  if (!linha) return whatsappVazio;
+  if (!linha) return whatsappVazio();
   const templates = await prisma.templateWhatsapp.findMany({
     where: { empresaId },
     orderBy: { tipo: "asc" },
   });
-  return {
+  return comCanal({
     conectada: Boolean(linha.subaccountSid),
     subaccountSid: linha.subaccountSid,
     senderTelefone: linha.senderTelefone,
@@ -51,7 +57,7 @@ export async function obterWhatsappDaEmpresa(empresaId: string): Promise<Configu
     erro: linha.erro,
     tokenMascarado: `••••${linha.authTokenUltimos4.slice(-4)}`,
     templates: templates.map(paraTemplate),
-  };
+  });
 }
 
 export async function obterWhatsappDoPainel(autor: AutorEmpresa) {

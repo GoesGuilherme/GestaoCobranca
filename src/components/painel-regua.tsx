@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { valoresAposSalvar } from "@/lib/apos-salvar";
 import { enviarJson } from "@/lib/api-cliente";
 import { inteiroDeCampo, textoHoraPermitido, textoInteiroPermitido } from "@/lib/inteiro-campo";
-import { AMOSTRA_REGUA, textoRegua } from "@/lib/regua";
+import { AMOSTRA_REGUA, TEXTO_PASSO_NA_EMISSAO, textoRegua } from "@/lib/regua";
 import {
   MENSAGEM_DIAS_REGUA,
   MENSAGEM_HORA_REGUA,
@@ -369,7 +369,7 @@ export function PainelRegua({
         ) : null}
       </form>
 
-      <PainelWhatsapp podeEditar={podeEditar} nomeEmpresa={nomeEmpresa} inicial={whatsapp} />
+      <PainelWhatsapp podeEditar={podeEditar} nomeEmpresa={nomeEmpresa} inicial={whatsapp} modoTeste={modoTeste} />
 
       <section className="mt-8 min-w-0 rounded-3xl border border-line bg-card p-6">
         <h2 className="font-display text-3xl">Réguas</h2>
@@ -474,10 +474,13 @@ export function PainelRegua({
                 />
               </Campo>
             </div>
-            <label className="flex items-center gap-2 text-sm">
-              <input id="regua-fim-de-semana" type="checkbox" checked={rascunho.enviarFimDeSemana} disabled={!podeEditar} onChange={(evento) => setRascunho({ ...rascunho, enviarFimDeSemana: evento.target.checked })} />
-              Enviar no fim de semana
-            </label>
+            <div>
+              <label className="flex items-center gap-2 text-sm">
+                <input id="regua-fim-de-semana" type="checkbox" checked={rascunho.enviarFimDeSemana} disabled={!podeEditar} onChange={(evento) => setRascunho({ ...rascunho, enviarFimDeSemana: evento.target.checked })} />
+                Enviar no fim de semana
+              </label>
+              <p className="mt-1 text-sm text-muted">Vale para os passos por vencimento. Na emissão sai também no sábado e no domingo, dentro do horário.</p>
+            </div>
 
             <div>
               <h3 className="text-sm font-semibold">Passos</h3>
@@ -522,24 +525,32 @@ export function PainelRegua({
 
             {passo ? (
               <div className="grid gap-4 rounded-2xl border border-line p-4 md:grid-cols-2">
-                <Campo label="Quando" htmlFor="passo-tipo">
-                  <select
-                    id="passo-tipo"
-                    className={classeCampo}
-                    disabled={!podeEditar}
-                    value={passo.naEmissao ? "emissao" : "dias"}
-                    onChange={(evento) => {
-                      const emissao = evento.target.value === "emissao";
-                      atualizarPasso(passoAberto, {
-                        naEmissao: emissao,
-                        dias: emissao || passo.dias !== "" ? passo.dias : "0",
-                      });
-                    }}
-                  >
-                    <option value="emissao">Na emissão</option>
-                    <option value="dias">Dias em relação ao vencimento</option>
-                  </select>
-                </Campo>
+                <div className={passo.naEmissao ? "md:col-span-2" : undefined}>
+                  <Campo label="Quando" htmlFor="passo-tipo">
+                    <select
+                      id="passo-tipo"
+                      className={classeCampo}
+                      disabled={!podeEditar}
+                      aria-describedby={passo.naEmissao ? "passo-emissao-ajuda" : undefined}
+                      value={passo.naEmissao ? "emissao" : "dias"}
+                      onChange={(evento) => {
+                        const emissao = evento.target.value === "emissao";
+                        atualizarPasso(passoAberto, {
+                          naEmissao: emissao,
+                          dias: emissao || passo.dias !== "" ? passo.dias : "0",
+                        });
+                      }}
+                    >
+                      <option value="emissao">Na emissão</option>
+                      <option value="dias">Dias em relação ao vencimento</option>
+                    </select>
+                  </Campo>
+                  {passo.naEmissao ? (
+                    <p id="passo-emissao-ajuda" className="mt-2 text-sm leading-6 text-muted">
+                      {TEXTO_PASSO_NA_EMISSAO}
+                    </p>
+                  ) : null}
+                </div>
                 {passo.naEmissao ? null : (
                   <Campo
                     label="Dias (negativo antes, zero no dia, positivo em atraso)"
@@ -577,7 +588,9 @@ export function PainelRegua({
                     disabled={!podeEditar}
                     onChange={(evento) => atualizarPasso(passoAberto, { enviarWhatsapp: evento.target.checked })}
                   />
-                  Também enviar por WhatsApp, no mesmo dia deste passo
+                  {passo.naEmissao
+                    ? "Também enviar por WhatsApp, junto com este e-mail"
+                    : "Também enviar por WhatsApp, no mesmo dia deste passo"}
                 </label>
                 <Campo label="Assunto" htmlFor="passo-assunto" erro={campos[`assunto-${passoAberto}`]}>
                   <input id="passo-assunto" className={classeCampo} disabled={!podeEditar} value={passo.assunto} onChange={(evento) => atualizarPasso(passoAberto, { assunto: evento.target.value })} />

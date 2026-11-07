@@ -6,11 +6,13 @@ import { formatarDataIso } from "@/lib/formatacao";
 import { emailDeCobranca } from "@/lib/remetentes";
 import {
   assuntoRegua,
+  cobrancaComLink,
   dataSaoPaulo,
   dentroDaJanela,
-  diaSemanaIso,
   diasAtraso,
+  emissaoElegivel,
   horaSaoPaulo,
+  JANELA_EMISSAO_MS,
   passoCombina,
   rotuloPasso,
   somarDias,
@@ -49,14 +51,20 @@ function chaveOuNula(cifra: string | null): { chave: string | null; motivo: stri
 }
 
 export async function executarRegua(
-  opcoes: { agora?: Date; empresaId?: string; resend?: ClienteResend; twilio?: ClienteTwilio } = {},
+  opcoes: {
+    agora?: Date;
+    empresaId?: string;
+    resend?: ClienteResend;
+    twilio?: ClienteTwilio;
+    somenteEmissao?: boolean;
+  } = {},
 ): Promise<ResultadoRegua> {
   const agora = opcoes.agora ?? new Date();
   const hoje = dataSaoPaulo(agora);
   const hora = horaSaoPaulo(agora);
-  const dia = diaSemanaIso(hoje);
   const resend = opcoes.resend ?? clienteResendPadrao();
   const twilio = opcoes.twilio ?? clienteTwilioPadrao();
+  const desdeEmissao = new Date(agora.getTime() - JANELA_EMISSAO_MS);
   const resultado: ResultadoRegua = {
     enviados: 0,
     ignorados: 0,
@@ -67,7 +75,7 @@ export async function executarRegua(
     whatsappFalhas: 0,
   };
 
-  await conciliarPromessas(opcoes.empresaId ?? null, hoje);
+  if (!opcoes.somenteEmissao) await conciliarPromessas(opcoes.empresaId ?? null, hoje);
 
   const configs = await prisma.configuracaoRegua.findMany({
     where: { ativa: true, ...(opcoes.empresaId ? { empresaId: opcoes.empresaId } : {}) },
@@ -80,7 +88,12 @@ export async function executarRegua(
         include: { passos: { orderBy: { ordem: "asc" } } },
       }),
       prisma.fatura.findMany({
-        where: { empresaId: config.empresaId, excluida: false, OR: ABERTAS_POR_PROVEDOR },
+        where: {
+          empresaId: config.empresaId,
+          excluida: false,
+          OR: ABERTAS_POR_PROVEDOR,
+          ...(opcoes.somenteEmissao ? { criadoEm: { gte: desdeEmissao } } : {}),
+        },
         include: {
           cliente: true,
           clienteServico: { select: { servico: { select: { nome: true } } } },
@@ -134,16 +147,23 @@ export async function executarRegua(
         continue;
       }
 
+      // Sábado e domingo não seguram o passo "Na emissão". Os outros passos
+      // continuam no passoCombina, que respeita enviarFimDeSemana.
+      // O horário da régua vale para a emissão também: fora da janela a hora
+      // seguinte tenta de novo, inclusive no fim de semana.
       if (!dentroDaJanela(hora, regua.horaInicio, regua.horaFim)) continue;
-      if (!regua.enviarFimDeSemana && (dia === 0 || dia === 6)) continue;
 
       const vencimento = isoDeData(fatura.vencimento);
-      const emissao = dataSaoPaulo(fatura.criadoEm);
 
       for (const passo of regua.passos) {
+        if (opcoes.somenteEmissao && !passo.naEmissao) continue;
         if (passo.canal !== "EMAIL" && !passo.enviarWhatsapp) continue;
-        const alvo = passo.naEmissao ? emissao : somarDias(vencimento, passo.dias ?? 0);
-        if (!passoCombina(hoje, alvo, regua.enviarFimDeSemana)) continue;
+        if (passo.naEmissao) {
+          if (!emissaoElegivel({ criadoEmFatura: fatura.criadoEm, criadoEmPasso: passo.criadoEm, agora })) continue;
+          if (!cobrancaComLink(fatura)) continue;
+        } else if (!passoCombina(hoje, somarDias(vencimento, passo.dias ?? 0), regua.enviarFimDeSemana)) {
+          continue;
+        }
 
         const rotulo = rotuloPasso(passo);
         if (promessasAtivas.has(fatura.id)) {
@@ -257,7 +277,12 @@ export async function executarRegua(
     }
   }
 
-  const fila = await processarFilaWhatsapp({ agora, empresaId: opcoes.empresaId, twilio });
+  const fila = await processarFilaWhatsapp({
+    agora,
+    empresaId: opcoes.empresaId,
+    twilio,
+    ...(opcoes.somenteEmissao ? { tipos: ["BOLETO_GERADO" as const], conciliar: false } : {}),
+  });
   resultado.whatsappEnviados = fila.enviados;
   resultado.whatsappFalhas = fila.falhas;
   resultado.whatsappIgnorados += fila.ignorados;

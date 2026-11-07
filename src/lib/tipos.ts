@@ -316,6 +316,13 @@ export type TemplateWhatsappDTO = {
   motivo: string | null;
 };
 
+export type CanalWhatsappServidor = {
+  remetenteOficialLigado: boolean;
+  sandboxLigado: boolean;
+  numeroTesteConfigurado: boolean;
+  templatesContaPaiProntos: boolean;
+};
+
 export type ConfiguracaoTwilioDTO = {
   conectada: boolean;
   subaccountSid: string | null;
@@ -327,6 +334,7 @@ export type ConfiguracaoTwilioDTO = {
   erro: string | null;
   tokenMascarado: string | null;
   templates: TemplateWhatsappDTO[];
+  canal: CanalWhatsappServidor;
 };
 
 export type ReguaDTO = {

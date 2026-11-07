@@ -287,7 +287,14 @@ async function concluirEnvio(
 }
 
 export async function processarFilaWhatsapp(
-  opcoes: { agora?: Date; empresaId?: string; twilio?: ClienteTwilio; limite?: number } = {},
+  opcoes: {
+    agora?: Date;
+    empresaId?: string;
+    twilio?: ClienteTwilio;
+    limite?: number;
+    tipos?: TipoTemplateWhatsapp[];
+    conciliar?: boolean;
+  } = {},
 ): Promise<{ enviados: number; falhas: number; ignorados: number }> {
   const agora = opcoes.agora ?? new Date();
   const twilio = opcoes.twilio;
@@ -301,7 +308,12 @@ export async function processarFilaWhatsapp(
   });
 
   const pendentes = await prisma.filaWhatsapp.findMany({
-    where: { ...filtroEmpresa, status: "PENDENTE", disponivelEm: { lte: agora } },
+    where: {
+      ...filtroEmpresa,
+      status: "PENDENTE",
+      disponivelEm: { lte: agora },
+      ...(opcoes.tipos ? { tipo: { in: opcoes.tipos } } : {}),
+    },
     orderBy: { criadoEm: "asc" },
     take: opcoes.limite ?? 20,
     include: { cliente: true, fatura: true },
@@ -309,7 +321,9 @@ export async function processarFilaWhatsapp(
 
   const hojeFila = dataHojeIso(agora);
   const empresasFila = [...new Set(pendentes.map((item) => item.empresaId))];
-  for (const empresaId of empresasFila) await conciliarPromessas(empresaId, hojeFila);
+  if (opcoes.conciliar !== false) {
+    for (const empresaId of empresasFila) await conciliarPromessas(empresaId, hojeFila);
+  }
   const promessasAtivas = new Set<string>();
   if (pendentes.length > 0) {
     const linhas = await prisma.promessaPagamento.findMany({

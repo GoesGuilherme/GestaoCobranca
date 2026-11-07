@@ -16,5 +16,12 @@
       "path": "/api/cron/conciliacao",
       "schedule": "0 13 * * *"
     }
-  ]
+  ],
+  "schedules": {
+    "regua-emissao": {
+      "schedule": "0 * * * *",
+      "path": "/api/cron/regua-emissao",
+      "requestMethod": "GET"
+    }
+  }
 }

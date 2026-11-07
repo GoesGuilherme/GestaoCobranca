@@ -18,7 +18,11 @@ export function Campo({
 }) {
   const erroId = erro ? `${htmlFor}-erro` : undefined;
   const dicaId = !erro && dica ? `${htmlFor}-dica` : undefined;
-  const descrito = [erroId, dicaId].filter(Boolean).join(" ") || undefined;
+  const descritoPeloCampo = [erroId, dicaId].filter(Boolean).join(" ") || undefined;
+  const descritoExistente = isValidElement<{ "aria-describedby"?: string }>(children)
+    ? children.props["aria-describedby"]
+    : undefined;
+  const descrito = [descritoPeloCampo, descritoExistente].filter(Boolean).join(" ") || undefined;
   const campo = isValidElement<{ "aria-invalid"?: boolean; "aria-describedby"?: string; "aria-required"?: boolean }>(
     children,
   )

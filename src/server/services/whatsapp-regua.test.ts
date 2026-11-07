@@ -522,6 +522,10 @@ describe("WhatsApp na régua via Twilio", () => {
     const { twilio, contas } = observarTwilio();
     await ligar();
     await whatsappEmTodosOsPassos();
+    await prisma.passoRegua.updateMany({
+      where: { empresaId, naEmissao: true },
+      data: { criadoEm: new Date("2026-10-01T00:00:00.000Z") },
+    });
     const cliente = await criarCliente(empresaId, pessoa(completarCnpj("592000000030")));
     await abrirFatura(cliente.id, "2026-10-26");
     await abrirFatura(cliente.id, "2026-10-31", "2026-10-01T15:00:00.000Z");
