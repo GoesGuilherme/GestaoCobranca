@@ -10,6 +10,7 @@ import { criarClienteTwilioMemoria, type ClienteTwilioMemoria } from "@/server/t
 import { salvarConfiguracaoAsaas } from "./asaas-config-service";
 import { criarCliente } from "./cliente-service";
 import { obterFatura } from "./fatura-service";
+import { clienteResendMemoria } from "@/server/regua/resend";
 import { executarRegua } from "./regua-job";
 import { salvarConfiguracaoRegua, atualizarRegua, obterPainelRegua } from "./regua-service";
 import { conectarTwilio } from "./twilio-service";
@@ -1062,6 +1063,97 @@ describe("WhatsApp na régua via Twilio", () => {
     expect(await prisma.optOutWhatsapp.findUnique({
       where: { empresaId_telefone: { empresaId, telefone: "5513988881001" } },
     })).toMatchObject({ ativo: true });
+    delete process.env.TWILIO_WHATSAPP_OFICIAL_DESDE;
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("na emissão o WhatsApp de boleto não sai para cartão, Pix nem forma indefinida", async () => {
+    process.env.TWILIO_WHATSAPP_SANDBOX = "true";
+    process.env.TWILIO_WHATSAPP_SENDER_OFICIAL = "true";
+    process.env.TWILIO_WHATSAPP_OFICIAL_DESDE = "2026-10-01T00:00:00.000Z";
+    aplicarSidsAprovados();
+    const twilio = criarClienteTwilioMemoria();
+    const caixa = clienteResendMemoria();
+    await ligar({ modoTeste: false });
+    const painel = await obterPainelRegua(autor());
+    const regua = painel.reguas[0];
+    await atualizarRegua(autor(), regua.id, {
+      nome: regua.nome,
+      padrao: true,
+      horaInicio: 8,
+      horaFim: 18,
+      enviarFimDeSemana: false,
+      passos: [
+        {
+          naEmissao: true,
+          dias: null,
+          canal: "EMAIL",
+          assunto: "Cobrança emitida",
+          corpo: "Olá, {cliente}. A cobrança está em {link}",
+          enviarWhatsapp: true,
+        },
+      ],
+    });
+    await prisma.passoRegua.updateMany({
+      where: { empresaId, naEmissao: true },
+      data: { criadoEm: new Date("2026-10-01T00:00:00.000Z") },
+    });
+    const cliente = await criarCliente(empresaId, pessoa(completarCnpj("592000000040")));
+    const boleto = await abrirFatura(cliente.id);
+    const cartao = await prisma.fatura.create({
+      data: {
+        empresaId,
+        clienteId: cliente.id,
+        asaasPaymentId: `pay_${randomBytes(4).toString("hex")}`,
+        valor: "20.00",
+        vencimento: new Date("2026-11-07T00:00:00.000Z"),
+        status: "PENDING",
+        formaCobranca: "CREDIT_CARD",
+        faturaUrl: "https://www.asaas.com/i/cartao",
+        descricao: "Licença PDVLegal",
+        criadoEm: new Date("2026-10-26T15:00:00.000Z"),
+      },
+    });
+    const pix = await prisma.fatura.create({
+      data: {
+        empresaId,
+        clienteId: cliente.id,
+        asaasPaymentId: `pay_${randomBytes(4).toString("hex")}`,
+        valor: "20.00",
+        vencimento: new Date("2026-11-07T00:00:00.000Z"),
+        status: "PENDING",
+        formaCobranca: "PIX",
+        faturaUrl: "https://www.asaas.com/i/pix",
+        descricao: "Licença PDVLegal",
+        criadoEm: new Date("2026-10-26T15:00:00.000Z"),
+      },
+    });
+    const indefinida = await prisma.fatura.create({
+      data: {
+        empresaId,
+        clienteId: cliente.id,
+        asaasPaymentId: `pay_${randomBytes(4).toString("hex")}`,
+        valor: "20.00",
+        vencimento: new Date("2026-11-07T00:00:00.000Z"),
+        status: "PENDING",
+        formaCobranca: "UNDEFINED",
+        faturaUrl: "https://www.asaas.com/i/escolhe",
+        descricao: "Licença PDVLegal",
+        criadoEm: new Date("2026-10-26T15:00:00.000Z"),
+      },
+    });
+    await executarRegua({ agora: AGORA, empresaId, twilio, resend: caixa });
+    expect(caixa.caixa).toHaveLength(4);
+    expect(caixa.caixa.every((item) => item.assunto === "Cobrança emitida")).toBe(true);
+    expect(caixa.caixa.every((item) => item.texto.includes("A cobrança está em"))).toBe(true);
+    expect(caixa.caixa.every((item) => !item.texto.includes("Seu boleto"))).toBe(true);
+    expect(twilio.enviados).toHaveLength(1);
+    expect(twilio.enviados[0]?.contentSid).toBe(SIDS_APROVADOS.BOLETO_GERADO);
+    expect(await prisma.filaWhatsapp.count({ where: { faturaId: boleto.id, tipo: "BOLETO_GERADO" } })).toBe(1);
+    expect(await prisma.filaWhatsapp.count({ where: { faturaId: { in: [cartao.id, pix.id, indefinida.id] } } })).toBe(0);
+    await executarRegua({ agora: AGORA, empresaId, twilio, resend: caixa });
+    expect(twilio.enviados).toHaveLength(1);
+    expect(caixa.caixa).toHaveLength(4);
     delete process.env.TWILIO_WHATSAPP_OFICIAL_DESDE;
     expect(fetchSpy).not.toHaveBeenCalled();
   });

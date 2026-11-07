@@ -3,6 +3,7 @@ import { formatarReais } from "@/lib/dinheiro";
 import { formatarDataIso } from "@/lib/formatacao";
 import {
   digitosWhatsapp,
+  formaUsaTemplateBoleto,
   rotuloTemplateWhatsapp,
   tipoTemplateDoPasso,
   variaveisCompativeisComTemplate,
@@ -51,6 +52,7 @@ type LinhaFatura = {
   faturaUrl: string | null;
   excluida: boolean;
   criadoEm: Date;
+  formaCobranca: string;
   cliente: LinhaCliente;
 };
 
@@ -202,6 +204,7 @@ export async function enfileirarWhatsappDoPasso(
   db: AcessoFila = prisma,
 ): Promise<ResultadoFila> {
   if (!passo.enviarWhatsapp || fatura.excluida) return "nao_aplica";
+  if (passo.naEmissao && !formaUsaTemplateBoleto(fatura.formaCobranca)) return "nao_aplica";
   if (!modoTeste && remetenteOficialLigado() && !faturaLiberadaOficial(fatura.criadoEm)) return "nao_aplica";
   const tipo = tipoTemplateDoPasso(passo);
   return gravar(db, await montar(db, fatura, tipo, passo.id, passo.dias, modoTeste, agora));

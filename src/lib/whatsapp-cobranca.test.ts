@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   TEMPLATES_COBRANCA_WHATSAPP,
   decisaoOptOut,
+  formaUsaTemplateBoleto,
   tipoTemplateDoPasso,
   variaveisCompativeisComTemplate,
   variaveisDoTemplate,
@@ -60,6 +61,14 @@ describe("templates de cobrança", () => {
   });
 
   it("escolhe o template pelo passo e exige link http", () => {
+    expect(formaUsaTemplateBoleto("BOLETO")).toBe(true);
+    expect(formaUsaTemplateBoleto("boleto_pix")).toBe(true);
+    expect(formaUsaTemplateBoleto("PIX")).toBe(false);
+    expect(formaUsaTemplateBoleto("CREDIT_CARD")).toBe(false);
+    expect(formaUsaTemplateBoleto("UNDEFINED")).toBe(false);
+    expect(formaUsaTemplateBoleto("")).toBe(false);
+    expect(formaUsaTemplateBoleto(null)).toBe(false);
+    expect(TEMPLATES_COBRANCA_WHATSAPP.find((item) => item.tipo === "BOLETO_GERADO")?.corpo).toContain("boleto");
     expect(tipoTemplateDoPasso({ naEmissao: true, dias: null })).toBe("BOLETO_GERADO");
     expect(tipoTemplateDoPasso({ naEmissao: false, dias: -5 })).toBe("VENCE_EM_DIAS");
     expect(tipoTemplateDoPasso({ naEmissao: false, dias: 0 })).toBe("VENCE_EM_DIAS");

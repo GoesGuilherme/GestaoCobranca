@@ -592,6 +592,11 @@ export function PainelRegua({
                     ? "Também enviar por WhatsApp, junto com este e-mail"
                     : "Também enviar por WhatsApp, no mesmo dia deste passo"}
                 </label>
+                {passo.naEmissao ? (
+                  <p className="text-sm text-muted md:col-span-2">
+                    Esse WhatsApp usa o template aprovado que diz “boleto”. Ele só sai em cobrança com boleto. Cartão, Pix e as outras formas ficam no e-mail, até existir um template novo aprovado pela Meta.
+                  </p>
+                ) : null}
                 <Campo label="Assunto" htmlFor="passo-assunto" erro={campos[`assunto-${passoAberto}`]}>
                   <input id="passo-assunto" className={classeCampo} disabled={!podeEditar} value={passo.assunto} onChange={(evento) => atualizarPasso(passoAberto, { assunto: evento.target.value })} />
                 </Campo>

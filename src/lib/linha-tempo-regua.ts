@@ -30,7 +30,7 @@ const ROTULO_FASE: Record<FaseLinhaTempo, string> = {
 };
 
 const NOME_ACAO: Record<FaseLinhaTempo, string> = {
-  emissao: "Boleto emitido",
+  emissao: "Cobrança emitida",
   antes: "Lembrete antes do vencimento",
   noDia: "Aviso no dia do vencimento",
   depois: "Cobrança após vencimento",
@@ -94,7 +94,7 @@ export function textoOffsetMarcador(fase: FaseLinhaTempo, dias: number | null): 
 }
 
 export function textoQuandoMarcador(fase: FaseLinhaTempo, dias: number | null): string {
-  if (fase === "emissao") return "Emissão do boleto";
+  if (fase === "emissao") return "Emissão da cobrança";
   if (fase === "pago") return "Pago";
   if (dias === 0 || fase === "noDia") return "No dia do vencimento";
   const quantidade = Math.abs(dias ?? 0);
