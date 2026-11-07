@@ -7,7 +7,7 @@ import { CLIENTE_VAZIO, valoresAposSalvar } from "@/lib/apos-salvar";
 import { enviarJson } from "@/lib/api-cliente";
 import { dataHojeIso } from "@/lib/data";
 import { mascararDocumentoDigitando, mascararTelefoneDigitando } from "@/lib/mascaras";
-import { SEGMENTOS, STATUS_CLIENTE } from "@/lib/rotulos";
+import { STATUS_CLIENTE } from "@/lib/rotulos";
 import type { ClienteResumo, SegmentoDTO } from "@/lib/tipos";
 import { UFS } from "@/lib/ufs";
 import { esquemaCliente, mensagemDoCampo, mensagensDoZod } from "@/lib/validacao";
@@ -19,7 +19,6 @@ type Valores = {
   nomeFantasia: string;
   razaoSocial: string;
   documento: string;
-  segmento: string;
   segmentoId: string;
   contatoNome: string;
   whatsapp: string;
@@ -58,7 +57,6 @@ export function FormularioCliente({
           nomeFantasia: cliente.nomeFantasia,
           razaoSocial: cliente.razaoSocial,
           documento: mascararDocumentoDigitando(cliente.documento),
-          segmento: cliente.segmento,
           segmentoId: cliente.segmentoId ?? "",
           contatoNome: cliente.contatoNome,
           whatsapp: mascararTelefoneDigitando(cliente.whatsapp),
@@ -161,20 +159,6 @@ export function FormularioCliente({
             inputMode="text"
             autoComplete="off"
           />
-        </Campo>
-        <Campo label="Segmento" htmlFor="segmento" erro={campos.segmento}>
-          <select
-            id="segmento"
-            className={classeCampo}
-            value={valores.segmento}
-            onChange={(evento) => alterar("segmento", evento.target.value)}
-          >
-            {SEGMENTOS.map((item) => (
-              <option key={item.valor} value={item.valor}>
-                {item.rotulo}
-              </option>
-            ))}
-          </select>
         </Campo>
         <Campo
           label="Segmento da empresa"

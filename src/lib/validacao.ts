@@ -50,7 +50,11 @@ export const esquemaCliente = z.object({
     .trim()
     .min(1, "Informe o CPF ou CNPJ.")
     .refine((valor) => identificarDocumento(valor) !== null, "Informe um CPF ou CNPJ válido."),
-  segmento: z.enum(["RESTAURANTE", "MERCADO_AUTONOMO", "OUTRO"], "Escolha o segmento."),
+  // Coluna antiga. A tela não envia mais. Se vier, ainda precisa ser um valor do enum.
+  segmento: z.preprocess(
+    (valor) => (valor === undefined || valor === null || valor === "" ? undefined : valor),
+    z.enum(["RESTAURANTE", "MERCADO_AUTONOMO", "OUTRO"], "Escolha o segmento.").optional(),
+  ),
   segmentoId: z.preprocess(
     (valor) => {
       if (valor === undefined) return undefined;

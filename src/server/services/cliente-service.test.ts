@@ -79,6 +79,39 @@ describe("serviço de clientes", () => {
     expect(sql).not.toMatch(/observacoes"\s*=/);
   });
 
+  it("não exige o segmento fixo e preserva o valor já gravado", async () => {
+    const semSegmento = Object.fromEntries(
+      Object.entries(exemplo(completarCnpj("300000000094"))).filter(([chave]) => chave !== "segmento"),
+    );
+    const criado = await criarCliente(empresaId, semSegmento);
+    expect(criado.segmento).toBe("OUTRO");
+    expect((await prisma.cliente.findUniqueOrThrow({ where: { id: criado.id } })).segmento).toBe("OUTRO");
+
+    const antigo = await criarCliente(
+      empresaId,
+      exemplo(completarCnpj("300000000095"), { segmento: "MERCADO_AUTONOMO" }),
+    );
+    const edicao = Object.fromEntries(
+      Object.entries(
+        exemplo(completarCnpj("300000000095"), { nomeFantasia: "Nome Mantém Segmento" }),
+      ).filter(([chave]) => chave !== "segmento"),
+    );
+    const atualizado = await atualizarCliente(empresaId, antigo.id, edicao);
+    expect(atualizado.nomeFantasia).toBe("Nome Mantém Segmento");
+    expect(atualizado.segmento).toBe("MERCADO_AUTONOMO");
+
+    await expect(
+      criarCliente(empresaId, exemplo(completarCnpj("300000000096"), { segmento: "PADARIA" })),
+    ).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("a migration do segmento fixo só define o padrão e não apaga dados", () => {
+    const sql = readFileSync("prisma/migrations/20261107170000_segmento_fixo_padrao/migration.sql", "utf8");
+    expect(sql).toContain(`ALTER COLUMN "segmento" SET DEFAULT 'OUTRO'`);
+    expect(sql).not.toMatch(/DROP COLUMN/i);
+    expect(sql).not.toMatch(/UPDATE\s+"clientes"/i);
+  });
+
   it("aceita CPF de pessoa física", async () => {
     const cliente = await criarCliente(empresaId, 
       exemplo(completarCpf("000000001"), {

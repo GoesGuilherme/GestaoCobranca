@@ -7,8 +7,7 @@ import { formatarReais } from "@/lib/dinheiro";
 import { formatarNumero } from "@/lib/formatacao";
 import { podeVerFaturas } from "@/lib/permissoes";
 import { SecaoPromessasPainel } from "@/components/secao-promessas-painel";
-import { rotuloSegmento } from "@/lib/rotulos";
-import type { Segmento, StatusCliente } from "@/lib/tipos";
+import type { StatusCliente } from "@/lib/tipos";
 import { cnpjCollabPendente } from "@/lib/collab";
 import { acessoDaPagina } from "@/server/auth/pagina";
 import { obterPainel } from "@/server/services/painel-service";
@@ -16,7 +15,10 @@ import { obterPainel } from "@/server/services/painel-service";
 export const metadata = { title: "Painel" };
 
 const ordemStatus: StatusCliente[] = ["ATIVO", "EM_IMPLANTACAO", "INATIVO", "BLOQUEADO"];
-const ordemSegmento: Segmento[] = ["RESTAURANTE", "MERCADO_AUTONOMO", "OUTRO"];
+
+function corDoSegmento(cor: string | null) {
+  return cor && /^#[0-9A-Fa-f]{6}$/.test(cor) ? cor : null;
+}
 
 const TEXTO_STATUS: Record<StatusCliente, { linha: string; dica: string }> = {
   ATIVO: { linha: "Quantidade de clientes ativos", dica: "Clientes que estão ativos nesta empresa." },
@@ -59,7 +61,7 @@ export default async function PaginaPainel() {
       <CabecalhoPagina
         olho="Visão geral"
         titulo="Painel"
-        descricao="Quantos clientes estão ativos, em implantação, parados ou bloqueados, em qual segmento, e quanto está contratado por mês."
+        descricao="Quantos clientes estão ativos, em implantação, parados ou bloqueados, em qual segmento da empresa, e quanto está contratado por mês."
         acao={
           <Link href="/clientes/novo" className={classeBotaoPrimario}>
             Novo cliente
@@ -107,27 +109,42 @@ export default async function PaginaPainel() {
 
       <section className="mt-6 grid gap-4 lg:grid-cols-5">
         <article className="rounded-3xl border border-line bg-card p-6 lg:col-span-2">
-          <h2 className="font-display text-2xl">Por segmento</h2>
-          <div className="mt-5 space-y-4">
-            {ordemSegmento.map((segmento) => {
-              const valor = painel.porSegmento[segmento];
-              const percentual =
-                painel.totalClientes === 0 ? 0 : Math.round((valor / painel.totalClientes) * 100);
-              return (
-                <div key={segmento}>
-                  <div className="mb-1 flex items-center justify-between text-sm">
-                    <span>{rotuloSegmento(segmento)}</span>
-                    <span className="tabular-nums text-muted">
-                      {valor} · {percentual}%
-                    </span>
+          <h2 className="font-display text-2xl">Por segmento da empresa</h2>
+          {painel.porSegmento.length === 0 ? (
+            <p className="mt-5 text-sm text-muted">Nenhum cliente cadastrado.</p>
+          ) : (
+            <div className="mt-5 space-y-4">
+              {painel.porSegmento.map((segmento) => {
+                const percentual =
+                  painel.totalClientes === 0 ? 0 : Math.round((segmento.quantidade / painel.totalClientes) * 100);
+                const cor = corDoSegmento(segmento.cor);
+                const rotulo = `${segmento.nome}: ${segmento.quantidade} clientes, ${percentual}%`;
+                return (
+                  <div key={segmento.id ?? "sem-segmento"}>
+                    <div className="mb-1 flex items-center justify-between gap-3 text-sm">
+                      <span className="inline-flex min-w-0 items-center gap-2">
+                        <span
+                          className={`size-2 shrink-0 rounded-full ${cor ? "" : "bg-canopy"}`}
+                          style={cor ? { backgroundColor: cor } : undefined}
+                          aria-hidden="true"
+                        />
+                        <span className="truncate">{segmento.nome}</span>
+                      </span>
+                      <span className="tabular-nums text-muted">
+                        {segmento.quantidade} · {percentual}%
+                      </span>
+                    </div>
+                    <div className="h-2 rounded-full bg-sand" role="img" aria-label={rotulo}>
+                      <div
+                        className={`h-2 rounded-full ${cor ? "" : "bg-canopy"}`}
+                        style={{ width: `${percentual}%`, ...(cor ? { backgroundColor: cor } : {}) }}
+                      />
+                    </div>
                   </div>
-                  <div className="h-2 rounded-full bg-sand" role="img" aria-label={`${rotuloSegmento(segmento)}: ${valor} clientes, ${percentual}%`}>
-                    <div className="h-2 rounded-full bg-canopy" style={{ width: `${percentual}%` }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </article>
 
         <article className="rounded-3xl border border-line bg-card p-6 lg:col-span-3">
