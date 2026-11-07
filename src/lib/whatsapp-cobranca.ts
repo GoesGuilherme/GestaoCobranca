@@ -78,6 +78,13 @@ export function templateCobrancaWhatsapp(tipo: TipoTemplateWhatsapp): TemplateCo
   return encontrado;
 }
 
+// O template aprovado taguaro_boleto_gerado_v2 diz "Seu boleto". Cartão, Pix e
+// "cliente escolhe" não usam esse texto. Trocar o corpo exige aprovação nova da Meta.
+export function formaUsaTemplateBoleto(forma: string | null | undefined): boolean {
+  const texto = (forma ?? "").trim().toUpperCase();
+  return texto === "BOLETO" || texto === "BOLETO_PIX";
+}
+
 export function tipoTemplateDoPasso(passo: { naEmissao: boolean; dias: number | null }): Exclude<TipoTemplateWhatsapp, "PAGO"> {
   if (passo.naEmissao) return "BOLETO_GERADO";
   if ((passo.dias ?? 0) > 0) return "VENCEU";

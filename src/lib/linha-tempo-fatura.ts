@@ -123,7 +123,7 @@ function dataPrevista(dias: number | null, vencimento: string): string | null {
 
 function tituloDaAcao(fase: FaseLinhaTempo, enviado: boolean, previsto: boolean): string {
   if (fase === "pago") return "Pago";
-  if (fase === "emissao") return "Boleto emitido";
+  if (fase === "emissao") return "Cobrança emitida";
   if (fase === "antes") {
     if (enviado) return "Lembrete enviado";
     if (previsto) return "Lembrete previsto";

@@ -68,7 +68,8 @@ describe("linha do tempo da fatura", () => {
     expect(acesos(resultado)).toEqual([true, false, false, false, false, false]);
     expect(resultado.paga).toBe(false);
     expect(resultado.marcadores[1]?.dica).toBe("5 dias antes do vencimento · E-mail e WhatsApp · futuro");
-    expect(resultado.marcadores[0]?.dica).toBe("Emissão do boleto · E-mail · não enviado");
+    expect(resultado.marcadores[0]?.dica).toBe("Emissão da cobrança · E-mail · não enviado");
+    expect(resultado.marcadores[0]?.titulo).toBe("Cobrança emitida");
   });
 
   it("no dia do vencimento acende emissão, antes e o dia, e deixa o depois cinza", () => {
@@ -204,7 +205,7 @@ describe("linha do tempo da fatura", () => {
       ],
     });
     expect(futura.marcadores.map((marco) => marco.titulo)).toEqual([
-      "Boleto emitido",
+      "Cobrança emitida",
       "Lembrete previsto",
       "Aviso previsto",
       "Cobrança prevista",
@@ -259,7 +260,7 @@ describe("linha do tempo da fatura", () => {
       hoje: HOJE,
       envios: [{ passoId: "emissao", canal: "EMAIL", status: "ENVIADO", criadoEm: "2026-09-20T11:00:00.000Z" }],
     });
-    expect(cancelada.marcadores[0]?.titulo).toBe("Boleto emitido");
+    expect(cancelada.marcadores[0]?.titulo).toBe("Cobrança emitida");
     expect(cancelada.marcadores[0]?.detalhe).toBe("E-mail · 20/09/2026, 08:00");
     expect(cancelada.marcadores[0]?.aceso).toBe(false);
     expect(cancelada.marcadores[1]?.titulo).toBe("Lembrete antes do vencimento");

@@ -27,7 +27,7 @@ describe("marcadores da linha do tempo", () => {
   });
 
   it("nomeia a ação de cada fase", () => {
-    expect(nomeAcaoLinhaTempo("emissao")).toBe("Boleto emitido");
+    expect(nomeAcaoLinhaTempo("emissao")).toBe("Cobrança emitida");
     expect(nomeAcaoLinhaTempo("antes")).toBe("Lembrete antes do vencimento");
     expect(nomeAcaoLinhaTempo("noDia")).toBe("Aviso no dia do vencimento");
     expect(nomeAcaoLinhaTempo("depois")).toBe("Cobrança após vencimento");
@@ -81,7 +81,7 @@ describe("marcadores da linha do tempo", () => {
     expect(marcadores.map((marcador) => marcador.indice)).toEqual([1, 2, 3, 4, 0, null]);
     expect(marcadores[1]?.dica).toBe("2 dias antes do vencimento · E-mail e WhatsApp · Dois antes");
     expect(marcadores[3]?.dica).toBe("2 dias depois do vencimento · E-mail · Dois depois");
-    expect(marcadores[0]?.dica).toBe("Emissão do boleto · E-mail · Boleto emitido");
+    expect(marcadores[0]?.dica).toBe("Emissão da cobrança · E-mail · Boleto emitido");
     expect(marcadores.at(-1)?.dica).toBe("Pago · quando o cliente paga a cobrança");
     expect(marcadores.at(-1)?.chave).toBe("pago");
   });
