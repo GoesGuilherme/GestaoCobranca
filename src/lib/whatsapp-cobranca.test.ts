@@ -3,6 +3,7 @@ import {
   TEMPLATES_COBRANCA_WHATSAPP,
   decisaoOptOut,
   tipoTemplateDoPasso,
+  variaveisCompativeisComTemplate,
   variaveisDoTemplate,
   whatsappE164,
 } from "./whatsapp-cobranca";
@@ -108,6 +109,33 @@ describe("templates de cobrança", () => {
         link: "",
       }),
     ).toBeNull();
+    const vence = variaveisDoTemplate("VENCE_EM_DIAS", {
+      nome: "Ana",
+      valor: "R$ 10,00",
+      vencimento: "30/10/2026",
+      link: "https://www.asaas.com/i/abc",
+      dias: "5",
+    });
+    const boleto = variaveisDoTemplate("BOLETO_GERADO", {
+      nome: "Ana",
+      valor: "R$ 10,00",
+      vencimento: "30/10/2026",
+      link: "https://www.asaas.com/i/abc",
+    });
+    expect(vence && variaveisCompativeisComTemplate("VENCE_EM_DIAS", vence)).toBe(true);
+    expect(boleto && variaveisCompativeisComTemplate("BOLETO_GERADO", boleto)).toBe(true);
+    expect(boleto && variaveisCompativeisComTemplate("VENCEU", boleto)).toBe(true);
+    expect(boleto && variaveisCompativeisComTemplate("PAGO", boleto)).toBe(true);
+    expect(
+      variaveisCompativeisComTemplate("VENCE_EM_DIAS", {
+        "1": "Ana",
+        "2": "R$ 10,00",
+        "3": "30/10/2026",
+        "4": "https://www.asaas.com/i/abc",
+        "5": "5",
+      }),
+    ).toBe(false);
+    expect(boleto && variaveisCompativeisComTemplate("VENCE_EM_DIAS", boleto)).toBe(false);
   });
 
   it("normaliza o telefone e lê o opt-out", () => {

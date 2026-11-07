@@ -5,7 +5,7 @@ import { prisma } from "@/server/db";
 import { ErroAplicacao } from "@/server/erros";
 import { processarEntradaAssessor } from "@/server/services/assessor-service";
 import { credenciaisPaiTwilio, numeroTesteWhatsapp, urlWebhookTwilio } from "@/server/twilio/fabrica";
-import { sandboxWhatsappLigado } from "@/server/twilio/sandbox";
+import { REMETENTE_OFICIAL_WHATSAPP, remetenteOficialTesteLigado, sandboxWhatsappLigado } from "@/server/twilio/sandbox";
 
 function texto(valor: string | undefined, limite: number) {
   const limpo = valor?.trim() ?? "";
@@ -21,8 +21,15 @@ function recusar() {
   throw new ErroAplicacao("Assinatura da Twilio recusada.", 403, "twilio_assinatura");
 }
 
-function contaPaiDoSandbox(accountSid: string) {
-  if (!sandboxWhatsappLigado()) return null;
+const GRAU_ENTREGA = ["queued", "sent", "delivered", "read"];
+
+function grauEntrega(valor: string | null): number {
+  const nome = (valor ?? "").replace(/^Twilio\s+/i, "").trim().toLowerCase();
+  return GRAU_ENTREGA.indexOf(nome);
+}
+
+function contaPai(accountSid: string, permitir: boolean) {
+  if (!permitir) return null;
   try {
     const pai = credenciaisPaiTwilio();
     if (pai.accountSid !== accountSid) return null;
@@ -63,6 +70,14 @@ async function registrarStatus(empresaId: string, dados: {
       where: { id: fila.id },
       data: { status: "FALHOU", motivo: `Twilio ${dados.errorCode ?? dados.messageStatus}`.slice(0, 180) },
     });
+  } else if (fila && fila.status === "ENVIADO") {
+    const grau = grauEntrega(dados.messageStatus);
+    if (grau > grauEntrega(fila.motivo)) {
+      await prisma.filaWhatsapp.update({
+        where: { id: fila.id },
+        data: { motivo: `Twilio ${dados.messageStatus}`.slice(0, 180) },
+      });
+    }
   }
   return { recebido: true, duplicado: false };
 }
@@ -178,7 +193,9 @@ export async function processarWebhookTwilio(dados: {
     return registrarEntrada(config.empresaId, evento);
   }
 
-  const pai = contaPaiDoSandbox(accountSid);
+  const sandbox = sandboxWhatsappLigado();
+  const oficial = remetenteOficialTesteLigado();
+  const pai = contaPai(accountSid, sandbox || oficial);
   if (!pai || !assinaturaTwilioValida({
     url: pai.webhookUrl,
     parametros: dados.parametros,
@@ -190,11 +207,13 @@ export async function processarWebhookTwilio(dados: {
 
   const evento = eventoAutenticado(dados.parametros);
   if (!evento.inbound && evento.messageStatus) {
+    if (!sandbox && evento.de !== REMETENTE_OFICIAL_WHATSAPP) recusar();
     const fila = await prisma.filaWhatsapp.findFirst({ where: { messageSid: evento.messageSid } });
     if (!fila?.modoTeste) return { recebido: true, duplicado: false };
     return registrarStatus(fila.empresaId, { ...evento, messageStatus: evento.messageStatus });
   }
 
+  if (!sandbox) return { recebido: true, duplicado: false };
   const empresaId = await empresaUnicaDoSandbox(evento.de);
   if (!empresaId) return { recebido: true, duplicado: false };
   return registrarEntrada(empresaId, evento);

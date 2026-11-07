@@ -138,3 +138,28 @@ export function variaveisDoTemplate(
   }
   return { "1": nome, "2": valor, "3": vencimento, "4": link };
 }
+
+const LINK_TEMPLATE = /^https?:\/\/\S+$/i;
+
+function linkDeTemplate(valor: string | undefined): boolean {
+  const link = valor ?? "";
+  return LINK_TEMPLATE.test(link) && link.length <= 500;
+}
+
+// O corpo aprovado na Meta exige este contrato. Um payload antigo de
+// VENCE_EM_DIAS punha o link em {{4}} e os dias em {{5}}; isso não pode sair.
+export function variaveisCompativeisComTemplate(tipo: string, variaveis: Record<string, string>): boolean {
+  if (!TIPOS_TEMPLATE_WHATSAPP.includes(tipo as TipoTemplateWhatsapp)) return false;
+  const chaves = Object.keys(variaveis).sort().join(",");
+  if (tipo === "VENCE_EM_DIAS") {
+    if (chaves !== "1,2,3,4,5") return false;
+    if (!/^\d{1,3}$/.test(variaveis["3"] ?? "")) return false;
+    if (!variaveis["1"] || !variaveis["2"] || !variaveis["4"]) return false;
+    if (linkDeTemplate(variaveis["4"])) return false;
+    return linkDeTemplate(variaveis["5"]);
+  }
+  if (chaves !== "1,2,3,4") return false;
+  if (!variaveis["1"] || !variaveis["2"] || !variaveis["3"]) return false;
+  if (linkDeTemplate(variaveis["3"])) return false;
+  return linkDeTemplate(variaveis["4"]);
+}
