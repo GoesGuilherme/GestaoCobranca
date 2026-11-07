@@ -321,6 +321,7 @@ export type CanalWhatsappServidor = {
   sandboxLigado: boolean;
   numeroTesteConfigurado: boolean;
   templatesContaPaiProntos: boolean;
+  producaoOficialLiberada: boolean;
 };
 
 export type ConfiguracaoTwilioDTO = {

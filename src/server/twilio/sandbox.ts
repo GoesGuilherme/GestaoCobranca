@@ -5,7 +5,8 @@ import { TIPOS_TEMPLATE_WHATSAPP, type TipoTemplateWhatsapp } from "@/lib/whatsa
 export const REMETENTE_SANDBOX_WHATSAPP = "whatsapp:+14155238886";
 
 // Sender de WhatsApp já Online na conta pai. Não é o número do sandbox.
-// A flag abaixo é o único jeito de a régua usá-lo, e só no modo teste.
+// A flag liga este remetente. No modo teste ele só fala com o número de teste.
+// Fora do modo teste ele fala com o cliente só depois de TWILIO_WHATSAPP_OFICIAL_DESDE.
 export const REMETENTE_OFICIAL_WHATSAPP = "whatsapp:+16504762069";
 
 const SID_CONTEUDO = /^HX[0-9a-fA-F]{32}$/;
@@ -39,15 +40,44 @@ export function usarSandboxWhatsapp(modoTeste: boolean, env: AmbienteSandbox = p
   return modoTeste && sandboxWhatsappLigado(env);
 }
 
-// Liga o teste controlado do Sender da conta pai. Qualquer valor que não seja
-// "true" fica desligado. Fora do modo teste a função é falsa: a flag não
-// autoriza envio para cliente nem troca o Sender da subconta.
-export function remetenteOficialTesteLigado(env: AmbienteSandbox = process.env) {
+// A flag liga o Sender da conta pai. Qualquer valor que não seja "true" fica desligado.
+export function remetenteOficialLigado(env: AmbienteSandbox = process.env) {
   return ligadoPelaFlag(env.TWILIO_WHATSAPP_SENDER_OFICIAL);
 }
 
+export function remetenteOficialTesteLigado(env: AmbienteSandbox = process.env) {
+  return remetenteOficialLigado(env);
+}
+
 export function usarRemetenteOficialTeste(modoTeste: boolean, env: AmbienteSandbox = process.env) {
-  return modoTeste && remetenteOficialTesteLigado(env);
+  return modoTeste && remetenteOficialLigado(env);
+}
+
+// Sem esta data, o Sender oficial não fala com cliente real. Cobrança anterior fica de fora.
+export function inicioWhatsappOficialProducao(env: AmbienteSandbox = process.env): Date | null {
+  const bruto = env.TWILIO_WHATSAPP_OFICIAL_DESDE?.trim() ?? "";
+  if (!bruto) return null;
+  const data = new Date(bruto);
+  if (Number.isNaN(data.getTime())) return null;
+  return data;
+}
+
+export type RotaWhatsapp = "oficial_teste" | "oficial_producao" | "sandbox" | "empresa" | "nenhuma";
+
+// O sandbox nunca sai do modo teste e nunca ganha do Sender oficial.
+// O número da empresa só entra quando a flag oficial está desligada.
+export function rotaWhatsapp(entrada: {
+  modoTeste: boolean;
+  oficialLigado: boolean;
+  sandboxLigado: boolean;
+  empresaPronta: boolean;
+  producaoLiberada: boolean;
+}): RotaWhatsapp {
+  if (entrada.oficialLigado && entrada.modoTeste) return "oficial_teste";
+  if (entrada.oficialLigado) return entrada.producaoLiberada ? "oficial_producao" : "nenhuma";
+  if (entrada.modoTeste && entrada.sandboxLigado && !entrada.empresaPronta) return "sandbox";
+  if (entrada.empresaPronta) return "empresa";
+  return "nenhuma";
 }
 
 export function sinaisCanalWhatsapp(env: AmbienteSandbox = process.env) {
@@ -55,6 +85,7 @@ export function sinaisCanalWhatsapp(env: AmbienteSandbox = process.env) {
     remetenteOficialLigado: remetenteOficialTesteLigado(env),
     sandboxLigado: sandboxWhatsappLigado(env),
     numeroTesteConfigurado: Boolean(env.TWILIO_WHATSAPP_TESTE?.trim()),
+    producaoOficialLiberada: inicioWhatsappOficialProducao(env) !== null,
     templatesContaPaiProntos: (Object.keys(CHAVE_CONTENT_SID) as TipoTemplateWhatsapp[]).every(
       (tipo) => contentSidSandbox(tipo, env) !== null,
     ),

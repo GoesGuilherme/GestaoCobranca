@@ -3,7 +3,10 @@ import {
   contentSidSandbox,
   REMETENTE_OFICIAL_WHATSAPP,
   REMETENTE_SANDBOX_WHATSAPP,
+  inicioWhatsappOficialProducao,
+  remetenteOficialLigado,
   remetenteOficialTesteLigado,
+  rotaWhatsapp,
   sandboxWhatsappLigado,
   usarRemetenteOficialTeste,
   usarSandboxWhatsapp,
@@ -36,13 +39,27 @@ describe("sandbox de WhatsApp", () => {
     expect(contentSidSandbox("OUTRO", { TWILIO_CONTENT_SID_PAGO: SID })).toBeNull();
   });
 
-  it("o Sender oficial só liga com a flag exata e só no modo teste", () => {
+  it("o Sender oficial liga com a flag e o cliente real só depois da data", () => {
     expect(REMETENTE_OFICIAL_WHATSAPP).toBe("whatsapp:+16504762069");
-    expect(remetenteOficialTesteLigado({ TWILIO_WHATSAPP_SENDER_OFICIAL: "true" })).toBe(true);
+    expect(remetenteOficialLigado({ TWILIO_WHATSAPP_SENDER_OFICIAL: "true" })).toBe(true);
     expect(remetenteOficialTesteLigado({ TWILIO_WHATSAPP_SENDER_OFICIAL: "false" })).toBe(false);
-    expect(remetenteOficialTesteLigado({})).toBe(false);
     expect(usarRemetenteOficialTeste(true, { TWILIO_WHATSAPP_SENDER_OFICIAL: "true" })).toBe(true);
     expect(usarRemetenteOficialTeste(false, { TWILIO_WHATSAPP_SENDER_OFICIAL: "true" })).toBe(false);
-    expect(sandboxWhatsappLigado({ TWILIO_WHATSAPP_SENDER_OFICIAL: "true" })).toBe(false);
+    expect(usarSandboxWhatsapp(false, { TWILIO_WHATSAPP_SANDBOX: "true" })).toBe(false);
+    expect(inicioWhatsappOficialProducao({})).toBeNull();
+    expect(inicioWhatsappOficialProducao({ TWILIO_WHATSAPP_OFICIAL_DESDE: "nao-e-data" })).toBeNull();
+    expect(inicioWhatsappOficialProducao({ TWILIO_WHATSAPP_OFICIAL_DESDE: "2026-11-07T18:00:00.000Z" })?.toISOString()).toBe(
+      "2026-11-07T18:00:00.000Z",
+    );
+    const base = { oficialLigado: true, sandboxLigado: true, empresaPronta: true, producaoLiberada: false };
+    expect(rotaWhatsapp({ ...base, modoTeste: true })).toBe("oficial_teste");
+    expect(rotaWhatsapp({ ...base, modoTeste: false })).toBe("nenhuma");
+    expect(rotaWhatsapp({ ...base, modoTeste: false, producaoLiberada: true })).toBe("oficial_producao");
+    expect(rotaWhatsapp({ modoTeste: false, oficialLigado: false, sandboxLigado: true, empresaPronta: false, producaoLiberada: false })).toBe(
+      "nenhuma",
+    );
+    expect(rotaWhatsapp({ modoTeste: true, oficialLigado: false, sandboxLigado: true, empresaPronta: false, producaoLiberada: false })).toBe(
+      "sandbox",
+    );
   });
 });

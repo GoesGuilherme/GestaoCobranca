@@ -101,6 +101,7 @@ export function PainelWhatsapp({
     numeroTesteConfigurado: estado.canal.numeroTesteConfigurado,
     templatesContaPaiProntos: estado.canal.templatesContaPaiProntos,
     numeroEmpresaPronto,
+    producaoOficialLiberada: estado.canal.producaoOficialLiberada,
   });
 
   return (
