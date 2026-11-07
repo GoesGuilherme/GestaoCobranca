@@ -53,6 +53,7 @@ export async function middleware(request: NextRequest) {
     pathname === "/api/webhooks/twilio" ||
     pathname.startsWith("/api/webhooks/inter/") ||
     pathname === "/api/cron/regua" ||
+    pathname === "/api/cron/regua-emissao" ||
     pathname === "/api/cron/visualizacoes" ||
     pathname === "/api/cron/recorrencias" ||
     pathname === "/api/cron/conciliacao";

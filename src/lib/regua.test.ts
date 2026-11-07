@@ -2,14 +2,18 @@ import { describe, expect, it } from "vitest";
 import {
   AMOSTRA_REGUA,
   assuntoRegua,
+  cobrancaComLink,
   dentroDaJanela,
   diasAtraso,
+  emissaoElegivel,
+  JANELA_EMISSAO_MS,
   passoCombina,
   opcoesDaReguaAplicavel,
   opcoesDePasso,
   rotuloAtribuicao,
   rotuloPasso,
   rotuloReguaDaFatura,
+  TEXTO_PASSO_NA_EMISSAO,
   textoRegua,
 } from "./regua";
 
@@ -37,6 +41,26 @@ describe("texto da régua", () => {
     expect(assuntoRegua("Sua cobrança vence hoje", false)).toBe("Sua cobrança vence hoje");
     expect(assuntoRegua("Sua cobrança vence hoje", true)).toBe("[Teste] Sua cobrança vence hoje");
     expect(assuntoRegua("[Teste] Já marcado", true)).toBe("[Teste] Já marcado");
+  });
+
+  it("só emite cobrança nova, com link, dentro de 72 horas e depois do passo", () => {
+    const agora = new Date("2026-11-07T15:00:00.000Z");
+    const passo = new Date("2026-11-07T12:00:00.000Z");
+    const depois = new Date("2026-11-07T13:30:00.000Z");
+    const antesDoPasso = new Date("2026-11-07T11:00:00.000Z");
+    const loteNovembro = new Date("2026-11-03T12:00:00.000Z");
+    const velhaDemais = new Date(agora.getTime() - JANELA_EMISSAO_MS - 1);
+    expect(emissaoElegivel({ criadoEmFatura: depois, criadoEmPasso: passo, agora })).toBe(true);
+    expect(emissaoElegivel({ criadoEmFatura: passo, criadoEmPasso: passo, agora })).toBe(true);
+    expect(emissaoElegivel({ criadoEmFatura: antesDoPasso, criadoEmPasso: passo, agora })).toBe(false);
+    expect(emissaoElegivel({ criadoEmFatura: loteNovembro, criadoEmPasso: passo, agora })).toBe(false);
+    expect(emissaoElegivel({ criadoEmFatura: velhaDemais, criadoEmPasso: new Date("2026-10-01T00:00:00.000Z"), agora })).toBe(false);
+    expect(emissaoElegivel({ criadoEmFatura: new Date(agora.getTime() + 1000), criadoEmPasso: passo, agora })).toBe(false);
+    expect(cobrancaComLink({ boletoUrl: " https://boleto ", faturaUrl: null })).toBe(true);
+    expect(cobrancaComLink({ boletoUrl: "  ", faturaUrl: "" })).toBe(false);
+    expect(TEXTO_PASSO_NA_EMISSAO).toContain("cerca de uma hora");
+    expect(TEXTO_PASSO_NA_EMISSAO).toContain("sábado");
+    expect(TEXTO_PASSO_NA_EMISSAO).toContain("antes deste passo");
   });
 
   it("nomeia o passo e a régua do cliente", () => {

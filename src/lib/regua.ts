@@ -157,6 +157,30 @@ export function dentroDaJanela(hora: number, inicio: number, fim: number): boole
   return hora >= inicio && hora < fim;
 }
 
+// A emissão é conferida toda hora, inclusive sábado e domingo. 72 h cobrem
+// um horário fechado e uma falha do job, sem reabrir boleto antigo. A fatura
+// ainda precisa ter nascido com o passo já gravado.
+export const JANELA_EMISSAO_MS = 72 * 60 * 60 * 1000;
+
+export const TEXTO_PASSO_NA_EMISSAO =
+  "Sai cerca de uma hora depois que o boleto ou o link fica pronto, inclusive no sábado e no domingo, dentro do horário desta régua. Fora desse horário espera a próxima hora permitida, também no fim de semana. A opção de não enviar no fim de semana não vale para este passo. Cobrança criada antes deste passo não recebe este aviso.";
+
+export function cobrancaComLink(cobranca: { boletoUrl?: string | null; faturaUrl?: string | null }): boolean {
+  return Boolean(cobranca.boletoUrl?.trim() || cobranca.faturaUrl?.trim());
+}
+
+export function emissaoElegivel(entrada: {
+  criadoEmFatura: Date;
+  criadoEmPasso: Date;
+  agora: Date;
+  janelaMs?: number;
+}): boolean {
+  const janela = entrada.janelaMs ?? JANELA_EMISSAO_MS;
+  const idade = entrada.agora.getTime() - entrada.criadoEmFatura.getTime();
+  if (idade < 0 || idade > janela) return false;
+  return entrada.criadoEmFatura.getTime() >= entrada.criadoEmPasso.getTime();
+}
+
 // O alvo no sábado ou no domingo sai na segunda, com no máximo dois dias de atraso,
 // quando a régua não envia no fim de semana. Fora isso, só no dia exato.
 export function passoCombina(hoje: string, alvo: string, enviarFimDeSemana: boolean): boolean {

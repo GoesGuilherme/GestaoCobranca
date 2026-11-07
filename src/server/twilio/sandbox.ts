@@ -50,6 +50,17 @@ export function usarRemetenteOficialTeste(modoTeste: boolean, env: AmbienteSandb
   return modoTeste && remetenteOficialTesteLigado(env);
 }
 
+export function sinaisCanalWhatsapp(env: AmbienteSandbox = process.env) {
+  return {
+    remetenteOficialLigado: remetenteOficialTesteLigado(env),
+    sandboxLigado: sandboxWhatsappLigado(env),
+    numeroTesteConfigurado: Boolean(env.TWILIO_WHATSAPP_TESTE?.trim()),
+    templatesContaPaiProntos: (Object.keys(CHAVE_CONTENT_SID) as TipoTemplateWhatsapp[]).every(
+      (tipo) => contentSidSandbox(tipo, env) !== null,
+    ),
+  };
+}
+
 // ContentSid criado na conta pai. O da subconta não serve no sandbox.
 export function contentSidSandbox(tipo: string, env: AmbienteSandbox = process.env): string | null {
   if (!TIPOS_TEMPLATE_WHATSAPP.includes(tipo as TipoTemplateWhatsapp)) return null;
