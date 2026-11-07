@@ -4,7 +4,7 @@ import { classeBotaoPrimario, classeBotaoSecundario } from "@/components/estilos
 import { classeCampo } from "@/components/campo";
 import { EstadoVazio } from "@/components/estado-vazio";
 import { TabelaClientes } from "@/components/tabela-clientes";
-import { SEGMENTOS, STATUS_CLIENTE } from "@/lib/rotulos";
+import { STATUS_CLIENTE } from "@/lib/rotulos";
 import { acessoDaPagina } from "@/server/auth/pagina";
 import { classificarPagadoresDaEmpresa } from "@/server/services/classificacao-pagador-service";
 import { listarClientes } from "@/server/services/cliente-service";
@@ -14,7 +14,6 @@ export const metadata = { title: "Clientes" };
 
 type Busca = {
   q?: string;
-  segmento?: string;
   segmentoId?: string;
   status?: string;
 };
@@ -27,11 +26,10 @@ export default async function PaginaClientes({
   const params = await searchParams;
   const acesso = await acessoDaPagina();
   const q = params.q?.trim() ?? "";
-  const segmento = params.segmento ?? "";
   const segmentoId = params.segmentoId ?? "";
   const status = params.status ?? "";
   const [clientes, segmentos] = await Promise.all([
-    listarClientes(acesso.empresaId, { q, segmento, segmentoId, status }),
+    listarClientes(acesso.empresaId, { q, segmentoId, status }),
     listarSegmentos(acesso.empresaId),
   ]);
   const selos = Object.fromEntries(
@@ -40,7 +38,7 @@ export default async function PaginaClientes({
       clientes.map((cliente) => cliente.id),
     ),
   );
-  const filtrando = Boolean(q || segmento || segmentoId || status);
+  const filtrando = Boolean(q || segmentoId || status);
 
   return (
     <>
@@ -55,7 +53,7 @@ export default async function PaginaClientes({
         }
       />
 
-      <form method="get" className="mb-6 grid gap-3 rounded-3xl border border-line bg-card p-4 md:grid-cols-2 xl:grid-cols-[1.2fr_11rem_13rem_10rem_auto] md:items-end">
+      <form method="get" className="mb-6 grid gap-3 rounded-3xl border border-line bg-card p-4 md:grid-cols-2 xl:grid-cols-[1.2fr_14rem_10rem_auto] md:items-end">
         <label className="grid gap-1 text-sm">
           <span className="font-medium">Busca</span>
           <input
@@ -65,17 +63,6 @@ export default async function PaginaClientes({
             aria-label="Buscar por nome, CNPJ ou cidade"
             className={classeCampo}
           />
-        </label>
-        <label className="grid gap-1 text-sm">
-          <span className="font-medium">Segmento</span>
-        <select name="segmento" defaultValue={segmento} aria-label="Segmento" className={classeCampo}>
-          <option value="">Todos os segmentos</option>
-          {SEGMENTOS.map((item) => (
-            <option key={item.valor} value={item.valor}>
-              {item.rotulo}
-            </option>
-          ))}
-        </select>
         </label>
         <label className="grid gap-1 text-sm">
           <span className="font-medium">Segmento da empresa</span>

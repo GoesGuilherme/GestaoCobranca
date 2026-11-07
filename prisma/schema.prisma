@@ -218,7 +218,10 @@ model Cliente {
   razaoSocial   String           @map("razao_social")
   documento     String
   tipoDocumento TipoDocumento    @map("tipo_documento")
-  segmento      Segmento
+  // Classificação antiga (Restaurante, Mercado autônomo, Outro).
+  // A tela não pede mais este campo. O padrão OUTRO só vale para cadastro novo;
+  // um update que não envia o campo não regrava a coluna.
+  segmento      Segmento         @default(OUTRO)
   contatoNome   String           @map("contato_nome")
   whatsapp      String
   email         String
@@ -268,7 +271,8 @@ model Cliente {
 }
 
 // Segmento comercial definido pela empresa (Restaurante, Padaria...).
-// O enum `segmento` do cliente continua sendo a classificação fixa do painel.
+// É o segmento usado na ficha, na lista e no painel.
+// O enum `segmento` do cliente permanece no banco, com padrão OUTRO.
 model SegmentoCliente {
   id           String    @id @default(cuid())
   empresaId    String    @map("empresa_id")

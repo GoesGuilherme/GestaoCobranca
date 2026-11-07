@@ -83,7 +83,7 @@ export function TabelaClientes({
               {cabecalho("nome", "Cliente")}
               <th className="px-5 py-3 text-left font-medium">Documento</th>
               {cabecalho("cidade", "Cidade")}
-              <th className="px-5 py-3 text-left font-medium">Segmento</th>
+              <th className="px-5 py-3 text-left font-medium">Segmento da empresa</th>
               {cabecalho("status", "Status")}
               {cabecalho("ativacao", "Ativação")}
               {cabecalho("filiais", "Filiais")}
@@ -107,12 +107,11 @@ export function TabelaClientes({
                   {cliente.cidade}/{cliente.uf}
                 </td>
                 <td className="px-5 py-4">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <Selo valor={cliente.segmento} tipo="segmento" />
-                    {cliente.segmentoNome ? (
-                      <ChipSegmento nome={cliente.segmentoNome} cor={cliente.segmentoCor} />
-                    ) : null}
-                  </div>
+                  {cliente.segmentoNome ? (
+                    <ChipSegmento nome={cliente.segmentoNome} cor={cliente.segmentoCor} />
+                  ) : (
+                    <span className="text-muted">Sem segmento da empresa</span>
+                  )}
                 </td>
                 <td className="px-5 py-4">
                   <Selo valor={cliente.status} tipo="cliente" />

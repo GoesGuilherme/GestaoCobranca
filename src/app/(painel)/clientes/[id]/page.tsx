@@ -101,8 +101,11 @@ export default async function PaginaCliente({ params }: { params: Promise<{ id: 
       <div className="mt-4 flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <Selo valor={cliente.segmento} tipo="segmento" />
-            {cliente.segmentoNome ? <ChipSegmento nome={cliente.segmentoNome} cor={cliente.segmentoCor} /> : null}
+            {cliente.segmentoNome ? (
+              <ChipSegmento nome={cliente.segmentoNome} cor={cliente.segmentoCor} />
+            ) : (
+              <span className="text-xs text-muted">Sem segmento da empresa</span>
+            )}
             <Selo valor={cliente.status} tipo="cliente" />
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-3">

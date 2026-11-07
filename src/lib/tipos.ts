@@ -420,11 +420,18 @@ export type ConversaAssessorDetalhe = ConversaAssessorDTO & {
   pedidos: { id: string; motivo: string; resumo: string; status: string; criadoEm: string }[];
 };
 
+export type ContagemSegmento = {
+  id: string | null;
+  nome: string;
+  cor: string | null;
+  quantidade: number;
+};
+
 export type Painel = {
   totalClientes: number;
   totalFiliais: number;
   porStatus: Record<StatusCliente, number>;
-  porSegmento: Record<Segmento, number>;
+  porSegmento: ContagemSegmento[];
   recentes: ClienteResumo[];
   receitaMensal: string;
 };

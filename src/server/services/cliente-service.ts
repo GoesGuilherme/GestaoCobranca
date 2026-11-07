@@ -40,7 +40,8 @@ function dadosPersistidos(entrada: EntradaCliente) {
     razaoSocial: entrada.razaoSocial,
     documento: documento.normalizado,
     tipoDocumento: documento.tipo,
-    segmento: entrada.segmento,
+    // Ausente: o create usa o padrão OUTRO da coluna; o update não mexe no valor já gravado.
+    ...(entrada.segmento ? { segmento: entrada.segmento } : {}),
     ...(entrada.segmentoId !== undefined ? { segmentoId: entrada.segmentoId } : {}),
     contatoNome: entrada.contatoNome,
     whatsapp: somenteDigitos(entrada.whatsapp),
@@ -100,6 +101,8 @@ export async function listarClientes(
 ): Promise<ClienteResumo[]> {
   const termo = filtro.q?.trim();
   const documento = termo ? somenteDocumento(termo) : "";
+  // `segmento` filtra a coluna antiga. A tela não oferece mais esse filtro;
+  // a lista usa `segmentoId` (segmento da empresa). O parâmetro segue aceito.
   const segmento = comoSegmento(filtro.segmento);
   const status = comoStatus(filtro.status);
   const segmentoId = filtro.segmentoId?.trim();
