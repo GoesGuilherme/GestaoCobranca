@@ -5,7 +5,12 @@ import { prisma } from "@/server/db";
 import { ErroAplicacao } from "@/server/erros";
 import { processarEntradaAssessor } from "@/server/services/assessor-service";
 import { credenciaisPaiTwilio, numeroTesteWhatsapp, urlWebhookTwilio } from "@/server/twilio/fabrica";
-import { REMETENTE_OFICIAL_WHATSAPP, remetenteOficialTesteLigado, sandboxWhatsappLigado } from "@/server/twilio/sandbox";
+import {
+  REMETENTE_OFICIAL_WHATSAPP,
+  REMETENTE_SANDBOX_WHATSAPP,
+  remetenteOficialTesteLigado,
+  sandboxWhatsappLigado,
+} from "@/server/twilio/sandbox";
 
 function texto(valor: string | undefined, limite: number) {
   const limpo = valor?.trim() ?? "";
@@ -82,13 +87,23 @@ async function registrarStatus(empresaId: string, dados: {
   return { recebido: true, duplicado: false };
 }
 
+async function empresasDoClienteOficial(de: string | null): Promise<string[]> {
+  const digitos = digitosWhatsapp((de ?? "").replace(/^whatsapp:/i, ""));
+  if (!digitos) return [];
+  const linhas = await prisma.filaWhatsapp.findMany({
+    where: { destino: `whatsapp:+${digitos}`, modoTeste: false },
+    select: { empresaId: true },
+  });
+  return [...new Set(linhas.map((linha) => linha.empresaId))];
+}
+
 async function registrarEntrada(empresaId: string, dados: {
   messageSid: string;
   de: string | null;
   para: string | null;
   corpo: string | null;
   optOutType: string;
-}) {
+}, opcoes: { assessor?: boolean } = {}) {
   const digitos = digitosWhatsapp((dados.de ?? "").replace(/^whatsapp:/i, ""));
   const decisao = decisaoOptOut({ corpo: dados.corpo ?? "", optOutType: dados.optOutType });
   if (digitos && decisao) {
@@ -114,6 +129,7 @@ async function registrarEntrada(empresaId: string, dados: {
     if (conflito(erro)) return { recebido: true, duplicado: true };
     throw erro;
   }
+  if (opcoes.assessor === false) return { recebido: true, duplicado: false };
   try {
     await processarEntradaAssessor({
       empresaId,
@@ -207,10 +223,22 @@ export async function processarWebhookTwilio(dados: {
 
   const evento = eventoAutenticado(dados.parametros);
   if (!evento.inbound && evento.messageStatus) {
-    if (!sandbox && evento.de !== REMETENTE_OFICIAL_WHATSAPP) recusar();
+    const deOficial = evento.de === REMETENTE_OFICIAL_WHATSAPP;
+    const deSandbox = evento.de === REMETENTE_SANDBOX_WHATSAPP;
+    if (!deOficial && !deSandbox) recusar();
+    if (deSandbox && !sandbox) recusar();
     const fila = await prisma.filaWhatsapp.findFirst({ where: { messageSid: evento.messageSid } });
-    if (!fila?.modoTeste) return { recebido: true, duplicado: false };
+    if (!fila) return { recebido: true, duplicado: false };
+    if (deSandbox && !fila.modoTeste) return { recebido: true, duplicado: false };
     return registrarStatus(fila.empresaId, { ...evento, messageStatus: evento.messageStatus });
+  }
+
+  if (evento.para === REMETENTE_OFICIAL_WHATSAPP) {
+    const empresas = await empresasDoClienteOficial(evento.de);
+    for (const empresaId of empresas) {
+      await registrarEntrada(empresaId, evento, { assessor: false });
+    }
+    return { recebido: true, duplicado: false };
   }
 
   if (!sandbox) return { recebido: true, duplicado: false };

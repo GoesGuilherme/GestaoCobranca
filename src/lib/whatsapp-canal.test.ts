@@ -9,6 +9,7 @@ const base = {
   numeroTesteConfigurado: true,
   templatesContaPaiProntos: true,
   numeroEmpresaPronto: false,
+  producaoOficialLiberada: false,
 };
 
 describe("texto do canal de WhatsApp", () => {
@@ -34,15 +35,29 @@ describe("texto do canal de WhatsApp", () => {
     expect(texto.paragrafos.join(" ")).toContain("fila");
   });
 
-  it("a flag sem modo teste não diz que o cliente recebe do número da Taguaro", () => {
+  it("a flag sem a data de liberação não manda para cliente real", () => {
     const texto = descreverCanalWhatsapp({
       ...base,
       modoTeste: false,
       remetenteOficialLigado: true,
-      numeroEmpresaPronto: false,
+      sandboxLigado: true,
     });
     expect(texto.selo).toBe("WhatsApp parado");
-    expect(texto.paragrafos.join(" ")).toContain("só envia com o modo teste ligado");
+    expect(texto.paragrafos.join(" ")).toContain("ainda não foi liberado");
+    expect(texto.paragrafos.join(" ")).toContain("não são reenviadas");
+    expect(texto.paragrafos.join(" ")).toContain("sandbox");
+  });
+
+  it("com a data, o cliente recebe do número da Taguaro e o sandbox não", () => {
+    const texto = descreverCanalWhatsapp({
+      ...base,
+      modoTeste: false,
+      remetenteOficialLigado: true,
+      sandboxLigado: true,
+      producaoOficialLiberada: true,
+    });
+    expect(texto.selo).toBe("Sai pelo número da Taguaro");
+    expect(texto.paragrafos.join(" ")).toContain("WhatsApp do cliente desta cobrança recebe");
     expect(texto.paragrafos.join(" ")).toContain("não manda para o cliente");
   });
 

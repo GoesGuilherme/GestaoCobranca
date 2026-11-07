@@ -18,9 +18,11 @@ import type { ClienteTwilio, CredencialTwilio, MensagemTemplate } from "@/server
 import { credenciaisPaiTwilio, numeroTesteWhatsapp, urlWebhookTwilio } from "@/server/twilio/fabrica";
 import {
   contentSidSandbox,
+  inicioWhatsappOficialProducao,
   REMETENTE_OFICIAL_WHATSAPP,
   REMETENTE_SANDBOX_WHATSAPP,
-  usarRemetenteOficialTeste,
+  remetenteOficialLigado,
+  rotaWhatsapp,
   usarSandboxWhatsapp,
 } from "@/server/twilio/sandbox";
 import { decifrarSegredoAsaas } from "@/lib/asaas-cripto";
@@ -48,6 +50,7 @@ type LinhaFatura = {
   boletoUrl: string | null;
   faturaUrl: string | null;
   excluida: boolean;
+  criadoEm: Date;
   cliente: LinhaCliente;
 };
 
@@ -137,7 +140,14 @@ async function montar(
   agora: Date,
 ): Promise<DadosFila> {
   const conexao = await db.configuracaoTwilio.findUnique({ where: { empresaId: fatura.empresaId } });
-  const canalPai = usarSandboxWhatsapp(modoTeste) || usarRemetenteOficialTeste(modoTeste);
+  const rota = rotaWhatsapp({
+    modoTeste,
+    oficialLigado: remetenteOficialLigado(),
+    sandboxLigado: usarSandboxWhatsapp(true),
+    empresaPronta: false,
+    producaoLiberada: faturaLiberadaOficial(fatura.criadoEm),
+  });
+  const canalPai = rota === "oficial_teste" || rota === "oficial_producao" || rota === "sandbox";
   const base = {
     empresaId: fatura.empresaId,
     faturaId: fatura.id,
@@ -178,6 +188,12 @@ async function montar(
   };
 }
 
+function faturaLiberadaOficial(criadoEm: Date): boolean {
+  const inicio = inicioWhatsappOficialProducao();
+  if (!inicio) return false;
+  return criadoEm.getTime() >= inicio.getTime();
+}
+
 export async function enfileirarWhatsappDoPasso(
   fatura: LinhaFatura,
   passo: { id: string; naEmissao: boolean; dias: number | null; enviarWhatsapp: boolean },
@@ -186,6 +202,7 @@ export async function enfileirarWhatsappDoPasso(
   db: AcessoFila = prisma,
 ): Promise<ResultadoFila> {
   if (!passo.enviarWhatsapp || fatura.excluida) return "nao_aplica";
+  if (!modoTeste && remetenteOficialLigado() && !faturaLiberadaOficial(fatura.criadoEm)) return "nao_aplica";
   const tipo = tipoTemplateDoPasso(passo);
   return gravar(db, await montar(db, fatura, tipo, passo.id, passo.dias, modoTeste, agora));
 }
@@ -201,6 +218,7 @@ export async function enfileirarPagoWhatsapp(
   agora = new Date(),
 ): Promise<ResultadoFila> {
   if (fatura.excluida) return "nao_aplica";
+  if (!modoTeste && remetenteOficialLigado() && !faturaLiberadaOficial(fatura.criadoEm)) return "nao_aplica";
   return gravar(db, await montar(db, fatura, "PAGO", null, null, modoTeste, agora));
 }
 
@@ -369,15 +387,16 @@ export async function processarFilaWhatsapp(
         where: { empresaId_tipo: { empresaId: item.empresaId, tipo: item.tipo } },
       }),
     ]);
-    const modoTeste = regua?.modoTeste ?? item.modoTeste;
-    const regra = await destinoEMotivo(prisma, item.empresaId, item.cliente, modoTeste);
+    // Fila criada no modo teste não passa a ir para o cliente se a régua sair do teste.
+    const modoEfetivo = item.modoTeste || Boolean(regua?.modoTeste);
+    const regra = await destinoEMotivo(prisma, item.empresaId, item.cliente, modoEfetivo);
     if (regra.motivo || !regra.destino) {
       await marcar(item.id, { status: "IGNORADO", motivo: regra.motivo ?? "sem destino", destino: null });
       resultado.ignorados += 1;
       continue;
     }
     const clienteE164 = whatsappE164(item.cliente.whatsapp);
-    if (modoTeste && clienteE164 && regra.destino === `whatsapp:${clienteE164}`) {
+    if (modoEfetivo && clienteE164 && regra.destino === `whatsapp:${clienteE164}`) {
       const teste = whatsappE164(numeroTesteWhatsapp() ?? "");
       if (!teste || teste !== clienteE164) {
         await marcar(item.id, { status: "IGNORADO", motivo: "modo teste não envia para o cliente", destino: null });
@@ -392,10 +411,28 @@ export async function processarFilaWhatsapp(
         template?.contentSid &&
         template.status === "APROVADO",
     );
-    // No modo teste a flag do Sender oficial usa a conta pai, mesmo com subconta
-    // ONLINE. Fora do modo teste a flag não entra e a subconta segue como está.
-    const oficial = usarRemetenteOficialTeste(modoTeste);
-    const sandbox = usarSandboxWhatsapp(modoTeste) && !producaoPronta && !oficial;
+    const rota = rotaWhatsapp({
+      modoTeste: modoEfetivo,
+      oficialLigado: remetenteOficialLigado(),
+      sandboxLigado: usarSandboxWhatsapp(true),
+      empresaPronta: producaoPronta,
+      producaoLiberada: faturaLiberadaOficial(item.fatura.criadoEm),
+    });
+    const oficial = rota === "oficial_teste" || rota === "oficial_producao";
+    const sandbox = rota === "sandbox";
+    if (rota === "oficial_producao") {
+      const teste = whatsappE164(numeroTesteWhatsapp() ?? "");
+      if (!clienteE164 || regra.destino !== `whatsapp:${clienteE164}` || regra.destino === REMETENTE_SANDBOX_WHATSAPP) {
+        await marcar(item.id, { status: "IGNORADO", motivo: "destino não é o WhatsApp do cliente", destino: null });
+        resultado.ignorados += 1;
+        continue;
+      }
+      if (teste && regra.destino === `whatsapp:${teste}` && teste !== clienteE164) {
+        await marcar(item.id, { status: "IGNORADO", motivo: "produção não envia para o número de teste", destino: null });
+        resultado.ignorados += 1;
+        continue;
+      }
+    }
     if (!oficial && !sandbox && !producaoPronta) {
       const espera = await adiarOuIgnorar(
         item.id,
@@ -418,8 +455,14 @@ export async function processarFilaWhatsapp(
     let mensagem: MensagemTemplate;
     if (oficial || sandbox) {
       const teste = whatsappE164(numeroTesteWhatsapp() ?? "");
-      if (!teste || regra.destino !== `whatsapp:${teste}`) {
+      const destinoOficial = rota === "oficial_producao" ? regra.destino : `whatsapp:${teste ?? ""}`;
+      if (rota !== "oficial_producao" && (!teste || regra.destino !== `whatsapp:${teste}`)) {
         await marcar(item.id, { status: "IGNORADO", motivo: "modo teste não envia para o cliente", destino: null });
+        resultado.ignorados += 1;
+        continue;
+      }
+      if (rota === "oficial_producao" && destinoOficial === REMETENTE_SANDBOX_WHATSAPP) {
+        await marcar(item.id, { status: "IGNORADO", motivo: "sandbox não envia para o cliente", destino: null });
         resultado.ignorados += 1;
         continue;
       }
@@ -461,7 +504,7 @@ export async function processarFilaWhatsapp(
       }
       mensagem = {
         de: oficial ? REMETENTE_OFICIAL_WHATSAPP : REMETENTE_SANDBOX_WHATSAPP,
-        para: `whatsapp:${teste}`,
+        para: destinoOficial,
         contentSid,
         variaveis,
         statusCallback,
