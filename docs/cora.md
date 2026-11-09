@@ -27,9 +27,9 @@ O client id e o client secret da parceria autenticam o Taguaro (`client_credenti
 
 1. O dono abre Configurações → Banco.
 2. Em Cora, clica em Conectar conta Cora.
-3. O Taguaro manda um `state` aleatório, gravado só como hash e preso à empresa e ao usuário da sessão, num cookie assinado.
-4. A Cora devolve o navegador para `/api/integracoes/cora/callback` com `code` e `state`.
-5. O callback exige a mesma sessão, confere o state e troca o código por tokens. Access e refresh ficam cifrados em `configuracoes_pagamento`.
+3. O Taguaro gera um `state` aleatório, manda esse valor na URL de autorização, grava só o hash preso à empresa e ao usuário, e guarda o valor num cookie httpOnly assinado.
+4. A Cora devolve o navegador para `/api/integracoes/cora/callback` com `code` e `session_state`. O `state` pode voltar junto; a documentação da Cora não o ecoa.
+5. O callback exige a mesma sessão. Se `state` vier, tem de ser o do cookie. Se a Cora omitir `state`, o cookie assinado que bate com o hash gravado confirma o fluxo. Aí troca o código por tokens. Access e refresh ficam cifrados em `configuracoes_pagamento`.
 6. A empresa passa a emitir as cobranças novas pela Cora. Asaas e Inter não são apagados.
 7. Desconectar apaga os tokens e, se a Cora era o provedor ativo, as cobranças novas voltam para o Asaas.
 

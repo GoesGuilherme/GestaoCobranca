@@ -21,6 +21,7 @@ export async function GET(request: Request) {
   try {
     const acesso = await exigirAcesso();
     const jar = await cookies();
+    // session_state é interno da Cora. Não entra no lugar do state OAuth.
     const resultado = await concluirOauthCora({
       acesso,
       code: url.searchParams.get("code"),

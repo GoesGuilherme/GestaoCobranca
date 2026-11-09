@@ -53,7 +53,7 @@ export async function iniciarOauthCora(acesso: Acesso): Promise<{ url: string; c
     },
   });
   const cookie = await assinarEstadoOauth({ estado, empresaId: acesso.empresaId, usuarioId: acesso.usuarioId });
-  return { url: urlAutorizacaoCora(), cookie };
+  return { url: urlAutorizacaoCora(estado), cookie };
 }
 
 export async function concluirOauthCora(dados: {
@@ -67,7 +67,9 @@ export async function concluirOauthCora(dados: {
   const assinado = await lerEstadoOauth(dados.cookie);
   const state = dados.state?.trim() ?? "";
   const code = dados.code?.trim() ?? "";
-  if (!assinado || !state || !code || !estadosIguais(state, assinado.estado)) {
+  // A Cora documenta o retorno como code + session_state e não ecoa state.
+  // Se state vier, tem de ser o do cookie. Se não vier, o cookie assinado que bate com o hash confirma.
+  if (!assinado || !code || (state.length > 0 && !estadosIguais(state, assinado.estado))) {
     throw new ErroAplicacao("Não foi possível confirmar a conexão com a Cora.", 400, "cora_oauth");
   }
   if (assinado.empresaId !== dados.acesso.empresaId || assinado.usuarioId !== dados.acesso.usuarioId) {

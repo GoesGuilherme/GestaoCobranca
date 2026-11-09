@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { normalizarDinheiro } from "@/lib/dinheiro";
 import { ErroAplicacao } from "@/server/erros";
-import { baseCora, credenciaisParceiroCora, redirectCora, urlCoraPermitida } from "./ambiente";
+import { ESCOPO_CORA, baseCora, credenciaisParceiroCora, redirectCora, urlCoraPermitida } from "./ambiente";
 import type { FaturaCora, NovaFaturaCora, PedidoCora, RespostaCoraHttp, TokensCora, TransporteCora } from "./contrato";
 import { GATILHOS_WEBHOOK_CORA } from "./contrato";
 
@@ -33,13 +33,17 @@ export function autorizacaoBasica(clientId: string, clientSecret: string): strin
   return `Basic ${Buffer.from(`${clientId}:${clientSecret}`, "utf8").toString("base64")}`;
 }
 
-export function urlAutorizacaoCora(): string {
+export function urlAutorizacaoCora(estado: string): string {
+  if (!/^[A-Za-z0-9_-]{22,128}$/.test(estado)) {
+    throw new ErroAplicacao("Não foi possível iniciar a conexão com a Cora.", 500, "cora_oauth");
+  }
   const { clientId } = credenciaisParceiroCora();
   const destino = new URL(`${baseCora()}/oauth/authorize`);
   destino.searchParams.set("client_id", clientId);
   destino.searchParams.set("response_type", "code");
   destino.searchParams.set("redirect_uri", redirectCora());
-  destino.searchParams.set("scopes", "invoice");
+  destino.searchParams.set("scopes", ESCOPO_CORA);
+  destino.searchParams.set("state", estado);
   return destino.toString();
 }
 
