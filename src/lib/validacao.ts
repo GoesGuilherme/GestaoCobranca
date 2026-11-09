@@ -698,6 +698,15 @@ export const esquemaLembreteManual = z.object({
   passoId: z.string().trim().min(1, "Escolha o passo.").max(64),
 });
 
+export const LIMITE_REENVIO_BOLETOS = 40;
+
+export const esquemaReenvioBoletos = z.object({
+  ids: z
+    .array(z.string().trim().min(1, "Informe a fatura.").max(64, "Identificador de fatura inválido."))
+    .min(1, "Escolha ao menos um boleto.")
+    .max(LIMITE_REENVIO_BOLETOS, `Selecione no máximo ${LIMITE_REENVIO_BOLETOS} boletos por vez.`),
+});
+
 export const esquemaPromessa = z.object({
   dataPrometida: z.string().trim().min(10, "Informe a data prometida.").max(10, "Informe a data prometida."),
   valorPrometido: z.string().trim().min(1, "Informe o valor prometido.").max(20, "O valor prometido está longo demais."),
