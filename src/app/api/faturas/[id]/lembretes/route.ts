@@ -8,8 +8,8 @@ export async function POST(request: Request, contexto: Contexto) {
   try {
     const acesso = await exigirAcesso();
     const { id } = await contexto.params;
-    const lembrete = await enviarLembreteAgora(acesso, id, await lerJson(request));
-    return jsonOk({ lembrete }, 201);
+    const envio = await enviarLembreteAgora(acesso, id, await lerJson(request));
+    return jsonOk({ lembrete: envio.lembrete, whatsapp: envio.whatsapp }, 201);
   } catch (erro) {
     return jsonErro(erro);
   }

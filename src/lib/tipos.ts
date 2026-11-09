@@ -286,16 +286,27 @@ export type FaturaDTO = {
   promessaPendente: PromessaPendenteDTO | null;
 };
 
-export type ItemReenvioBoleto = {
-  id: string;
-  resultado: "aceito" | "ignorado" | "falha";
+export type ResultadoCanalReenvio = {
+  canal: "EMAIL" | "WHATSAPP";
+  resultado: "aceito" | "ignorado" | "falha" | "na_fila";
   motivo: string | null;
 };
 
-export type ResultadoReenvioBoletos = {
+export type ContagemCanalReenvio = {
   aceitos: number;
   ignorados: number;
   falhas: number;
+  naFila: number;
+};
+
+export type ItemReenvioBoleto = {
+  id: string;
+  canais: ResultadoCanalReenvio[];
+};
+
+export type ResultadoReenvioBoletos = {
+  email: ContagemCanalReenvio;
+  whatsapp: ContagemCanalReenvio;
   modoTeste: boolean;
   itens: ItemReenvioBoleto[];
 };

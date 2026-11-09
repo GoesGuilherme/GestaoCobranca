@@ -1,5 +1,5 @@
 import { provedorCodigo, statusEh } from "@/lib/status-pagamento";
-import type { ItemReenvioBoleto, ResultadoReenvioBoletos } from "@/lib/tipos";
+import type { ContagemCanalReenvio, ItemReenvioBoleto, ResultadoReenvioBoletos } from "@/lib/tipos";
 import { formaUsaTemplateBoleto } from "@/lib/whatsapp-cobranca";
 
 export const LIMITE_REENVIO_BOLETOS = 50;
@@ -8,6 +8,8 @@ export type PassoEmissao = {
   id: string;
   naEmissao: boolean;
   ordem?: number;
+  dias?: number | null;
+  enviarWhatsapp?: boolean;
 };
 
 export type ReguaEmissao = {
@@ -27,9 +29,8 @@ export type FaturaParaReenvio = {
   reguaId?: string | null;
 };
 
-// O reenvio em lote usa o mesmo caminho do "Enviar lembrete": o e-mail do
-// passo Na emissão da régua que vale para a fatura. O WhatsApp da régua não
-// entra, porque o envio manual não enfileira e a fila existente não reenvia.
+// O reenvio usa o e-mail manual do passo Na emissão e o WhatsApp que a régua
+// já enfileira nesse passo. Não há outro template nem outro remetente.
 export function passoEmissaoAplicavel(
   cliente: { reguaModo: string; reguaId: string | null },
   reguas: ReguaEmissao[],
@@ -55,9 +56,6 @@ export function motivoForaDoReenvio(
   if (fatura.excluida || !statusEh(fatura.status, "REGUA_ABERTA", provedorCodigo(fatura.provedor))) {
     return "Cobrança não está em aberto.";
   }
-  if (opcoes.modoTeste === false && fatura.email !== undefined && !fatura.email.trim()) {
-    return "Cliente sem e-mail.";
-  }
   if (opcoes.reguas) {
     const modo = fatura.reguaModo ?? "PADRAO";
     if (!passoEmissaoAplicavel({ reguaModo: modo, reguaId: fatura.reguaId ?? null }, opcoes.reguas)) {
@@ -78,28 +76,40 @@ export function textoAjudaReenvio(elegiveis: number, selecionados: number, foraD
 
 export function textoConfirmacaoReenvio(quantidade: number, modoTeste: boolean, emailLogado = ""): string {
   const alvo = quantidade === 1 ? "1 boleto" : `${quantidade} boletos`;
-  const base = `Reenviar o e-mail de emissão de ${alvo}?`;
-  if (!modoTeste) return base;
+  const base = `Reenviar ${alvo} por e-mail e WhatsApp?`;
+  if (!modoTeste) return `${base} Os dois canais do passo Na emissão serão tentados.`;
   const destino = emailLogado.trim() ? ` (${emailLogado.trim()})` : "";
-  return `${base} Modo teste ligado. Este envio não vai para o cliente. Vai para quem está logado${destino}.`;
+  return `${base} Modo teste ligado. Este envio não vai para o cliente. O e-mail vai para quem está logado${destino}. O WhatsApp segue o número de teste da régua.`;
 }
 
-export function textoResumoReenvio(dados: Pick<ResultadoReenvioBoletos, "aceitos" | "ignorados" | "falhas" | "modoTeste">): string[] {
-  const linhas = [dados.aceitos === 1 ? "1 aceito para envio." : `${dados.aceitos} aceitos para envio.`];
-  if (dados.ignorados === 1) linhas.push("1 ignorado.");
-  else if (dados.ignorados > 1) linhas.push(`${dados.ignorados} ignorados.`);
-  if (dados.falhas === 1) linhas.push("1 falhou.");
-  else if (dados.falhas > 1) linhas.push(`${dados.falhas} falharam.`);
-  if (dados.modoTeste) linhas.push("Modo teste ligado. O e-mail foi para quem está logado, não para o cliente.");
+function textoDeUmCanal(nome: string, canal: ContagemCanalReenvio): string {
+  const partes = [canal.aceitos === 1 ? "1 aceito para envio" : `${canal.aceitos} aceitos para envio`];
+  if (canal.naFila === 1) partes.push("1 na fila");
+  else if (canal.naFila > 1) partes.push(`${canal.naFila} na fila`);
+  if (canal.ignorados === 1) partes.push("1 ignorado");
+  else if (canal.ignorados > 1) partes.push(`${canal.ignorados} ignorados`);
+  if (canal.falhas === 1) partes.push("1 falhou");
+  else if (canal.falhas > 1) partes.push(`${canal.falhas} falharam`);
+  return `${nome}: ${partes.join(", ")}.`;
+}
+
+export function textoResumoReenvio(dados: Pick<ResultadoReenvioBoletos, "email" | "whatsapp" | "modoTeste">): string[] {
+  const linhas = [textoDeUmCanal("E-mail", dados.email), textoDeUmCanal("WhatsApp", dados.whatsapp)];
+  if (dados.modoTeste) linhas.push("Modo teste ligado. Nem o e-mail nem o WhatsApp foram para o cliente.");
   return linhas;
 }
 
-export function agruparMotivos(itens: Pick<ItemReenvioBoleto, "resultado" | "motivo">[]): { motivo: string; quantidade: number }[] {
+export function agruparMotivos(itens: Pick<ItemReenvioBoleto, "canais">[]): { motivo: string; quantidade: number }[] {
   const mapa = new Map<string, number>();
   for (const item of itens) {
-    if (item.resultado === "aceito") continue;
-    const motivo = item.motivo?.trim() || (item.resultado === "falha" ? "Falha ao enviar." : "Ignorado.");
-    mapa.set(motivo, (mapa.get(motivo) ?? 0) + 1);
+    for (const canalItem of item.canais) {
+      if (canalItem.resultado === "aceito") continue;
+      if (canalItem.resultado === "na_fila" && !canalItem.motivo?.trim()) continue;
+      const prefixo = canalItem.canal === "WHATSAPP" ? "WhatsApp" : "E-mail";
+      const texto = canalItem.motivo?.trim() || (canalItem.resultado === "falha" ? "Falha ao enviar." : "Ignorado.");
+      const motivo = `${prefixo}: ${texto}`;
+      mapa.set(motivo, (mapa.get(motivo) ?? 0) + 1);
+    }
   }
   return [...mapa.entries()].map(([motivo, quantidade]) => ({ motivo, quantidade }));
 }

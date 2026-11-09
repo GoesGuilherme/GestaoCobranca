@@ -47,8 +47,7 @@ describe("reenvio de boleto", () => {
 
   it("exige o passo Na emissão da régua do cliente e o e-mail fora do modo teste", () => {
     const opcoes = { modoTeste: false, reguas: [reguaPadrao] };
-    expect(motivoForaDoReenvio({ ...boleto, email: "  " }, opcoes)).toBe("Cliente sem e-mail.");
-    expect(motivoForaDoReenvio({ ...boleto, email: "  " }, { ...opcoes, modoTeste: true })).toBeNull();
+    expect(motivoForaDoReenvio({ ...boleto, email: "  " }, opcoes)).toBeNull();
     expect(motivoForaDoReenvio({ ...boleto, reguaModo: "NENHUMA" }, opcoes)).toBe("Cliente sem régua.");
     expect(motivoForaDoReenvio(boleto, { modoTeste: false, reguas: [{ ...reguaPadrao, passos: [reguaPadrao.passos[1]] }] })).toBe(
       "Sem passo de emissão na régua.",
@@ -66,21 +65,29 @@ describe("reenvio de boleto", () => {
     expect(textoAjudaReenvio(0, 0, 0)).toBe("Nenhum boleto nesta lista.");
     expect(textoAjudaReenvio(4, 0, 0)).toBe("Selecione um boleto.");
     expect(textoAjudaReenvio(80, 51, 0)).toBe("No máximo 50 por vez.");
-    expect(textoConfirmacaoReenvio(2, false)).toBe("Reenviar o e-mail de emissão de 2 boletos?");
-    expect(textoConfirmacaoReenvio(1, true, "dono@exemplo.test")).toContain(
-      "Este envio não vai para o cliente. Vai para quem está logado (dono@exemplo.test)",
+    expect(textoConfirmacaoReenvio(2, false)).toBe(
+      "Reenviar 2 boletos por e-mail e WhatsApp? Os dois canais do passo Na emissão serão tentados.",
     );
-    expect(textoResumoReenvio({ aceitos: 2, ignorados: 1, falhas: 0, modoTeste: true })).toEqual([
-      "2 aceitos para envio.",
-      "1 ignorado.",
-      "Modo teste ligado. O e-mail foi para quem está logado, não para o cliente.",
+    expect(textoConfirmacaoReenvio(1, true, "dono@exemplo.test")).toContain(
+      "Este envio não vai para o cliente. O e-mail vai para quem está logado (dono@exemplo.test)",
+    );
+    expect(textoConfirmacaoReenvio(1, true, "dono@exemplo.test")).toContain("WhatsApp");
+    expect(
+      textoResumoReenvio({
+        email: { aceitos: 2, ignorados: 1, falhas: 0, naFila: 0 },
+        whatsapp: { aceitos: 1, ignorados: 1, falhas: 0, naFila: 1 },
+        modoTeste: true,
+      }),
+    ).toEqual([
+      "E-mail: 2 aceitos para envio, 1 ignorado.",
+      "WhatsApp: 1 aceito para envio, 1 na fila, 1 ignorado.",
+      "Modo teste ligado. Nem o e-mail nem o WhatsApp foram para o cliente.",
     ]);
     expect(
       agruparMotivos([
-        { resultado: "aceito", motivo: null },
-        { resultado: "ignorado", motivo: "Sem boleto." },
-        { resultado: "ignorado", motivo: "Sem boleto." },
+        { canais: [{ canal: "EMAIL", resultado: "aceito", motivo: null }, { canal: "WHATSAPP", resultado: "ignorado", motivo: "Sem boleto." }] },
+        { canais: [{ canal: "WHATSAPP", resultado: "ignorado", motivo: "Sem boleto." }] },
       ]),
-    ).toEqual([{ motivo: "Sem boleto.", quantidade: 2 }]);
+    ).toEqual([{ motivo: "WhatsApp: Sem boleto.", quantidade: 2 }]);
   });
 });

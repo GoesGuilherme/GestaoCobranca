@@ -9,6 +9,8 @@ import { COOKIE_SESSAO } from "@/server/auth/constantes";
 import { emitirToken } from "@/server/auth/token";
 import { prisma } from "@/server/db";
 import { clienteResendMemoria, type ClienteResend, type EmailResend } from "@/server/regua/resend";
+import { criarClienteTwilioMemoria } from "@/server/twilio/memoria";
+import { REMETENTE_OFICIAL_WHATSAPP } from "@/server/twilio/sandbox";
 import { criarCliente } from "./cliente-service";
 import { reenviarBoletos } from "./reenvio-boleto-service";
 import {
@@ -97,6 +99,7 @@ async function abrirFatura(
     excluida?: boolean;
     provedor?: "ASAAS" | "INTER";
     vencimento?: string;
+    criadoEm?: Date;
   } = {},
 ) {
   return prisma.fatura.create({
@@ -106,6 +109,7 @@ async function abrirFatura(
       asaasPaymentId: `pay_${randomBytes(4).toString("hex")}`,
       valor: "150.00",
       vencimento: new Date(`${extra.vencimento ?? "2026-10-26"}T00:00:00.000Z`),
+      ...(extra.criadoEm ? { criadoEm: extra.criadoEm } : {}),
       status: extra.status ?? "PENDING",
       provedor: extra.provedor ?? "ASAAS",
       formaCobranca: extra.forma ?? "BOLETO",
@@ -115,6 +119,10 @@ async function abrirFatura(
       excluida: extra.excluida ?? false,
     },
   });
+}
+
+function canal(resultado: { itens: { id: string; canais: { canal: string; resultado: string; motivo: string | null }[] }[] }, id: string, nome: "EMAIL" | "WHATSAPP") {
+  return resultado.itens.find((item) => item.id === id)?.canais.find((parte) => parte.canal === nome);
 }
 
 describe("reenvio de boletos em lote", () => {
@@ -197,17 +205,20 @@ describe("reenvio de boletos em lote", () => {
     expect(caixa.caixa.some((item) => item.assunto.includes("vence"))).toBe(false);
     expect(caixa.caixa.every((item) => item.texto.includes("https://exemplo.test/boleto"))).toBe(true);
     expect(caixa.caixa.some((item) => item.texto.includes("modo teste") || item.texto.includes("Modo teste"))).toBe(false);
-    expect(resultado.aceitos).toBe(3);
+    expect(resultado.email.aceitos).toBe(3);
+    expect(resultado.whatsapp.aceitos).toBe(0);
     expect(resultado.modoTeste).toBe(false);
-    expect(resultado.itens.find((item) => item.id === pix.id)?.motivo).toBe("Sem boleto.");
-    expect(resultado.itens.find((item) => item.id === cartao.id)?.motivo).toBe("Sem boleto.");
-    expect(resultado.itens.find((item) => item.id === indefinida.id)?.motivo).toBe("Sem boleto.");
-    expect(resultado.itens.find((item) => item.id === semLink.id)?.motivo).toBe("Sem link do boleto.");
-    expect(resultado.itens.find((item) => item.id === paga.id)?.motivo).toBe("Cobrança não está em aberto.");
-    expect(resultado.itens.find((item) => item.id === cancelada.id)?.motivo).toBe("Cobrança não está em aberto.");
-    expect(resultado.itens.find((item) => item.id === interPaga.id)?.motivo).toBe("Cobrança não está em aberto.");
-    expect(resultado.itens.find((item) => item.id === faturaVizinha.id)?.motivo).toBe("Fatura não encontrada.");
-    expect(resultado.itens.find((item) => item.id === "naoexiste1")?.motivo).toBe("Fatura não encontrada.");
+    expect(canal(resultado, pix.id, "EMAIL")?.motivo).toBe("Sem boleto.");
+    expect(canal(resultado, pix.id, "WHATSAPP")?.motivo).toBe("Sem boleto.");
+    expect(canal(resultado, cartao.id, "WHATSAPP")?.motivo).toBe("Sem boleto.");
+    expect(canal(resultado, indefinida.id, "WHATSAPP")?.motivo).toBe("Sem boleto.");
+    expect(canal(resultado, semLink.id, "EMAIL")?.motivo).toBe("Sem link do boleto.");
+    expect(canal(resultado, paga.id, "EMAIL")?.motivo).toBe("Cobrança não está em aberto.");
+    expect(canal(resultado, cancelada.id, "EMAIL")?.motivo).toBe("Cobrança não está em aberto.");
+    expect(canal(resultado, interPaga.id, "EMAIL")?.motivo).toBe("Cobrança não está em aberto.");
+    expect(canal(resultado, faturaVizinha.id, "EMAIL")?.motivo).toBe("Fatura não encontrada.");
+    expect(canal(resultado, "naoexiste1", "WHATSAPP")?.motivo).toBe("Fatura não encontrada.");
+    expect(canal(resultado, boleto.id, "WHATSAPP")?.motivo).toBe("Este passo não envia WhatsApp.");
     expect(resultado.itens.filter((item) => item.id === boleto.id)).toHaveLength(1);
     expect(await prisma.lembreteRegua.count({ where: { faturaId: faturaVizinha.id } })).toBe(0);
     expect(await prisma.filaWhatsapp.count({ where: { empresaId } })).toBe(0);
@@ -222,7 +233,7 @@ describe("reenvio de boletos em lote", () => {
     const boleto = await abrirFatura(cliente.id);
     const caixa = clienteResendMemoria();
     const resultado = await reenviarBoletos(autor("FINANCEIRO"), { ids: [boleto.id] }, { resend: caixa, agora: AGORA });
-    expect(resultado.aceitos).toBe(1);
+    expect(resultado.email.aceitos).toBe(1);
     expect(resultado.modoTeste).toBe(true);
     expect(caixa.caixa).toHaveLength(1);
     expect(caixa.caixa[0]?.para).toBe(autor("FINANCEIRO").email);
@@ -272,7 +283,8 @@ describe("reenvio de boletos em lote", () => {
     expect(caixa.caixa[0]?.assunto).toBe("Boleto da régua específica");
     expect(caixa.caixa[0]?.texto).toContain("https://exemplo.test/boleto");
     expect(caixa.caixa[0]?.texto).not.toContain("não deve sair");
-    expect(resultado.itens.find((item) => item.id === outro.id)?.motivo).toBe("Cliente sem régua.");
+    expect(canal(resultado, outro.id, "EMAIL")?.motivo).toBe("Cliente sem régua.");
+    expect(canal(resultado, outro.id, "WHATSAPP")?.motivo).toBe("Cliente sem régua.");
   });
 
   it("sem passo de emissão, sem e-mail ou sem régua configurada não chama a Resend", async () => {
@@ -300,15 +312,14 @@ describe("reenvio de boletos em lote", () => {
     const boleto = await abrirFatura(cliente.id);
     const caixa = clienteResendMemoria();
     const semPasso = await reenviarBoletos(autor("DONO"), { ids: [boleto.id] }, { resend: caixa, agora: AGORA });
-    expect(semPasso.aceitos).toBe(0);
-    expect(semPasso.itens[0]?.motivo).toBe("Sem passo de emissão na régua.");
+    expect(semPasso.email.aceitos).toBe(0);
+    expect(canal(semPasso, boleto.id, "EMAIL")?.motivo).toBe("Sem passo de emissão na régua.");
+    expect(canal(semPasso, boleto.id, "WHATSAPP")?.motivo).toBe("Sem passo de emissão na régua.");
     expect(caixa.caixa).toHaveLength(0);
 
     await prisma.configuracaoRegua.deleteMany({ where: { empresaId } });
-    await expect(reenviarBoletos(autor("DONO"), { ids: [boleto.id] }, { resend: caixa, agora: AGORA })).rejects.toMatchObject({
-      status: 400,
-      codigo: "regua_incompleta",
-    });
+    const semConfig = await reenviarBoletos(autor("DONO"), { ids: [boleto.id] }, { resend: caixa, agora: AGORA });
+    expect(canal(semConfig, boleto.id, "EMAIL")?.motivo).toBe("Sem passo de emissão na régua.");
     expect(caixa.caixa).toHaveLength(0);
   });
 
@@ -332,12 +343,110 @@ describe("reenvio de boletos em lote", () => {
       },
     };
     const resultado = await reenviarBoletos(autor("DONO"), { ids: [a.id, b.id, c.id] }, { resend, agora: AGORA });
-    expect(resultado.itens.find((item) => item.id === a.id)?.motivo).toBe("Cliente sem e-mail.");
-    expect(resultado.itens.find((item) => item.id === b.id)?.resultado).toBe("aceito");
-    expect(resultado.itens.find((item) => item.id === c.id)?.resultado).toBe("falha");
-    expect(resultado.itens.find((item) => item.id === c.id)?.motivo ?? "").not.toContain(CHAVE);
+    expect(canal(resultado, a.id, "EMAIL")?.motivo).toBe("O cliente não tem e-mail.");
+    expect(canal(resultado, b.id, "EMAIL")?.resultado).toBe("aceito");
+    expect(canal(resultado, c.id, "EMAIL")?.resultado).toBe("falha");
+    expect(canal(resultado, c.id, "EMAIL")?.motivo ?? "").not.toContain(CHAVE);
     expect(JSON.stringify(resultado)).not.toContain(CHAVE);
     expect(base.caixa.map((item) => item.para)).toEqual(["ok.reenvio@exemplo.test"]);
+  });
+
+  it("o WhatsApp sai pelo mesmo caminho da régua e não cria outro envio", async () => {
+    const anterior = {
+      TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID,
+      TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN,
+      TWILIO_WEBHOOK_URL: process.env.TWILIO_WEBHOOK_URL,
+      TWILIO_WHATSAPP_TESTE: process.env.TWILIO_WHATSAPP_TESTE,
+      TWILIO_CONTENT_SID_BOLETO_GERADO: process.env.TWILIO_CONTENT_SID_BOLETO_GERADO,
+      TWILIO_WHATSAPP_SENDER_OFICIAL: process.env.TWILIO_WHATSAPP_SENDER_OFICIAL,
+      TWILIO_WHATSAPP_OFICIAL_DESDE: process.env.TWILIO_WHATSAPP_OFICIAL_DESDE,
+      TWILIO_WHATSAPP_SANDBOX: process.env.TWILIO_WHATSAPP_SANDBOX,
+      TWILIO_MOCK: process.env.TWILIO_MOCK,
+    };
+    const restaurar = () => {
+      for (const [chave, valor] of Object.entries(anterior)) {
+        if (valor === undefined) delete process.env[chave];
+        else process.env[chave] = valor;
+      }
+    };
+    process.env.TWILIO_ACCOUNT_SID = `AC${"b".repeat(32)}`;
+    process.env.TWILIO_AUTH_TOKEN = "token-pai-de-teste-0001";
+    process.env.TWILIO_WEBHOOK_URL = "https://taguaro.test/api/webhooks/twilio";
+    process.env.TWILIO_WHATSAPP_TESTE = "11999990000";
+    process.env.TWILIO_CONTENT_SID_BOLETO_GERADO = "HXd3e534c278f4db0f03267127c8f8ea42";
+    process.env.TWILIO_WHATSAPP_SENDER_OFICIAL = "true";
+    delete process.env.TWILIO_MOCK;
+    delete process.env.TWILIO_WHATSAPP_SANDBOX;
+    delete process.env.TWILIO_WHATSAPP_OFICIAL_DESDE;
+    const fetchOriginal = globalThis.fetch;
+    globalThis.fetch = (() => Promise.reject(new Error("rede proibida no teste"))) as typeof fetch;
+    try {
+      await ligar({ modoTeste: true });
+      const painel = await obterPainelRegua(autor("DONO"));
+      const regua = painel.reguas[0];
+      await atualizarRegua(autor("DONO"), regua.id, {
+        nome: regua.nome,
+        padrao: true,
+        horaInicio: 8,
+        horaFim: 18,
+        enviarFimDeSemana: false,
+        passos: [{
+          id: regua.passos.find((passo) => passo.naEmissao)?.id,
+          naEmissao: true,
+          dias: null,
+          canal: "EMAIL",
+          assunto: "Boleto emitido",
+          corpo: "Link {link}",
+          enviarWhatsapp: true,
+        }],
+      });
+      const cliente = await criarCliente(empresaId, pessoa(completarCnpj("591100000013")));
+      const boleto = await abrirFatura(cliente.id);
+      const pix = await abrirFatura(cliente.id, { forma: "PIX", boletoUrl: null, faturaUrl: "https://exemplo.test/pix" });
+      const twilio = criarClienteTwilioMemoria();
+      const caixa = clienteResendMemoria();
+      const primeiro = await reenviarBoletos(autor("DONO"), { ids: [boleto.id, pix.id] }, { resend: caixa, twilio, agora: AGORA });
+      expect(canal(primeiro, boleto.id, "EMAIL")?.resultado).toBe("aceito");
+      expect(canal(primeiro, boleto.id, "WHATSAPP")?.resultado).toBe("aceito");
+      expect(canal(primeiro, pix.id, "WHATSAPP")?.motivo).toBe("Sem boleto.");
+      expect(twilio.enviados).toHaveLength(1);
+      expect(twilio.enviados[0]?.para).toBe("whatsapp:+5511999990000");
+      expect(twilio.enviados[0]?.para).not.toContain("5513988881001");
+      expect(twilio.enviados[0]?.contentSid).toBe("HXd3e534c278f4db0f03267127c8f8ea42");
+      expect(twilio.enviados[0]?.de).toBe(REMETENTE_OFICIAL_WHATSAPP);
+      expect(caixa.caixa[0]?.para).toBe(autor("DONO").email);
+      expect(await prisma.filaWhatsapp.count({ where: { faturaId: pix.id } })).toBe(0);
+
+      const segundo = await reenviarBoletos(autor("DONO"), { ids: [boleto.id] }, { resend: caixa, twilio, agora: AGORA });
+      expect(canal(segundo, boleto.id, "EMAIL")?.resultado).toBe("aceito");
+      expect(canal(segundo, boleto.id, "WHATSAPP")?.motivo).toBe("WhatsApp já aceito neste passo.");
+      expect(twilio.enviados).toHaveLength(1);
+
+      await ligar({ modoTeste: false });
+      process.env.TWILIO_WHATSAPP_OFICIAL_DESDE = "2099-01-01T00:00:00.000Z";
+      const antiga = await abrirFatura(cliente.id, { criadoEm: new Date("2026-10-01T00:00:00.000Z") });
+      const foraDaData = await reenviarBoletos(autor("DONO"), { ids: [antiga.id] }, { resend: caixa, twilio, agora: AGORA });
+      expect(canal(foraDaData, antiga.id, "WHATSAPP")?.motivo).toBe("WhatsApp oficial ainda não vale para esta cobrança.");
+      expect(twilio.enviados).toHaveLength(1);
+      expect(await prisma.filaWhatsapp.count({ where: { faturaId: antiga.id } })).toBe(0);
+
+      const semNumero = await criarCliente(empresaId, pessoa(completarCnpj("591100000014"), "sem.whatsapp@exemplo.test"));
+      await prisma.cliente.update({ where: { id: semNumero.id }, data: { whatsapp: "" } });
+      process.env.TWILIO_WHATSAPP_OFICIAL_DESDE = "2026-01-01T00:00:00.000Z";
+      const semZap = await abrirFatura(semNumero.id, { criadoEm: new Date("2026-10-26T12:00:00.000Z") });
+      const semTelefone = await reenviarBoletos(autor("DONO"), { ids: [semZap.id] }, { resend: caixa, twilio, agora: AGORA });
+      expect(canal(semTelefone, semZap.id, "WHATSAPP")?.motivo).toBe("cliente sem WhatsApp");
+      expect(twilio.enviados).toHaveLength(1);
+
+      const recente = await abrirFatura(cliente.id, { criadoEm: new Date("2026-10-26T12:00:00.000Z") });
+      const producao = await reenviarBoletos(autor("DONO"), { ids: [recente.id] }, { resend: caixa, twilio, agora: AGORA });
+      expect(canal(producao, recente.id, "WHATSAPP")?.resultado).toBe("aceito");
+      expect(twilio.enviados.at(-1)?.para).toBe("whatsapp:+5513988881001");
+      expect(twilio.enviados.at(-1)?.de).toBe(REMETENTE_OFICIAL_WHATSAPP);
+    } finally {
+      globalThis.fetch = fetchOriginal;
+      restaurar();
+    }
   });
 
   it("rejeita corpo inválido e lote acima do limite antes de enviar", async () => {

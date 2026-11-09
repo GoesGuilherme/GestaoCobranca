@@ -314,6 +314,7 @@ export async function processarFilaWhatsapp(
     twilio?: ClienteTwilio;
     limite?: number;
     tipos?: TipoTemplateWhatsapp[];
+    faturaIds?: string[];
     conciliar?: boolean;
   } = {},
 ): Promise<{ enviados: number; falhas: number; ignorados: number }> {
@@ -321,16 +322,18 @@ export async function processarFilaWhatsapp(
   const twilio = opcoes.twilio;
   if (!twilio) return { enviados: 0, falhas: 0, ignorados: 0 };
   const filtroEmpresa = opcoes.empresaId ? { empresaId: opcoes.empresaId } : {};
+  const filtroFaturas = opcoes.faturaIds?.length ? { faturaId: { in: opcoes.faturaIds } } : {};
   const resultado = { enviados: 0, falhas: 0, ignorados: 0 };
   const travado = new Date(agora.getTime() - 10 * 60 * 1000);
   await prisma.filaWhatsapp.updateMany({
-    where: { ...filtroEmpresa, status: "PROCESSANDO", messageSid: null, atualizadoEm: { lt: travado } },
+    where: { ...filtroEmpresa, ...filtroFaturas, status: "PROCESSANDO", messageSid: null, atualizadoEm: { lt: travado } },
     data: { status: "PENDENTE" },
   });
 
   const pendentes = await prisma.filaWhatsapp.findMany({
     where: {
       ...filtroEmpresa,
+      ...filtroFaturas,
       status: "PENDENTE",
       disponivelEm: { lte: agora },
       ...(opcoes.tipos ? { tipo: { in: opcoes.tipos } } : {}),

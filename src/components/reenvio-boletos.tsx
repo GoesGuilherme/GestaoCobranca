@@ -127,7 +127,7 @@ export function BarraReenvioBoletos({
         }}
         onConfirmar={() => void enviar()}
       >
-        <p>E-mail do passo Na emissão, o mesmo de Enviar lembrete.</p>
+        <p>E-mail e WhatsApp do passo Na emissão, o mesmo caminho da régua. Aceito para envio não confirma a leitura.</p>
         {foraDaPagina > 0 ? <p className="mt-2 text-muted">Inclui boletos de outras páginas desta lista.</p> : null}
       </DialogoConfirmacao>
       {resultado ? (

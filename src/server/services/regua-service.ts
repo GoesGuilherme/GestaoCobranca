@@ -19,6 +19,7 @@ import type {
   LembreteReguaDTO,
   PassoReguaDTO,
   ReguaDTO,
+  ResultadoCanalReenvio,
 } from "@/lib/tipos";
 import { esquemaAtribuicaoRegua, esquemaConfiguracaoRegua, esquemaLembreteManual, esquemaRegua } from "@/lib/validacao";
 import type { AutorEmpresa } from "@/server/auth/papeis";
@@ -27,8 +28,11 @@ import { prisma } from "@/server/db";
 import { ErroAplicacao } from "@/server/erros";
 import { dispararLembrete } from "@/server/regua/envio";
 import { clienteResendPadrao, remetenteResend, type ClienteResend } from "@/server/regua/resend";
+import type { ClienteTwilio } from "@/server/twilio/contrato";
+import { clienteTwilioPadrao } from "@/server/twilio/fabrica";
 import { lerEsquema } from "@/server/validar";
 import { obterWhatsappDaEmpresa } from "./twilio-service";
+import { canalWhatsappGravado, concluirWhatsappDoPasso, prepararWhatsappDoPasso } from "./whatsapp-passo";
 
 type LinhaPasso = {
   id: string;
@@ -418,8 +422,8 @@ export async function enviarLembreteAgora(
   autor: AutorEmpresa & { email: string; nomeEmpresa: string },
   faturaId: string,
   entrada: unknown,
-  opcoes: { resend?: ClienteResend; agora?: Date } = {},
-): Promise<LembreteReguaDTO> {
+  opcoes: { resend?: ClienteResend; twilio?: ClienteTwilio; agora?: Date; whatsapp?: boolean } = {},
+): Promise<{ lembrete: LembreteReguaDTO; whatsapp: ResultadoCanalReenvio | null }> {
   exigirCobranca(autor);
   const dados = lerEsquema(esquemaLembreteManual, entrada);
   const agora = opcoes.agora ?? new Date();
@@ -427,7 +431,17 @@ export async function enviarLembreteAgora(
     prisma.fatura.findFirst({
       where: { id: faturaId, empresaId: autor.empresaId },
       include: {
-        cliente: { select: { nomeFantasia: true, email: true } },
+        cliente: {
+          select: {
+            id: true,
+            nomeFantasia: true,
+            email: true,
+            whatsapp: true,
+            status: true,
+            reguaModo: true,
+            reguaPausada: true,
+          },
+        },
         clienteServico: { select: { servico: { select: { nome: true } } } },
       },
     }),
@@ -480,5 +494,21 @@ export async function enviarLembreteAgora(
     chave: abrirChaveResend(config.chaveResendCifrada),
     resend: opcoes.resend ?? clienteResendPadrao(),
   });
-  return resultado.lembrete;
+  let whatsapp: ResultadoCanalReenvio | null = null;
+  if (opcoes.whatsapp !== false) {
+    const preparado = await prepararWhatsappDoPasso(fatura, passo, modoTeste, agora);
+    if (preparado.processar) {
+      await concluirWhatsappDoPasso(
+        fatura.empresaId,
+        [fatura.id],
+        [passo],
+        opcoes.twilio ?? clienteTwilioPadrao(),
+        agora,
+      );
+      whatsapp = await canalWhatsappGravado(fatura, passo);
+    } else {
+      whatsapp = preparado.canal;
+    }
+  }
+  return { lembrete: resultado.lembrete, whatsapp };
 }
