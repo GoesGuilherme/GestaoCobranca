@@ -116,6 +116,14 @@ export default async function PaginaFaturas({ searchParams }: { searchParams: Pr
       {faturas.length === 0 ? (
         <>
           <p className="mb-3 text-sm text-muted">{textoListaFaturas(0)}</p>
+          {podeEmitirCobranca(acesso.papel) ? (
+            <div className="mb-3 flex flex-wrap items-center gap-3">
+              <button type="button" className={classeBotaoPrimario} disabled>
+                Reenviar boletos
+              </button>
+              <span className="text-sm text-muted">Nenhum boleto nesta lista.</span>
+            </div>
+          ) : null}
           <EstadoVazio
             titulo={busca ? "Nenhuma fatura encontrada" : faixa ? "Nenhuma fatura neste período" : "Nenhuma fatura nesta situação"}
             descricao={

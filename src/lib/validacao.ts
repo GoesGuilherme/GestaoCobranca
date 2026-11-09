@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { MODELO_ASSUNTO_PADRAO, MODELO_MENSAGEM_PADRAO } from "./cobranca";
+import { LIMITE_REENVIO_BOLETOS } from "./reenvio-boleto";
 import { dataHojeIso, dataIsoValida } from "./data";
 import { normalizarAliquota, normalizarDinheiro } from "./dinheiro";
 import { cnpjValido, identificarDocumento, somenteDigitos, whatsappValido } from "./documento";
@@ -696,6 +697,20 @@ export const esquemaAtribuicaoRegua = z
 
 export const esquemaLembreteManual = z.object({
   passoId: z.string().trim().min(1, "Escolha o passo.").max(64),
+});
+
+export const esquemaReenvioBoletos = z.object({
+  ids: z
+    .array(
+      z
+        .string()
+        .trim()
+        .min(8, "Fatura inválida.")
+        .max(64, "Fatura inválida.")
+        .regex(/^[A-Za-z0-9_-]+$/, "Fatura inválida."),
+    )
+    .min(1, "Selecione ao menos um boleto.")
+    .max(LIMITE_REENVIO_BOLETOS, "O reenvio aceita no máximo 50 boletos por vez."),
 });
 
 export const esquemaPromessa = z.object({

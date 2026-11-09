@@ -67,6 +67,7 @@ export {
   obterPainelRegua,
   salvarConfiguracaoRegua,
 } from "./regua-service";
+export { reenviarBoletos } from "./reenvio-boleto-service";
 export { executarRegua } from "./regua-job";
 export { processarWebhookAsaas } from "./asaas-webhook-service";
 export { atualizarTwilio, conectarTwilio, confirmarCodigoTwilio, obterWhatsappDoPainel } from "./twilio-service";

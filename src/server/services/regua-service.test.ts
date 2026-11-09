@@ -365,10 +365,10 @@ describe("régua de cobrança", () => {
     await atribuirReguaCliente(autor("FINANCEIRO"), pessoa.id, { modo: "PADRAO", pausada: true });
     const fatura = await abrirFatura(pessoa.id, "2026-10-26");
     const caixa = clienteResendMemoria();
-    const lembrete = await enviarLembreteAgora(autor("FINANCEIRO"), fatura.id, { passoId }, { resend: caixa, agora: AGORA });
-    expect(lembrete.destino).toBe(autor("FINANCEIRO").email);
-    expect(lembrete.automatico).toBe(false);
-    expect(lembrete.modoTeste).toBe(true);
+    const envio = await enviarLembreteAgora(autor("FINANCEIRO"), fatura.id, { passoId }, { resend: caixa, agora: AGORA });
+    expect(envio.lembrete.destino).toBe(autor("FINANCEIRO").email);
+    expect(envio.lembrete.automatico).toBe(false);
+    expect(envio.lembrete.modoTeste).toBe(true);
     await enviarLembreteAgora(autor("FINANCEIRO"), fatura.id, { passoId }, { resend: caixa, agora: AGORA });
     expect(caixa.caixa).toHaveLength(2);
     expect(caixa.caixa.every((item) => item.para !== "cliente.regua@exemplo.test")).toBe(true);

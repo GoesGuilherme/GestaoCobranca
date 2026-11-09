@@ -4,11 +4,13 @@ import { useMemo, useState } from "react";
 import { compararDinheiro } from "@/lib/dinheiro";
 import type { EnvioReguaLista, ReguaParaProgresso } from "@/lib/regua-progresso";
 import type { PassoParaRotulo } from "@/lib/regua";
+import { motivoForaDoReenvio } from "@/lib/reenvio-boleto";
 import type { ResultadoClassificacaoPagador } from "@/lib/classificacao-pagador";
 import type { ClienteServicoDTO, FaturaDTO, PreferenciasCobrancaDTO } from "@/lib/tipos";
 import { textoListaFaturas } from "@/lib/periodo-faturas";
 import { classeCampo } from "./campo";
 import { Paginacao } from "./paginacao";
+import { BarraReenvioBoletos } from "./reenvio-boletos";
 import { TabelaFaturas } from "./tabela-faturas";
 
 type Ordem = "padrao" | "vencimento" | "valor" | "cliente";
@@ -48,6 +50,15 @@ export function FaturasComControles({
 }) {
   const [ordem, setOrdem] = useState<Ordem>("padrao");
   const [pagina, setPagina] = useState(1);
+  const idsLista = faturas.map((fatura) => fatura.id).join("\n");
+  const [listaVista, setListaVista] = useState(idsLista);
+  const [selecionados, setSelecionados] = useState<Set<string>>(() => new Set());
+  const listaMudou = listaVista !== idsLista;
+  if (listaMudou) {
+    setListaVista(idsLista);
+    setSelecionados(new Set());
+  }
+  const marcas = listaMudou ? new Set<string>() : selecionados;
 
   const ordenadas = useMemo(() => {
     if (ordem === "padrao") return faturas;
@@ -60,11 +71,56 @@ export function FaturasComControles({
     return lista;
   }, [faturas, ordem]);
 
+  const motivos = useMemo(() => {
+    const mapa = new Map<string, string | null>();
+    const reguas = reguasEnvio ?? [];
+    for (const fatura of faturas) {
+      mapa.set(fatura.id, motivoForaDoReenvio(fatura, { modoTeste: Boolean(modoTeste), reguas }));
+    }
+    return mapa;
+  }, [faturas, modoTeste, reguasEnvio]);
+
   const paginaSegura = Math.min(pagina, Math.max(1, Math.ceil(ordenadas.length / TAMANHO)));
   const fatia = ordenadas.slice((paginaSegura - 1) * TAMANHO, paginaSegura * TAMANHO);
+  const elegiveis = faturas.filter((fatura) => !motivos.get(fatura.id));
+  const idsEnvio = elegiveis.filter((fatura) => marcas.has(fatura.id)).map((fatura) => fatura.id);
+  const naPagina = new Set(fatia.map((fatura) => fatura.id));
+  const foraDaPagina = idsEnvio.filter((id) => !naPagina.has(id)).length;
+  const todasMarcadas = elegiveis.length > 0 && elegiveis.every((fatura) => marcas.has(fatura.id));
+
+  function alternar(id: string, marcado: boolean) {
+    if (motivos.get(id)) return;
+    setSelecionados((atual) => {
+      const proximo = new Set(atual);
+      if (marcado) proximo.add(id);
+      else proximo.delete(id);
+      return proximo;
+    });
+  }
+
+  function alternarTodas() {
+    setSelecionados((atual) => {
+      const todos = elegiveis.length > 0 && elegiveis.every((fatura) => atual.has(fatura.id));
+      if (todos) return new Set();
+      return new Set(elegiveis.map((fatura) => fatura.id));
+    });
+  }
 
   return (
     <div>
+      {podeEnviarRegua ? (
+        <BarraReenvioBoletos
+          ids={idsEnvio}
+          totalElegiveis={elegiveis.length}
+          todasMarcadas={todasMarcadas}
+          algumasMarcadas={idsEnvio.length > 0 && !todasMarcadas}
+          foraDaPagina={foraDaPagina}
+          modoTeste={Boolean(modoTeste)}
+          emailLogado={emailLogado ?? ""}
+          onAlternarTodas={alternarTodas}
+          onConcluido={() => setSelecionados(new Set())}
+        />
+      ) : null}
       <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
         <p className="text-sm text-muted">
           {textoListaFaturas(faturas.length)}
@@ -102,6 +158,15 @@ export function FaturasComControles({
         hoje={hoje}
         destaqueId={destaqueId}
         selos={selos}
+        selecaoBoletos={
+          podeEnviarRegua
+            ? {
+                marcada: (id) => marcas.has(id),
+                motivo: (fatura) => motivos.get(fatura.id) ?? null,
+                onAlternar: alternar,
+              }
+            : undefined
+        }
       />
       <Paginacao pagina={paginaSegura} total={ordenadas.length} tamanho={TAMANHO} onChange={setPagina} />
     </div>

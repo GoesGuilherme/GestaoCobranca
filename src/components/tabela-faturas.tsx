@@ -49,6 +49,7 @@ export function TabelaFaturas({
   modoTeste = false,
   emailLogado = "",
   selos = {},
+  selecaoBoletos,
 }: {
   faturas: FaturaDTO[];
   podeCancelar: boolean;
@@ -65,6 +66,11 @@ export function TabelaFaturas({
   modoTeste?: boolean;
   emailLogado?: string;
   selos?: Record<string, ResultadoClassificacaoPagador | null>;
+  selecaoBoletos?: {
+    marcada: (id: string) => boolean;
+    motivo: (fatura: FaturaDTO) => string | null;
+    onAlternar: (id: string, marcado: boolean) => void;
+  };
 }) {
   if (faturas.length === 0) {
     return (
@@ -118,13 +124,30 @@ export function TabelaFaturas({
             <SeloFatura status={fatura.status} excluida={fatura.excluida} />
           </span>
         );
+        const motivoSelecao = selecaoBoletos?.motivo(fatura) ?? null;
         return (
           <li
             key={fatura.id}
             id={`fatura-${fatura.id}`}
             className={`scroll-mt-24 grid grid-cols-1 items-center gap-3 px-4 py-4 last:rounded-b-3xl md:gap-x-6 ${COLUNAS} ${indice === 0 ? "rounded-t-3xl md:rounded-t-none" : ""} ${fatura.excluida ? "opacity-60" : ""} ${destaqueId === fatura.id ? "bg-gold-soft" : ""}`}
           >
-            <div className="flex min-w-0 items-start justify-between gap-3 md:block">
+            <div className="flex min-w-0 items-start gap-3">
+              {selecaoBoletos ? (
+                <input
+                  type="checkbox"
+                  className="mt-1 size-4 shrink-0 accent-forest disabled:cursor-not-allowed"
+                  checked={!motivoSelecao && selecaoBoletos.marcada(fatura.id)}
+                  disabled={Boolean(motivoSelecao)}
+                  aria-label={
+                    motivoSelecao
+                      ? `${motivoSelecao} Fatura de ${fatura.nomeCliente}`
+                      : `Selecionar boleto de ${fatura.nomeCliente}`
+                  }
+                  title={motivoSelecao ?? "Selecionar boleto"}
+                  onChange={(evento) => selecaoBoletos.onAlternar(fatura.id, evento.target.checked)}
+                />
+              ) : null}
+            <div className="flex min-w-0 flex-1 items-start justify-between gap-3 md:block">
               <div className="min-w-0">
                 {mostrarCliente ? (
                   <span className="inline-flex max-w-full flex-wrap items-center gap-2">
@@ -141,6 +164,7 @@ export function TabelaFaturas({
                   {rotuloFormaCobranca(fatura.formaCobranca)}
                   {fatura.nomeServico ? ` · ${fatura.nomeServico}` : ""}
                 </p>
+                {motivoSelecao ? <p className="mt-1 text-xs text-muted">{motivoSelecao}</p> : null}
                 {rotulo ? (
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <SemaforoRegua fase={rotulo.fase} texto={rotulo.texto} aria={rotulo.aria} />
@@ -164,6 +188,7 @@ export function TabelaFaturas({
                 </p>
               </div>
               <span className="md:hidden">{situacao}</span>
+            </div>
             </div>
             <div className="min-w-0">
               <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted md:hidden">Régua</p>
