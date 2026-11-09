@@ -394,6 +394,18 @@ export type AtribuicaoReguaDTO = {
   nome: string | null;
 };
 
+export type ConfiguracaoCoraDTO = {
+  provedorAtual: "ASAAS" | "CORA" | "INTER" | "EFI" | "SICOOB" | "SICREDI";
+  conectada: boolean;
+  precisaReconectar: boolean;
+  ambiente: "STAGE" | "PRODUCAO";
+  escopos: string;
+  expiraEm: string | null;
+  parceiroConfigurado: boolean;
+  webhookConfigurado: boolean;
+  aviso: string | null;
+};
+
 export type ConfiguracaoInterDTO = {
   provedorAtual: "ASAAS" | "CORA" | "INTER" | "EFI" | "SICOOB" | "SICREDI";
   configurado: boolean;

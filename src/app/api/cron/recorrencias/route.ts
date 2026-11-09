@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cronAutorizado } from "@/server/cron/segredo";
 import { jsonErro } from "@/server/http";
+import { executarRecorrenciasCora } from "@/server/services/cora-recorrencia";
 import { executarRecorrenciasInter } from "@/server/services/inter-recorrencia";
 
 export const runtime = "nodejs";
@@ -11,7 +12,9 @@ async function executar(request: Request) {
   if (acesso === "ausente") return NextResponse.json({ erro: "CRON_SECRET não definido." }, { status: 500 });
   if (!acesso) return NextResponse.json({ erro: "Não autorizado." }, { status: 401 });
   try {
-    return NextResponse.json({ ok: true, ...(await executarRecorrenciasInter()) });
+    const inter = await executarRecorrenciasInter();
+    const cora = await executarRecorrenciasCora();
+    return NextResponse.json({ ok: true, ...inter, cora });
   } catch (erro) {
     return jsonErro(erro);
   }

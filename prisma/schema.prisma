@@ -2,7 +2,7 @@
 // Servico é o catálogo da empresa (o que ela vende aos clientes dela).
 // ClienteServico guarda o valor combinado daquele cliente. O plano da Empresa
 // (string `plano`) é a assinatura dela na plataforma e não se mistura com este catálogo.
-// A cobrança nasce no provedor da empresa. Asaas e Inter estão disponíveis.
+// A cobrança nasce no provedor da empresa. Asaas, Inter e Cora (Stage) estão disponíveis.
 // Colunas asaas_* permanecem. provedor, id externo e status normalizado
 // são o caminho comum para Cora, Inter, Efí, Sicoob e Sicredi.
 
@@ -164,6 +164,7 @@ model Empresa {
   // Desligado por padrão. Ligado, promessa quebrada nos últimos 12 meses pesa no selo.
   promessasContamNoSelo Boolean        @default(false) @map("promessas_contam_no_selo")
   promessas            PromessaPagamento[]
+  estadosOauth         EstadoOauth[]
 
   @@map("empresas")
 }
@@ -192,6 +193,7 @@ model Usuario {
   empresa            Empresa      @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   redefinicoesSenha  RedefinicaoSenha[]
   promessasRegistradas PromessaPagamento[]
+  estadosOauth         EstadoOauth[]
 
   @@index([empresaId])
   @@map("usuarios")
@@ -431,6 +433,8 @@ model Fatura {
   provedor          ProvedorPagamento @default(ASAAS)
   idExterno         String?   @map("id_externo")
   chaveIdempotencia String?   @map("chave_idempotencia")
+  // UUID enviado no Idempotency-Key da Cora. Nasce antes da chamada e se repete no retry.
+  idempotencyKeyCora String?  @unique @map("idempotency_key_cora")
   valor             Decimal   @db.Decimal(12, 2)
   vencimento        DateTime  @map("vencimento") @db.Date
   // Dia em que o cliente pagou. clientPaymentDate do Asaas, senão paymentDate.
@@ -469,6 +473,7 @@ model Fatura {
   @@index([empresaId, visualizada])
   @@index([clienteId])
   @@index([clienteServicoId])
+  @@index([provedor, idExterno])
   @@map("faturas")
 }
 
@@ -528,6 +533,23 @@ model EventoPagamento {
   @@index([empresaId])
   @@index([empresaId, idExterno])
   @@map("eventos_pagamento")
+}
+
+// Estado do Authorization Code da Cora. Só o hash fica gravado.
+// Liga a empresa e o usuário que iniciaram o fluxo. Uso único.
+model EstadoOauth {
+  id         String            @id @default(cuid())
+  empresaId  String            @map("empresa_id")
+  usuarioId  String            @map("usuario_id")
+  provedor   ProvedorPagamento
+  estadoHash String            @unique @map("estado_hash")
+  expiraEm   DateTime          @map("expira_em") @db.Timestamptz(3)
+  criadoEm   DateTime          @default(now()) @map("criado_em") @db.Timestamptz(3)
+  empresa    Empresa           @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  usuario    Usuario           @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([empresaId, usuarioId])
+  @@map("estados_oauth")
 }
 
 // Liga e desliga a régua da empresa e guarda o remetente. A chave da Resend

@@ -14,8 +14,9 @@ export const CAPACIDADES_ASAAS: Capacidades = {
   webhookAssinado: true,
 };
 
-// Previsto para o conector. Não é uma integração: disponivel fica false.
-const CAPACIDADES_CORA: Capacidades = {
+// Parceria Cora, boleto v2 com Pix. Sem assinatura nativa e sem assinatura de webhook.
+// A API de fatura que usamos não edita vencimento: o boleto emitido fica como saiu.
+export const CAPACIDADES_CORA: Capacidades = {
   boleto: true,
   boletoComPix: true,
   pixComVencimento: false,
@@ -24,7 +25,7 @@ const CAPACIDADES_CORA: Capacidades = {
   pixAutomatico: false,
   visualizacao: false,
   precisaClienteRemoto: false,
-  editarVencimento: true,
+  editarVencimento: false,
   webhookAssinado: false,
 };
 
@@ -89,7 +90,7 @@ export type ItemCatalogoProvedor = {
 
 export const CATALOGO_PROVEDORES: readonly ItemCatalogoProvedor[] = [
   { codigo: "ASAAS", nome: "Asaas", disponivel: true, capacidades: CAPACIDADES_ASAAS },
-  { codigo: "CORA", nome: "Cora", disponivel: false, capacidades: CAPACIDADES_CORA },
+  { codigo: "CORA", nome: "Cora", disponivel: true, capacidades: CAPACIDADES_CORA },
   { codigo: "INTER", nome: "Inter", disponivel: true, capacidades: CAPACIDADES_INTER },
   { codigo: "EFI", nome: "Efí", disponivel: false, capacidades: CAPACIDADES_EFI },
   { codigo: "SICOOB", nome: "Sicoob", disponivel: false, capacidades: CAPACIDADES_SICOOB },

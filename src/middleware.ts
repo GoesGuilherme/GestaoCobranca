@@ -52,6 +52,8 @@ export async function middleware(request: NextRequest) {
     pathname === "/api/webhooks/asaas" ||
     pathname === "/api/webhooks/twilio" ||
     pathname.startsWith("/api/webhooks/inter/") ||
+    pathname.startsWith("/api/webhooks/cora/") ||
+    pathname === "/api/integracoes/cora/callback" ||
     pathname === "/api/cron/regua" ||
     pathname === "/api/cron/regua-emissao" ||
     pathname === "/api/cron/visualizacoes" ||
@@ -160,9 +162,14 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/api/asaas") ||
     pathname === "/banco" ||
     pathname.startsWith("/banco/") ||
-    pathname.startsWith("/api/banco");
+    pathname.startsWith("/api/banco") ||
+    pathname.startsWith("/api/integracoes/cora/");
   if (rotaAsaas && !podeConfigurarAsaas(sessao.papel)) {
-    const banco = pathname === "/banco" || pathname.startsWith("/banco/") || pathname.startsWith("/api/banco");
+    const banco =
+      pathname === "/banco" ||
+      pathname.startsWith("/banco/") ||
+      pathname.startsWith("/api/banco") ||
+      pathname.startsWith("/api/integracoes/cora/");
     return paginaProibida(
       pathname,
       banco ? "Só o dono configura o banco" : "Só o dono configura o Asaas",

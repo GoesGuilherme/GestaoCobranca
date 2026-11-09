@@ -26,6 +26,14 @@ import {
   marcarFaturasAbertasExcluidas,
 } from "./fatura-service";
 import {
+  ativarRecorrenciaCora,
+  cancelarRecorrenciaCora,
+  editarRecorrenciaCora,
+  empresaUsaCora,
+  pausarRecorrenciaCora,
+  retomarRecorrenciaCora,
+} from "./cora-recorrencia";
+import {
   ativarRecorrenciaInter,
   cancelarRecorrenciaInter,
   editarRecorrenciaInter,
@@ -205,6 +213,15 @@ export async function ativarRecorrencia(
       descricao,
     });
   }
+  if (await empresaUsaCora(autor.empresaId)) {
+    return ativarRecorrenciaCora(autor, clienteServicoId, {
+      diaVencimento: dia,
+      proximoVencimento: vencimento,
+      valor,
+      formaCobranca: forma,
+      descricao,
+    });
+  }
 
   try {
     const http = await clienteAsaasDaEmpresa(autor.empresaId, clienteHttp);
@@ -330,6 +347,24 @@ export async function editarRecorrencia(
   exigirCobranca(autor);
   const dados = lerEsquema(esquemaEditarRecorrencia, entrada);
   const vinculo = await buscarVinculo(autor.empresaId, clienteServicoId);
+  if (await empresaUsaCora(autor.empresaId)) {
+    const hojeCora = dataHojeIso();
+    const prefsCora = await obterPreferenciasCobranca(autor.empresaId);
+    const vencimentoCora = resolverVencimento(dados.diaVencimento, dados.proximoVencimento, hojeCora);
+    const descricaoCora = (
+      dados.descricao?.trim() ||
+      vinculo.descricaoRecorrente ||
+      textoDaCobranca(prefsCora.modeloDescricao, vinculo, vencimentoCora)
+    ).slice(0, 500);
+    const formaCora = formaCobrancaDe(dados.formaCobranca ?? vinculo.formaCobrancaRecorrente ?? prefsCora.formaCobranca);
+    return editarRecorrenciaCora(autor, clienteServicoId, {
+      diaVencimento: dados.diaVencimento,
+      proximoVencimento: vencimentoCora,
+      valor: dados.valor,
+      formaCobranca: formaCora,
+      descricao: descricaoCora,
+    });
+  }
   if (!vinculo.asaasSubscriptionId || (vinculo.asaasAssinaturaStatus !== "ACTIVE" && vinculo.asaasAssinaturaStatus !== "INACTIVE")) {
     throw new ErroAplicacao("Esta venda não tem cobrança recorrente para editar.", 409, "assinatura_ausente");
   }
@@ -408,6 +443,7 @@ export async function pausarRecorrencia(
   exigirCobranca(autor);
   const vinculo = await buscarVinculo(autor.empresaId, clienteServicoId);
   if (await empresaUsaInter(autor.empresaId)) return pausarRecorrenciaInter(autor, clienteServicoId);
+  if (await empresaUsaCora(autor.empresaId)) return pausarRecorrenciaCora(autor, clienteServicoId);
   if (!vinculo.asaasSubscriptionId || vinculo.asaasAssinaturaStatus !== "ACTIVE") {
     throw new ErroAplicacao("Só uma recorrência ativa pode ser pausada.", 409, "assinatura_ausente");
   }
@@ -443,6 +479,12 @@ export async function retomarRecorrencia(
   exigirCobranca(autor);
   const dados = lerEsquema(esquemaRetomarRecorrencia, entrada);
   const vinculo = await buscarVinculo(autor.empresaId, clienteServicoId);
+  if (await empresaUsaCora(autor.empresaId)) {
+    const diaCora = dados.diaVencimento ?? vinculo.diaVencimento;
+    if (!diaCora) throw new ErroAplicacao("Informe o dia de vencimento entre 1 e 31.", 400, "dia_invalido");
+    const vencimentoCora = resolverVencimento(diaCora, dados.proximoVencimento, dataHojeIso());
+    return retomarRecorrenciaCora(autor, clienteServicoId, { diaVencimento: diaCora, proximoVencimento: vencimentoCora });
+  }
   if (!vinculo.asaasSubscriptionId || vinculo.asaasAssinaturaStatus !== "INACTIVE") {
     throw new ErroAplicacao("Só uma recorrência pausada pode ser retomada.", 409, "assinatura_ausente");
   }
@@ -490,6 +532,7 @@ export async function cancelarRecorrencia(
   exigirCobranca(autor);
   const vinculo = await buscarVinculo(autor.empresaId, clienteServicoId);
   if (await empresaUsaInter(autor.empresaId)) return cancelarRecorrenciaInter(autor, clienteServicoId);
+  if (await empresaUsaCora(autor.empresaId)) return cancelarRecorrenciaCora(autor, clienteServicoId);
   if (!vinculo.asaasSubscriptionId || vinculo.asaasAssinaturaStatus === "CANCELADA") {
     throw new ErroAplicacao("Esta venda não tem cobrança recorrente para cancelar.", 409, "assinatura_ausente");
   }

@@ -1,5 +1,7 @@
 import type { ClienteHttpAsaas } from "@/server/asaas/contrato";
 import { abrirClienteAsaas } from "@/server/asaas/abrir";
+import type { ClienteHttpCora } from "@/server/cora/contrato";
+import { abrirClienteCora } from "@/server/cora/abrir";
 import type { ClienteHttpInter } from "@/server/inter/contrato";
 import { abrirClienteInter } from "@/server/inter/abrir";
 import { prisma } from "@/server/db";
@@ -7,6 +9,7 @@ import { ErroAplicacao } from "@/server/erros";
 import { provedorCodigo } from "@/lib/status-pagamento";
 import { provedorEstaDisponivel } from "./capacidades";
 import { criarAdaptadorAsaas, type AdaptadorAsaas } from "./adaptador-asaas";
+import { criarAdaptadorCora } from "./adaptador-cora";
 import { criarAdaptadorInter } from "./adaptador-inter";
 import type { ProvedorPagamento } from "./tipos";
 
@@ -14,6 +17,7 @@ export async function provedorDaEmpresa(
   empresaId: string,
   injetado?: ClienteHttpAsaas,
   interInjetado?: ClienteHttpInter,
+  coraInjetado?: ClienteHttpCora,
 ): Promise<ProvedorPagamento> {
   const empresa = await prisma.empresa.findUnique({
     where: { id: empresaId },
@@ -28,6 +32,7 @@ export async function provedorDaEmpresa(
     );
   }
   if (codigo === "INTER") return criarAdaptadorInter(await abrirClienteInter(empresaId, interInjetado));
+  if (codigo === "CORA") return criarAdaptadorCora(await abrirClienteCora(empresaId, coraInjetado));
   if (codigo !== "ASAAS") {
     throw new ErroAplicacao(
       "Este provedor de pagamento ainda não está disponível. A empresa continua no Asaas.",

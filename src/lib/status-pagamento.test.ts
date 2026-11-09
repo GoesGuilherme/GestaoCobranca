@@ -61,6 +61,23 @@ describe("status normalizado do Taguaro", () => {
     expect(statusIgnoradoNoSelo("RECEIVED")).toBe(false);
   });
 
+  it("traduz a fatura da Cora e não troca o mapa do Asaas", () => {
+    expect(statusNormalizado("OPEN", "CORA")).toBe("PENDENTE");
+    expect(statusNormalizado("LATE", "CORA")).toBe("VENCIDO");
+    expect(statusNormalizado("PAID", "CORA")).toBe("PAGO");
+    expect(statusNormalizado("CANCELLED", "CORA")).toBe("CANCELADO");
+    expect(statusNormalizado("CANCELED", "CORA")).toBe("CANCELADO");
+    expect(statusNormalizado("DRAFT", "CORA")).toBe("CRIANDO");
+    expect(statusNormalizado("IN_PAYMENT", "CORA")).toBe("PENDENTE");
+    expect(statusEh("OPEN", "REGUA_ABERTA", "CORA")).toBe(true);
+    expect(statusEh("IN_PAYMENT", "REGUA_ABERTA", "CORA")).toBe(false);
+    expect(statusEh("LATE", "RECORRENCIA_ABERTA", "CORA")).toBe(true);
+    expect(statusEh("PAID", "REGUA_ABERTA", "CORA")).toBe(false);
+    expect(statusBrutos("PAGO")).toEqual(HISTORICO.PAGO);
+    expect(statusNormalizado("PENDING")).toBe("PENDENTE");
+    expect(statusNormalizado("RECEIVED", "CORA")).toBeNull();
+  });
+
   it("não muda o mapa do Asaas quando o status é do Inter", () => {
     expect(statusNormalizado("A_RECEBER")).toBe("PENDENTE");
     expect(statusNormalizado("PENDING")).toBe("PENDENTE");
