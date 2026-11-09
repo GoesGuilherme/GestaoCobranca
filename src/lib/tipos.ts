@@ -268,6 +268,7 @@ export type FaturaDTO = {
   vencimento: string;
   pagoEm: string | null;
   status: string;
+  provedor: string;
   formaCobranca: string;
   boletoUrl: string | null;
   linhaDigitavel: string | null;
@@ -283,6 +284,20 @@ export type FaturaDTO = {
   reguaId: string | null;
   lembretes: LembreteReguaDTO[];
   promessaPendente: PromessaPendenteDTO | null;
+};
+
+export type ItemReenvioBoleto = {
+  id: string;
+  resultado: "aceito" | "ignorado" | "falha";
+  motivo: string | null;
+};
+
+export type ResultadoReenvioBoletos = {
+  aceitos: number;
+  ignorados: number;
+  falhas: number;
+  modoTeste: boolean;
+  itens: ItemReenvioBoleto[];
 };
 
 export type ConfiguracaoReguaDTO = {

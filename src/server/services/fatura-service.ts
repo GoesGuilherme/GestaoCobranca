@@ -29,6 +29,7 @@ type FaturaComNomes = {
   vencimento: Date;
   pagoEm: Date | null;
   status: string;
+  provedor: string;
   formaCobranca: string;
   boletoUrl: string | null;
   linhaDigitavel: string | null;
@@ -96,6 +97,7 @@ function paraFatura(fatura: FaturaComNomes, promessaPendente: PromessaPendenteDT
     vencimento: isoDeData(fatura.vencimento),
     pagoEm: fatura.pagoEm ? isoDeData(fatura.pagoEm) : null,
     status: fatura.status,
+    provedor: fatura.provedor,
     formaCobranca: fatura.formaCobranca,
     boletoUrl: fatura.boletoUrl,
     linhaDigitavel: fatura.linhaDigitavel,
