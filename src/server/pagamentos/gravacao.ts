@@ -19,6 +19,14 @@ export function espelhoAssinaturaAsaas(id: string) {
   return { asaasSubscriptionId: id, idAssinaturaExterna: id };
 }
 
+export function espelhoFaturaCora(dados: { status?: string; idExterno?: string | null }) {
+  return {
+    provedor: "CORA" as const,
+    ...(dados.status !== undefined ? { statusNormalizado: statusNormalizado(dados.status, "CORA") } : {}),
+    ...(dados.idExterno !== undefined ? { idExterno: dados.idExterno } : {}),
+  };
+}
+
 export function espelhoFaturaInter(dados: { status?: string; idExterno?: string | null }) {
   return {
     provedor: "INTER" as const,

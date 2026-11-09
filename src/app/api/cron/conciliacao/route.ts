@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cronAutorizado } from "@/server/cron/segredo";
 import { jsonErro } from "@/server/http";
 import { executarConciliacaoAsaas } from "@/server/services/asaas-conciliacao";
+import { executarConciliacaoCora } from "@/server/services/cora-conciliacao";
 import { executarConciliacaoInter } from "@/server/services/inter-conciliacao";
 
 export const runtime = "nodejs";
@@ -15,7 +16,8 @@ async function executar(request: Request) {
   try {
     const inter = await executarConciliacaoInter();
     const asaas = await executarConciliacaoAsaas();
-    return NextResponse.json({ ok: true, ...inter, asaas });
+    const cora = await executarConciliacaoCora();
+    return NextResponse.json({ ok: true, ...inter, asaas, cora });
   } catch (erro) {
     return jsonErro(erro);
   }

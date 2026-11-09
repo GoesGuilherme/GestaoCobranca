@@ -36,6 +36,7 @@ export function usarBancoDeTeste() {
     await prisma.cliente.deleteMany();
     await prisma.segmentoCliente.deleteMany();
     await prisma.redefinicaoSenha.deleteMany();
+    await prisma.estadoOauth.deleteMany();
     await prisma.usuario.deleteMany();
     await prisma.limiteCadastro.deleteMany();
     await prisma.empresa.deleteMany();

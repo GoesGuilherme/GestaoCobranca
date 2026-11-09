@@ -52,6 +52,21 @@ const MAPA_ASAAS: readonly RegistroStatus[] = [
 
 // Cobrança v3 (bolepix). EXPIRADO encerra o título depois de numDiasAgenda: não entra na régua.
 // PROTESTO continua cobrável. Não há estorno nesta API.
+// Fatura da Cora (boleto v2). CANCELLED é o texto da API; CANCELED entra por tolerância.
+// IN_PAYMENT ainda não é pagamento confirmado: a régua espera, a recorrência não emite outra.
+const MAPA_CORA: readonly RegistroStatus[] = [
+  { bruto: "DRAFT", normalizado: "CRIANDO", regua: false, recorrencia: false },
+  { bruto: "RECURRENCE_DRAFT", normalizado: "CRIANDO", regua: false, recorrencia: false },
+  { bruto: "CRIANDO", normalizado: "CRIANDO", regua: false, recorrencia: false },
+  { bruto: "OPEN", normalizado: "PENDENTE", regua: true, recorrencia: true },
+  { bruto: "IN_PAYMENT", normalizado: "PENDENTE", regua: false, recorrencia: true },
+  { bruto: "LATE", normalizado: "VENCIDO", regua: true, recorrencia: true },
+  { bruto: "PAID", normalizado: "PAGO", regua: false, recorrencia: false },
+  { bruto: "CANCELLED", normalizado: "CANCELADO", regua: false, recorrencia: false },
+  { bruto: "CANCELED", normalizado: "CANCELADO", regua: false, recorrencia: false },
+  { bruto: "ERRO_EMISSAO", normalizado: "FALHA", regua: false, recorrencia: false },
+];
+
 const MAPA_INTER: readonly RegistroStatus[] = [
   { bruto: "EM_PROCESSAMENTO", normalizado: "CRIANDO", regua: false, recorrencia: false },
   { bruto: "CRIANDO", normalizado: "CRIANDO", regua: false, recorrencia: false },
@@ -68,8 +83,7 @@ const MAPA_INTER: readonly RegistroStatus[] = [
 
 const MAPAS: Record<ProvedorCodigo, readonly RegistroStatus[]> = {
   ASAAS: MAPA_ASAAS,
-  // Os outros bancos entram com o próprio mapa. Enquanto o conector não existe, a lista fica vazia.
-  CORA: [],
+  CORA: MAPA_CORA,
   INTER: MAPA_INTER,
   EFI: [],
   SICOOB: [],
