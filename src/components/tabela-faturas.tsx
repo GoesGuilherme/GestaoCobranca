@@ -7,6 +7,7 @@ import { opcoesDaReguaAplicavel, rotuloReguaDaFatura, type OpcaoPassoRegua, type
 import { linhaDoTempoDaFatura } from "@/lib/linha-tempo-fatura";
 import { rotuloPromessaAte } from "@/lib/promessa";
 import type { EnvioReguaLista, ReguaParaProgresso } from "@/lib/regua-progresso";
+import { motivoForaDaSelecaoBoleto } from "@/lib/reenvio-boleto";
 import { rotuloFormaCobranca } from "@/lib/rotulos";
 import type { ResultadoClassificacaoPagador } from "@/lib/classificacao-pagador";
 import type { ClienteServicoDTO, FaturaDTO, PreferenciasCobrancaDTO } from "@/lib/tipos";
@@ -49,6 +50,7 @@ export function TabelaFaturas({
   modoTeste = false,
   emailLogado = "",
   selos = {},
+  selecao,
 }: {
   faturas: FaturaDTO[];
   podeCancelar: boolean;
@@ -65,6 +67,11 @@ export function TabelaFaturas({
   modoTeste?: boolean;
   emailLogado?: string;
   selos?: Record<string, ResultadoClassificacaoPagador | null>;
+  selecao?: {
+    escolhidas: ReadonlySet<string>;
+    onAlternar: (id: string) => void;
+    onAlternarVarios: (ids: string[], marcar: boolean) => void;
+  };
 }) {
   if (faturas.length === 0) {
     return (
@@ -81,10 +88,30 @@ export function TabelaFaturas({
     else enviosPorFatura.set(envio.faturaId, [envio]);
   }
 
+  const motivos = new Map(faturas.map((fatura) => [fatura.id, motivoForaDaSelecaoBoleto(fatura)]));
+  const elegiveisDaPagina = selecao ? faturas.filter((fatura) => !motivos.get(fatura.id)) : [];
+  const marcadasNaPagina = elegiveisDaPagina.filter((fatura) => selecao?.escolhidas.has(fatura.id)).length;
+  const paginaToda = elegiveisDaPagina.length > 0 && marcadasNaPagina === elegiveisDaPagina.length;
+
   return (
     <ul className="divide-y divide-line rounded-3xl border border-line bg-card">
       <li className={`hidden items-center gap-x-6 border-line px-4 py-3 md:grid ${COLUNAS} md:rounded-t-3xl`}>
-        <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Fatura</span>
+        <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+          {selecao ? (
+            <input
+              type="checkbox"
+              className="size-4"
+              checked={paginaToda}
+              disabled={elegiveisDaPagina.length === 0}
+              aria-label="Selecionar boletos desta página"
+              ref={(elemento) => {
+                if (elemento) elemento.indeterminate = marcadasNaPagina > 0 && !paginaToda;
+              }}
+              onChange={(evento) => selecao.onAlternarVarios(elegiveisDaPagina.map((fatura) => fatura.id), evento.target.checked)}
+            />
+          ) : null}
+          Fatura
+        </span>
         <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Régua</span>
         <span className="text-right text-xs font-semibold uppercase tracking-[0.14em] text-muted">Situação</span>
       </li>
@@ -125,7 +152,23 @@ export function TabelaFaturas({
             className={`scroll-mt-24 grid grid-cols-1 items-center gap-3 px-4 py-4 last:rounded-b-3xl md:gap-x-6 ${COLUNAS} ${indice === 0 ? "rounded-t-3xl md:rounded-t-none" : ""} ${fatura.excluida ? "opacity-60" : ""} ${destaqueId === fatura.id ? "bg-gold-soft" : ""}`}
           >
             <div className="flex min-w-0 items-start justify-between gap-3 md:block">
-              <div className="min-w-0">
+              <div className="flex min-w-0 items-start gap-3">
+                {selecao ? (
+                  <input
+                    type="checkbox"
+                    className="mt-1 size-4 shrink-0 disabled:cursor-not-allowed"
+                    checked={selecao.escolhidas.has(fatura.id)}
+                    disabled={Boolean(motivos.get(fatura.id))}
+                    aria-label={
+                      motivos.get(fatura.id)
+                        ? `Fatura de ${fatura.nomeCliente}: ${motivos.get(fatura.id)}`
+                        : `Selecionar boleto de ${fatura.nomeCliente}`
+                    }
+                    title={motivos.get(fatura.id) ?? undefined}
+                    onChange={() => selecao.onAlternar(fatura.id)}
+                  />
+                ) : null}
+                <div className="min-w-0">
                 {mostrarCliente ? (
                   <span className="inline-flex max-w-full flex-wrap items-center gap-2">
                     <Link href={`/clientes/${fatura.clienteId}`} className="min-w-0 break-words font-medium text-canopy hover:underline">
@@ -141,6 +184,9 @@ export function TabelaFaturas({
                   {rotuloFormaCobranca(fatura.formaCobranca)}
                   {fatura.nomeServico ? ` · ${fatura.nomeServico}` : ""}
                 </p>
+                {selecao && motivos.get(fatura.id) ? (
+                  <p className="text-xs text-muted">{motivos.get(fatura.id)}</p>
+                ) : null}
                 {rotulo ? (
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <SemaforoRegua fase={rotulo.fase} texto={rotulo.texto} aria={rotulo.aria} />
@@ -162,6 +208,7 @@ export function TabelaFaturas({
                     Abrir fatura
                   </Link>
                 </p>
+                </div>
               </div>
               <span className="md:hidden">{situacao}</span>
             </div>

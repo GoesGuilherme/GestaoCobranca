@@ -435,3 +435,19 @@ export type Painel = {
   recentes: ClienteResumo[];
   receitaMensal: string;
 };
+
+export type SituacaoReenvioBoleto = "aceito" | "ignorado" | "falhou" | "nao_aplica" | "ja_existia" | "na_fila";
+
+export type ItemReenvioBoleto = {
+  id: string;
+  nomeCliente: string | null;
+  email: SituacaoReenvioBoleto;
+  emailMotivo: string | null;
+  whatsapp: SituacaoReenvioBoleto;
+  whatsappMotivo: string | null;
+};
+
+export type ResultadoReenvioBoletos = {
+  modoTeste: boolean;
+  itens: ItemReenvioBoleto[];
+};
