@@ -1,7 +1,6 @@
 import { Check } from "lucide-react";
 import { ariaLinhaDoTempoFatura, type LinhaDoTempoFatura, type MarcoFatura } from "@/lib/linha-tempo-fatura";
 import { COR_FASE_LINHA_TEMPO, type FaseLinhaTempo } from "@/lib/linha-tempo-regua";
-import { rotuloPromessaAte } from "@/lib/promessa";
 
 const CINZA = "#D5DEE8";
 const CINZA_TEXTO = "#5A6B80";
@@ -28,11 +27,6 @@ export function LinhaDoTempoFatura({ linha }: { linha: LinhaDoTempoFatura }) {
   return (
     <div className="max-w-full overflow-x-auto overscroll-x-contain pb-1 lg:overflow-visible lg:pb-0">
       <div role="group" aria-label={ariaLinhaDoTempoFatura(linha)} className="flex w-max items-start lg:w-full lg:min-w-0">
-        {linha.promessaAte ? (
-          <span className="mr-2 mt-1 inline-flex shrink-0 items-center rounded-full bg-gold-soft px-2 py-1 text-xs font-medium text-gold-ink">
-            {rotuloPromessaAte(linha.promessaAte)}
-          </span>
-        ) : null}
         {linha.semRegua ? <span className="mr-2 mt-1 shrink-0 text-xs text-muted">Sem régua</span> : null}
         <ol className="flex w-max items-start lg:w-full lg:min-w-0">
           {linha.marcadores.map((marco, posicao) => {
