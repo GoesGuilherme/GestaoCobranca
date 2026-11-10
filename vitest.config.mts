@@ -2,9 +2,11 @@ import path from "node:path";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
-  // O tsconfig do Next deixa jsx em "preserve". O Vitest precisa transformar o JSX para renderizar componentes.
+  // O tsconfig deixa jsx em preserve para o Next. O Vitest precisa transformar o JSX dos componentes.
   oxc: {
-    jsx: "react-jsx",
+    jsx: {
+      runtime: "automatic",
+    },
   },
   test: {
     environment: "node",
