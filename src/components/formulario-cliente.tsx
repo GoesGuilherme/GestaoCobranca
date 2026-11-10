@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useId, useRef, useState } from "react";
 import { CLIENTE_VAZIO, valoresAposSalvar } from "@/lib/apos-salvar";
 import { enviarJson } from "@/lib/api-cliente";
+import { aplicarConsulta, camposDoCliente, type CamposClienteCnpj } from "@/lib/consulta-cnpj";
 import { dataHojeIso } from "@/lib/data";
 import { mascararDocumentoDigitando, mascararTelefoneDigitando } from "@/lib/mascaras";
 import { STATUS_CLIENTE } from "@/lib/rotulos";
@@ -14,6 +15,8 @@ import { esquemaCliente, mensagemDoCampo, mensagensDoZod } from "@/lib/validacao
 import { Campo, classeCampo } from "./campo";
 import { classeBotaoPrimario, classeBotaoSecundario } from "./estilos";
 import { avisarCamposObrigatorios, avisarErro, avisarSucesso } from "./notificador";
+import { StatusConsultaCnpj } from "./status-consulta-cnpj";
+import { useConsultaCnpj } from "./use-consulta-cnpj";
 
 type Valores = {
   nomeFantasia: string;
@@ -76,6 +79,19 @@ export function FormularioCliente({
   );
   const [campos, setCampos] = useState<Record<string, string>>({});
   const [enviando, setEnviando] = useState(false);
+  const statusConsultaId = useId();
+  const aplicadosConsulta = useRef<CamposClienteCnpj | null>(null);
+  const consulta = useConsultaCnpj(
+    valores.documento,
+    (recebidos) => {
+      setValores((atual) => {
+        const resultado = aplicarConsulta(atual, aplicadosConsulta.current, camposDoCliente(recebidos));
+        aplicadosConsulta.current = resultado.aplicados;
+        return resultado.valores;
+      });
+    },
+    () => router.push("/login"),
+  );
   const opcoesSegmento = segmentos.filter((item) => item.ativo || item.id === valores.segmentoId);
 
   function alterar(nome: keyof Valores, valor: string) {
@@ -139,27 +155,39 @@ export function FormularioCliente({
             onChange={(evento) => alterar("razaoSocial", evento.target.value)}
           />
         </Campo>
-        <Campo
-          label="CPF ou CNPJ"
-          htmlFor="documento"
-          erro={campos.documento}
-          dica="Pode colar com ou sem pontuação. O CNPJ alfanumérico também é aceito."
-        >
-          <input
-            id="documento"
-            className={classeCampo}
-            value={valores.documento}
-            onChange={(evento) => alterar("documento", mascararDocumentoDigitando(evento.target.value))}
-            onBlur={() =>
-              setCampos((atual) => ({
-                ...atual,
-                documento: mensagemDoCampo(esquemaCliente.shape.documento, valores.documento),
-              }))
+        <div>
+          <Campo
+            label="CPF ou CNPJ"
+            htmlFor="documento"
+            erro={consulta.estado.fase === "ocioso" ? campos.documento : undefined}
+            dica={
+              consulta.estado.fase === "ocioso"
+                ? "Pode colar com ou sem pontuação. O CNPJ alfanumérico também é aceito."
+                : undefined
             }
-            inputMode="text"
-            autoComplete="off"
-          />
-        </Campo>
+          >
+            <input
+              id="documento"
+              className={classeCampo}
+              value={valores.documento}
+              onChange={(evento) => {
+                alterar("documento", mascararDocumentoDigitando(evento.target.value));
+                setCampos((atual) => (atual.documento ? { ...atual, documento: "" } : atual));
+              }}
+              onBlur={() =>
+                setCampos((atual) => ({
+                  ...atual,
+                  documento: mensagemDoCampo(esquemaCliente.shape.documento, valores.documento),
+                }))
+              }
+              inputMode="text"
+              autoComplete="off"
+              aria-busy={consulta.estado.fase === "carregando"}
+              aria-describedby={consulta.estado.fase === "ocioso" ? undefined : statusConsultaId}
+            />
+          </Campo>
+          <StatusConsultaCnpj id={statusConsultaId} estado={consulta.estado} />
+        </div>
         <Campo
           label="Segmento da empresa"
           htmlFor="segmentoId"
