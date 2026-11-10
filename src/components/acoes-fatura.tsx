@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { documentoDaFatura } from "@/lib/baixar-fatura";
 import { PREFERENCIAS_COBRANCA_PADRAO } from "@/lib/cobranca";
 import { formatarDiaMes } from "@/lib/formatacao";
 import { faturaAceitaPromessa } from "@/lib/promessa";
@@ -78,6 +79,7 @@ export function AcoesFatura({
           vencimento={fatura.vencimento}
           modeloMensagem={preferencias.modeloMensagem}
           modeloAssunto={preferencias.modeloAssunto}
+          baixar={documentoDaFatura({ boletoUrl: fatura.boletoUrl })}
         />
         {temCodigo ? (
           <div>
