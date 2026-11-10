@@ -102,6 +102,29 @@ describe("linha do tempo da fatura", () => {
     }).marcadores.map((marco) => marco.aceso)).toEqual([true, true, true, true, true, false]);
   });
 
+  it("OPEN da Cora deixa o marco Pago apagado: o título Pago não é o status da fatura", () => {
+    const aberta = linha({
+      status: "OPEN",
+      excluida: false,
+      vencimento: "2026-11-20",
+      hoje: HOJE,
+    });
+    expect(aberta.paga).toBe(false);
+    expect(aberta.marcadores.at(-1)?.titulo).toBe("Pago");
+    expect(aberta.marcadores.at(-1)?.aceso).toBe(false);
+    expect(aberta.marcadores.at(-1)?.dica).toBe("Pago · em aberto");
+
+    const paga = linha({
+      status: "PAID",
+      excluida: false,
+      vencimento: "2026-10-20",
+      hoje: HOJE,
+    });
+    expect(paga.paga).toBe(true);
+    expect(paga.marcadores.at(-1)?.aceso).toBe(true);
+    expect(paga.marcadores.at(-1)?.dica).toBe("Pago · paga");
+  });
+
   it("paga acende o check e só os passos que já ocorreram", () => {
     const atrasada = linha({
       status: "RECEIVED",

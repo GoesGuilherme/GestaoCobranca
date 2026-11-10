@@ -1,3 +1,4 @@
+import { STATUS_NORMALIZADO, statusNormalizado, type StatusNormalizado } from "./status-pagamento";
 import type {
   AmbienteAsaas,
   FormaCobranca,
@@ -106,7 +107,9 @@ export const FILTROS_VISUALIZACAO: { valor: FiltroVisualizacao; rotulo: string }
   { valor: "nao_vistas", rotulo: "Não visualizadas" },
 ];
 
-const STATUS_FATURA: Record<string, string> = {
+// Rótulos que o selo já mostra para o Asaas, mais os do Inter que já estavam neste mapa.
+// A coluna `faturas.status` continua com o texto do provedor.
+const STATUS_ASAAS_E_INTER: Record<string, string> = {
   PENDING: "Em aberto",
   AWAITING_RISK_ANALYSIS: "Em análise",
   CONFIRMED: "Confirmada",
@@ -130,6 +133,44 @@ const STATUS_FATURA: Record<string, string> = {
   EM_PROCESSAMENTO: "Em emissão",
   FALHA_EMISSAO: "Falha na emissão",
   PROTESTO: "Em protesto",
+};
+
+const STATUS_INTERNO: Record<string, string> = {
+  CRIANDO: STATUS_ASAAS_E_INTER.EM_PROCESSAMENTO,
+  ERRO_EMISSAO: STATUS_ASAAS_E_INTER.FALHA_EMISSAO,
+};
+
+// Cora guarda OPEN/PAID/LATE. O selo reusa o rótulo já usado no mesmo papel.
+// IN_PAYMENT ainda não liquidou: a régua espera, como em AWAITING_RISK_ANALYSIS.
+// DRAFT e RECURRENCE_DRAFT ainda não são cobrança: o mesmo rótulo de EM_PROCESSAMENTO.
+// O Asaas não tem status público para rascunho nem falha de emissão.
+const STATUS_CORA: Record<string, string> = {
+  OPEN: STATUS_ASAAS_E_INTER.PENDING,
+  LATE: STATUS_ASAAS_E_INTER.OVERDUE,
+  PAID: STATUS_ASAAS_E_INTER.RECEIVED,
+  CANCELLED: STATUS_ASAAS_E_INTER.CANCELADO,
+  CANCELED: STATUS_ASAAS_E_INTER.CANCELADO,
+  IN_PAYMENT: STATUS_ASAAS_E_INTER.AWAITING_RISK_ANALYSIS,
+  DRAFT: STATUS_ASAAS_E_INTER.EM_PROCESSAMENTO,
+  RECURRENCE_DRAFT: STATUS_ASAAS_E_INTER.EM_PROCESSAMENTO,
+};
+
+const STATUS_FATURA: Record<string, string> = {
+  ...STATUS_ASAAS_E_INTER,
+  ...STATUS_INTERNO,
+  ...STATUS_CORA,
+};
+
+// Grupo normalizado, quando o texto do provedor não tem entrada própria.
+// PAGO cai em Recebida (RECEIVED), não em Confirmada.
+const ROTULO_DO_GRUPO: Record<StatusNormalizado, string> = {
+  [STATUS_NORMALIZADO.PENDENTE]: STATUS_ASAAS_E_INTER.PENDING,
+  [STATUS_NORMALIZADO.VENCIDO]: STATUS_ASAAS_E_INTER.OVERDUE,
+  [STATUS_NORMALIZADO.PAGO]: STATUS_ASAAS_E_INTER.RECEIVED,
+  [STATUS_NORMALIZADO.CANCELADO]: STATUS_ASAAS_E_INTER.CANCELADO,
+  [STATUS_NORMALIZADO.ESTORNADO]: STATUS_ASAAS_E_INTER.REFUNDED,
+  [STATUS_NORMALIZADO.CRIANDO]: STATUS_ASAAS_E_INTER.EM_PROCESSAMENTO,
+  [STATUS_NORMALIZADO.FALHA]: STATUS_ASAAS_E_INTER.FALHA_EMISSAO,
 };
 
 export function rotuloAmbienteAsaas(valor: AmbienteAsaas): string {
@@ -157,7 +198,12 @@ export function rotuloCartao(status: string): string {
 
 export function rotuloStatusFatura(status: string, excluida: boolean): string {
   if (excluida) return "Cancelada";
-  return STATUS_FATURA[status] ?? status;
+  const chave = status.trim().toUpperCase();
+  const direto = STATUS_FATURA[chave];
+  if (direto) return direto;
+  const grupo = statusNormalizado(chave);
+  if (grupo) return ROTULO_DO_GRUPO[grupo];
+  return status.trim();
 }
 
 export function situacaoFatura(valor: string | undefined): SituacaoFatura {
