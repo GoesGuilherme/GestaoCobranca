@@ -58,7 +58,8 @@ export async function middleware(request: NextRequest) {
     pathname === "/api/cron/regua-emissao" ||
     pathname === "/api/cron/visualizacoes" ||
     pathname === "/api/cron/recorrencias" ||
-    pathname === "/api/cron/conciliacao";
+    pathname === "/api/cron/conciliacao" ||
+    pathname.startsWith("/api/publico/logos/");
 
   if (rotaPublica) {
     const empresaSuspensa = request.nextUrl.searchParams.get("motivo") === "suspensa";
@@ -176,6 +177,18 @@ export async function middleware(request: NextRequest) {
       banco
         ? "Certificado, chave e segredos do banco ficam com o dono da empresa. Financeiro e suporte não entram aqui."
         : "A chave da API e o token do webhook ficam com o dono da empresa. Financeiro e suporte não entram aqui.",
+    );
+  }
+
+  const rotaEmails =
+    pathname === "/emails" ||
+    pathname.startsWith("/emails/") ||
+    pathname === "/api/empresa/logo";
+  if (rotaEmails && sessao.papel !== "DONO") {
+    return paginaProibida(
+      pathname,
+      "Só o dono personaliza os e-mails",
+      "A logo e a prévia dos avisos ficam com o dono da empresa. Financeiro e suporte não entram aqui.",
     );
   }
 

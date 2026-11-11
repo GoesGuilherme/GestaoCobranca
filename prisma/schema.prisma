@@ -165,8 +165,21 @@ model Empresa {
   promessasContamNoSelo Boolean        @default(false) @map("promessas_contam_no_selo")
   promessas            PromessaPagamento[]
   estadosOauth         EstadoOauth[]
+  logo                 LogoEmpresa?
 
   @@map("empresas")
+}
+
+// Imagem da logo usada no topo dos e-mails de aviso. Uma por empresa.
+// A URL pública sai por /api/publico/logos/:id. O binário não vai para o cliente do painel.
+model LogoEmpresa {
+  empresaId    String   @id @map("empresa_id")
+  conteudo     Bytes
+  mime         String
+  atualizadoEm DateTime @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  empresa      Empresa  @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  @@map("logos_empresa")
 }
 
 // Contagem simples de tentativas de autocadastro, por IP e por e-mail.

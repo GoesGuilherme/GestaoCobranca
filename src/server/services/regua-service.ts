@@ -3,6 +3,8 @@ import { isoDeData } from "@/lib/data";
 import { provedorCodigo, statusEh } from "@/lib/status-pagamento";
 import { formatarReais } from "@/lib/dinheiro";
 import { formatarDataIso } from "@/lib/formatacao";
+import { montarEmailAviso } from "@/lib/email-aviso";
+import { rotuloStatusFatura } from "@/lib/rotulos";
 import { emailDeCobranca } from "@/lib/remetentes";
 import {
   assuntoRegua,
@@ -31,6 +33,7 @@ import { clienteResendPadrao, remetenteResend, type ClienteResend } from "@/serv
 import type { ClienteTwilio } from "@/server/twilio/contrato";
 import { clienteTwilioPadrao } from "@/server/twilio/fabrica";
 import { lerEsquema } from "@/server/validar";
+import { urlLogoParaEmail } from "./logo-empresa-service";
 import { obterWhatsappDaEmpresa } from "./twilio-service";
 import { canalWhatsappGravado, concluirWhatsappDoPasso, prepararWhatsappDoPasso } from "./whatsapp-passo";
 
@@ -413,6 +416,7 @@ export async function enviarEmailTesteRegua(
     para: autor.email,
     assunto: "E-mail de teste da régua de cobrança",
     texto: "Este é um e-mail de teste da régua de cobrança. Ele foi enviado só para o seu endereço.",
+    html: null,
     replyTo: config.replyTo,
   });
   return { enviado: true };
@@ -427,7 +431,7 @@ export async function enviarLembreteAgora(
   exigirCobranca(autor);
   const dados = lerEsquema(esquemaLembreteManual, entrada);
   const agora = opcoes.agora ?? new Date();
-  const [fatura, passo, config, empresa] = await Promise.all([
+  const [fatura, passo, config, empresa, logoUrl] = await Promise.all([
     prisma.fatura.findFirst({
       where: { id: faturaId, empresaId: autor.empresaId },
       include: {
@@ -448,6 +452,7 @@ export async function enviarLembreteAgora(
     prisma.passoRegua.findFirst({ where: { id: dados.passoId, empresaId: autor.empresaId } }),
     prisma.configuracaoRegua.findUnique({ where: { empresaId: autor.empresaId } }),
     prisma.empresa.findUnique({ where: { id: autor.empresaId }, select: { nomeFantasia: true } }),
+    urlLogoParaEmail(autor.empresaId),
   ]);
   if (!fatura) throw new ErroAplicacao("Fatura não encontrada.", 404, "nao_encontrado");
   if (fatura.excluida || !statusEh(fatura.status, "REGUA_ABERTA", provedorCodigo(fatura.provedor))) {
@@ -474,9 +479,20 @@ export async function enviarLembreteAgora(
     empresa: empresa?.nomeFantasia ?? autor.nomeEmpresa,
   };
   const corpo = textoRegua(passo.corpo, campos);
-  const texto = modoTeste
-    ? `Modo teste: este e-mail foi enviado para você, não para o cliente.\n\n${corpo}`
-    : corpo;
+  const carta = montarEmailAviso({
+    empresa: empresa?.nomeFantasia ?? autor.nomeEmpresa,
+    cliente: campos.cliente,
+    servico: campos.servico,
+    valor: campos.valor,
+    vencimento: campos.vencimento,
+    status: rotuloStatusFatura(fatura.status, fatura.excluida),
+    link: campos.link,
+    linhaDigitavel: fatura.linhaDigitavel,
+    pixCopiaCola: fatura.pixCopiaCola,
+    logoUrl,
+    mensagem: corpo,
+    modoTeste,
+  });
 
   const resultado = await dispararLembrete({
     empresaId: autor.empresaId,
@@ -488,7 +504,8 @@ export async function enviarLembreteAgora(
     modoTeste,
     destino,
     assunto: assuntoRegua(textoRegua(passo.assunto, campos), modoTeste),
-    texto,
+    texto: carta.texto,
+    html: carta.html,
     de: remetenteResend(config.remetenteNome ?? "", emailDeCobranca(config.remetenteEmail)),
     replyTo: config.replyTo,
     chave: abrirChaveResend(config.chaveResendCifrada),

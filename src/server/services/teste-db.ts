@@ -39,6 +39,7 @@ export function usarBancoDeTeste() {
     await prisma.estadoOauth.deleteMany();
     await prisma.usuario.deleteMany();
     await prisma.limiteCadastro.deleteMany();
+    await prisma.logoEmpresa.deleteMany();
     await prisma.empresa.deleteMany();
   });
 }

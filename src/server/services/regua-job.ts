@@ -3,6 +3,8 @@ import { statusBrutos, PROVEDORES_PAGAMENTO } from "@/lib/status-pagamento";
 import { isoDeData } from "@/lib/data";
 import { formatarReais } from "@/lib/dinheiro";
 import { formatarDataIso } from "@/lib/formatacao";
+import { montarEmailAviso } from "@/lib/email-aviso";
+import { rotuloStatusFatura } from "@/lib/rotulos";
 import { emailDeCobranca } from "@/lib/remetentes";
 import {
   assuntoRegua,
@@ -24,6 +26,7 @@ import { clienteResendPadrao, remetenteResend, type ClienteResend } from "@/serv
 import type { ClienteTwilio } from "@/server/twilio/contrato";
 import { clienteTwilioPadrao } from "@/server/twilio/fabrica";
 import { conciliarPromessas, faturaIdsComPromessaAtiva } from "@/server/services/promessa-service";
+import { urlLogoParaEmail } from "@/server/services/logo-empresa-service";
 import { enfileirarWhatsappDoPasso, processarFilaWhatsapp } from "@/server/services/whatsapp-fila";
 
 const ABERTAS_POR_PROVEDOR = PROVEDORES_PAGAMENTO.flatMap((provedor) =>
@@ -115,6 +118,7 @@ export async function executarRegua(
     const remetente = emailDeCobranca(config.remetenteEmail);
     const remetentePronto = Boolean(segredo.chave && remetente);
     const nomeEmpresa = empresa?.nomeFantasia ?? "";
+    const logoUrl = await urlLogoParaEmail(config.empresaId);
 
     for (const fatura of faturas) {
       const cliente = fatura.cliente;
@@ -243,9 +247,20 @@ export async function executarRegua(
             empresa: nomeEmpresa,
           };
           const corpo = textoRegua(passo.corpo, campos);
-          const texto = config.modoTeste
-            ? `Modo teste: este e-mail foi enviado para você, não para o cliente.\n\n${corpo}`
-            : corpo;
+          const carta = montarEmailAviso({
+            empresa: nomeEmpresa,
+            cliente: campos.cliente,
+            servico: campos.servico,
+            valor: campos.valor,
+            vencimento: campos.vencimento,
+            status: rotuloStatusFatura(fatura.status, fatura.excluida),
+            link: campos.link,
+            linhaDigitavel: fatura.linhaDigitavel,
+            pixCopiaCola: fatura.pixCopiaCola,
+            logoUrl,
+            mensagem: corpo,
+            modoTeste: config.modoTeste,
+          });
           const envio = await dispararLembrete({
             empresaId: config.empresaId,
             faturaId: fatura.id,
@@ -256,7 +271,8 @@ export async function executarRegua(
             modoTeste: config.modoTeste,
             destino: config.modoTeste ? dono!.email : emailCliente,
             assunto: assuntoRegua(textoRegua(passo.assunto, campos), config.modoTeste),
-            texto,
+            texto: carta.texto,
+            html: carta.html,
             de: remetenteResend(config.remetenteNome ?? "", remetente),
             replyTo: config.replyTo,
             chave: segredo.chave,
