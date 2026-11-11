@@ -350,6 +350,30 @@ export type CanalWhatsappServidor = {
   producaoOficialLiberada: boolean;
 };
 
+export type NumeroTwilioDTO = {
+  id: string;
+  telefoneE164: string;
+  canal: "WHATSAPP" | "SMS";
+  canalRotulo: string;
+  status: "CADASTRADO" | "PENDENTE" | "ATIVO" | "INATIVO";
+  statusRotulo: string;
+  padrao: boolean;
+};
+
+export type PainelTelefonesDTO = {
+  subconta: {
+    sid: string;
+    status: "CONFIGURADA";
+    statusRotulo: string;
+    credencialMascarada: string;
+    legivel: boolean;
+  } | null;
+  criacaoHabilitada: boolean;
+  numeros: NumeroTwilioDTO[];
+  envioWhatsapp: "global" | "empresa";
+  envioSms: "global" | "empresa";
+};
+
 export type ConfiguracaoTwilioDTO = {
   conectada: boolean;
   subaccountSid: string | null;

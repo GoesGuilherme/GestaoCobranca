@@ -37,6 +37,7 @@ import { criarFerramentasAssessor } from "@/server/assessor/ferramentas";
 import type { ProvedorAssessor } from "@/server/assessor/provedor";
 import type { ClienteTwilio, CredencialTwilio } from "@/server/twilio/contrato";
 import { clienteTwilioPadrao, credenciaisPaiTwilio, numeroTesteWhatsapp, urlWebhookTwilio } from "@/server/twilio/fabrica";
+import { remetenteDaEmpresa } from "@/server/twilio/remetente";
 import { REMETENTE_SANDBOX_WHATSAPP, usarSandboxWhatsapp } from "@/server/twilio/sandbox";
 import { lerEsquema } from "@/server/validar";
 import type { ConfiguracaoAssessorDTO, ConversaAssessorDTO, ConversaAssessorDetalhe } from "@/lib/tipos";
@@ -120,6 +121,19 @@ function remetenteDe(telefone: string) {
 
 // Sender ONLINE continua na subconta. O sandbox da conta pai só entra no modo
 // teste, e só enquanto esse Sender não está online.
+async function canalDeEnvio(
+  empresaId: string,
+  twilioConfig: LinhaTwilioEnvio | null,
+  modoTeste: boolean,
+  env: Ambiente,
+) {
+  const empresa = await remetenteDaEmpresa(empresaId, "WHATSAPP", env);
+  if (empresa) {
+    return { conta: empresa.conta, de: empresa.de, statusCallback: empresa.statusCallback };
+  }
+  return canalAssessor(twilioConfig, modoTeste, env);
+}
+
 function canalAssessor(
   twilioConfig: LinhaTwilioEnvio | null,
   modoTeste: boolean,
@@ -286,7 +300,7 @@ export async function processarEntradaAssessor(
       await anotar("Não enviei a resposta: o modo teste só fala com TWILIO_WHATSAPP_TESTE.");
       return false;
     }
-    const canal = canalAssessor(twilioConfig, modoTeste, env);
+    const canal = await canalDeEnvio(entrada.empresaId, twilioConfig, modoTeste, env);
     if ("erro" in canal) {
       const texto =
         canal.erro === "sandbox"
@@ -717,7 +731,7 @@ export async function responderConversa(autor: AutorEmpresa, conversaId: string,
   const destino = config?.modoTeste ? numeroTeste(env) : conversa.telefone;
   if (!destino) throw new ErroAplicacao("Defina TWILIO_WHATSAPP_TESTE para responder no modo teste.", 400, "modo_teste");
   const modoTeste = config?.modoTeste === true;
-  const canal = canalAssessor(twilioConfig, modoTeste, env);
+  const canal = await canalDeEnvio(autor.empresaId, twilioConfig, modoTeste, env);
   if ("erro" in canal) {
     if (canal.erro === "sandbox") {
       throw new ErroAplicacao("O sandbox da Twilio não está configurado no servidor.", 400, "whatsapp_offline");

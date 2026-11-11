@@ -17,6 +17,7 @@ import { prisma } from "@/server/db";
 import { ErroTwilio } from "@/server/twilio/contrato";
 import type { ClienteTwilio, CredencialTwilio, MensagemTemplate } from "@/server/twilio/contrato";
 import { credenciaisPaiTwilio, numeroTesteWhatsapp, urlWebhookTwilio } from "@/server/twilio/fabrica";
+import { aplicarRemetenteEmpresa } from "@/server/twilio/remetente";
 import {
   contentSidSandbox,
   inicioWhatsappOficialProducao,
@@ -540,7 +541,16 @@ export async function processarFilaWhatsapp(
       continue;
     }
 
-    const envio = await concluirEnvio(twilio, item, agora, conta, mensagem);
+    const remetente = await aplicarRemetenteEmpresa(item.empresaId, "WHATSAPP", {
+      conta,
+      de: mensagem.de,
+      statusCallback: mensagem.statusCallback,
+    });
+    const envio = await concluirEnvio(twilio, item, agora, remetente.conta, {
+      ...mensagem,
+      de: remetente.de,
+      statusCallback: remetente.statusCallback,
+    });
     if (envio === "enviado") resultado.enviados += 1;
     if (envio === "falha") resultado.falhas += 1;
   }

@@ -151,6 +151,8 @@ model Empresa {
   passosRegua      PassoRegua[]
   lembretesRegua   LembreteRegua[]
   configuracaoTwilio ConfiguracaoTwilio?
+  subcontaTwilio     SubcontaTwilio?
+  numerosTwilio      NumeroTwilioEmpresa[]
   templatesWhatsapp  TemplateWhatsapp[]
   filaWhatsapp       FilaWhatsapp[]
   eventosWhatsapp    EventoWhatsapp[]
@@ -676,6 +678,42 @@ model ConfiguracaoTwilio {
   empresa            Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
 
   @@map("configuracoes_twilio")
+}
+
+// Subconta Twilio própria da empresa, para uso futuro. A credencial fica
+// cifrada com ASAAS_ENCRYPTION_KEY, o mesmo padrão de configuracoes_twilio.
+// Sem esta linha, o envio continua na conta global (TWILIO_ACCOUNT_SID).
+// A criação pela API só ocorre com TWILIO_CRIAR_SUBCONTA=true.
+model SubcontaTwilio {
+  empresaId          String   @id @map("empresa_id")
+  subaccountSid      String   @unique @map("subaccount_sid")
+  credencialCifrada  String   @map("credencial_cifrada") @db.Text
+  credencialUltimos4 String   @map("credencial_ultimos4")
+  status             String   @default("CONFIGURADA")
+  criadoEm           DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm       DateTime @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  empresa            Empresa  @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  @@map("subcontas_twilio")
+}
+
+// Números que a empresa pretende usar na subconta. Cadastrar não compra linha
+// nem registra sender. O envio só usa o número padrão com status ATIVO, e só
+// quando a subconta desta empresa existe. Caso contrário, vale a conta global.
+model NumeroTwilioEmpresa {
+  id           String   @id @default(cuid())
+  empresaId    String   @map("empresa_id")
+  telefoneE164 String   @map("telefone_e164")
+  canal        String
+  status       String   @default("CADASTRADO")
+  padrao       Boolean  @default(false)
+  criadoEm     DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm DateTime @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  empresa      Empresa  @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  @@unique([empresaId, canal, telefoneE164])
+  @@index([empresaId, canal])
+  @@map("numeros_twilio_empresa")
 }
 
 // Template UTILITY criado na Content API da subconta. Um de cada tipo por empresa.
