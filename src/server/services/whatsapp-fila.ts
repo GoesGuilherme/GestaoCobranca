@@ -3,9 +3,9 @@ import { formatarReais } from "@/lib/dinheiro";
 import { formatarDataIso } from "@/lib/formatacao";
 import {
   digitosWhatsapp,
-  formaUsaTemplateBoleto,
+  ROTULO_WHATSAPP_LINK_CARTAO,
+  resolverWhatsappDoPasso,
   rotuloTemplateWhatsapp,
-  tipoTemplateDoPasso,
   variaveisCompativeisComTemplate,
   variaveisDoTemplate,
   whatsappE164,
@@ -204,10 +204,12 @@ export async function enfileirarWhatsappDoPasso(
   db: AcessoFila = prisma,
 ): Promise<ResultadoFila> {
   if (!passo.enviarWhatsapp || fatura.excluida) return "nao_aplica";
-  if (passo.naEmissao && !formaUsaTemplateBoleto(fatura.formaCobranca)) return "nao_aplica";
+  const resolvido = resolverWhatsappDoPasso(passo, fatura, agora);
+  if (!resolvido) return "nao_aplica";
   if (!modoTeste && remetenteOficialLigado() && !faturaLiberadaOficial(fatura.criadoEm)) return "nao_aplica";
-  const tipo = tipoTemplateDoPasso(passo);
-  return gravar(db, await montar(db, fatura, tipo, passo.id, passo.dias, modoTeste, agora));
+  const dados = await montar(db, fatura, resolvido.tipo, passo.id, resolvido.dias, modoTeste, agora);
+  if (passo.naEmissao && resolvido.tipo !== "BOLETO_GERADO") dados.rotulo = ROTULO_WHATSAPP_LINK_CARTAO;
+  return gravar(db, dados);
 }
 
 export function eventoConfirmaPagamento(tipo: string, pagamento: Record<string, unknown> | null): boolean {

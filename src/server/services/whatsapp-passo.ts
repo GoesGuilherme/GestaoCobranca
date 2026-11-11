@@ -1,5 +1,5 @@
 import type { ResultadoCanalReenvio } from "@/lib/tipos";
-import { formaUsaTemplateBoleto, tipoTemplateDoPasso } from "@/lib/whatsapp-cobranca";
+import { resolverWhatsappDoPasso, type TipoTemplateWhatsapp } from "@/lib/whatsapp-cobranca";
 import { prisma } from "@/server/db";
 import type { ClienteTwilio } from "@/server/twilio/contrato";
 import { inicioWhatsappOficialProducao, remetenteOficialLigado } from "@/server/twilio/sandbox";
@@ -38,9 +38,14 @@ function canal(resultado: ResultadoCanalReenvio["resultado"], motivo: string | n
   return { canal: "WHATSAPP", resultado, motivo };
 }
 
-export function motivoWhatsappNaoAplica(fatura: FaturaWhatsappPasso, passo: PassoWhatsapp, modoTeste: boolean): string | null {
+export function motivoWhatsappNaoAplica(
+  fatura: FaturaWhatsappPasso,
+  passo: PassoWhatsapp,
+  modoTeste: boolean,
+  agora = new Date(),
+): string | null {
   if (!passo.enviarWhatsapp) return "Este passo não envia WhatsApp.";
-  if (passo.naEmissao && !formaUsaTemplateBoleto(fatura.formaCobranca)) return "Sem boleto.";
+  if (passo.naEmissao && !resolverWhatsappDoPasso(passo, fatura, agora)) return "Sem boleto.";
   if (fatura.excluida) return "Cobrança não está em aberto.";
   if (!modoTeste && remetenteOficialLigado()) {
     const inicio = inicioWhatsappOficialProducao();
@@ -74,9 +79,10 @@ export async function prepararWhatsappDoPasso(
   modoTeste: boolean,
   agora = new Date(),
 ): Promise<{ processar: boolean; canal: ResultadoCanalReenvio | null }> {
-  const naoAplica = motivoWhatsappNaoAplica(fatura, passo, modoTeste);
+  const naoAplica = motivoWhatsappNaoAplica(fatura, passo, modoTeste, agora);
   if (naoAplica) return { processar: false, canal: canal("ignorado", naoAplica) };
-  const tipo = tipoTemplateDoPasso(passo);
+  const tipo = resolverWhatsappDoPasso(passo, fatura, agora)?.tipo;
+  if (!tipo) return { processar: false, canal: canal("ignorado", "WhatsApp não se aplica a esta cobrança.") };
   const fila = await enfileirarWhatsappDoPasso(fatura, passo, modoTeste, agora);
   const linha = await lerLinha(fatura.empresaId, fatura.id, passo.id, tipo);
   if (!linha) return { processar: false, canal: canal("ignorado", "WhatsApp não se aplica a esta cobrança.") };
@@ -95,12 +101,22 @@ export async function concluirWhatsappDoPasso(
   agora = new Date(),
 ): Promise<void> {
   if (faturaIds.length === 0) return;
-  const tipos = [...new Set(passos.map((passo) => tipoTemplateDoPasso(passo)))];
+  const tipos = new Set<TipoTemplateWhatsapp>();
+  for (const passo of passos) {
+    if (passo.naEmissao) {
+      tipos.add("BOLETO_GERADO");
+      tipos.add("VENCE_EM_DIAS");
+      tipos.add("VENCEU");
+      continue;
+    }
+    const tipo = resolverWhatsappDoPasso(passo, null)?.tipo;
+    if (tipo) tipos.add(tipo);
+  }
   await processarFilaWhatsapp({
     agora,
     empresaId,
     twilio,
-    tipos,
+    tipos: [...tipos],
     faturaIds,
     limite: faturaIds.length,
     conciliar: false,
@@ -111,8 +127,8 @@ export async function canalWhatsappGravado(
   fatura: FaturaWhatsappPasso,
   passo: PassoWhatsapp,
 ): Promise<ResultadoCanalReenvio> {
-  const tipo = tipoTemplateDoPasso(passo);
-  const linha = await lerLinha(fatura.empresaId, fatura.id, passo.id, tipo);
+  const tipo = resolverWhatsappDoPasso(passo, fatura)?.tipo;
+  const linha = tipo ? await lerLinha(fatura.empresaId, fatura.id, passo.id, tipo) : null;
   if (!linha) return canal("ignorado", "WhatsApp não se aplica a esta cobrança.");
   return canalDaLinha(linha.status, linha.motivo, false);
 }

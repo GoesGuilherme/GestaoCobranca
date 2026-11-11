@@ -1067,7 +1067,7 @@ describe("WhatsApp na régua via Twilio", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("na emissão o WhatsApp de boleto não sai para cartão, Pix nem forma indefinida", async () => {
+  it("na emissão o WhatsApp de boleto não sai para Pix nem forma indefinida, e o cartão leva o link sem dizer boleto", async () => {
     process.env.TWILIO_WHATSAPP_SANDBOX = "true";
     process.env.TWILIO_WHATSAPP_SENDER_OFICIAL = "true";
     process.env.TWILIO_WHATSAPP_OFICIAL_DESDE = "2026-10-01T00:00:00.000Z";
@@ -1147,12 +1147,24 @@ describe("WhatsApp na régua via Twilio", () => {
     expect(caixa.caixa.every((item) => item.assunto === "Cobrança emitida")).toBe(true);
     expect(caixa.caixa.every((item) => item.texto.includes("A cobrança está em"))).toBe(true);
     expect(caixa.caixa.every((item) => !item.texto.includes("Seu boleto"))).toBe(true);
-    expect(twilio.enviados).toHaveLength(1);
-    expect(twilio.enviados[0]?.contentSid).toBe(SIDS_APROVADOS.BOLETO_GERADO);
+    expect(twilio.enviados).toHaveLength(2);
+    expect(twilio.enviados.find((item) => item.contentSid === SIDS_APROVADOS.BOLETO_GERADO)?.variaveis["4"]).toContain("asaas.com");
+    expect(twilio.enviados.find((item) => item.contentSid === SIDS_APROVADOS.VENCE_EM_DIAS)).toMatchObject({
+      variaveis: expect.objectContaining({
+        "3": "12",
+        "5": "https://www.asaas.com/i/cartao",
+      }),
+    });
+    expect(twilio.enviados.every((item) => !JSON.stringify(item.variaveis).includes("Seu boleto"))).toBe(true);
     expect(await prisma.filaWhatsapp.count({ where: { faturaId: boleto.id, tipo: "BOLETO_GERADO" } })).toBe(1);
-    expect(await prisma.filaWhatsapp.count({ where: { faturaId: { in: [cartao.id, pix.id, indefinida.id] } } })).toBe(0);
+    expect(await prisma.filaWhatsapp.findFirst({ where: { faturaId: cartao.id } })).toMatchObject({
+      tipo: "VENCE_EM_DIAS",
+      status: "ENVIADO",
+      rotulo: "WhatsApp · link do cartão",
+    });
+    expect(await prisma.filaWhatsapp.count({ where: { faturaId: { in: [pix.id, indefinida.id] } } })).toBe(0);
     await executarRegua({ agora: AGORA, empresaId, twilio, resend: caixa });
-    expect(twilio.enviados).toHaveLength(1);
+    expect(twilio.enviados).toHaveLength(2);
     expect(caixa.caixa).toHaveLength(4);
     delete process.env.TWILIO_WHATSAPP_OFICIAL_DESDE;
     expect(fetchSpy).not.toHaveBeenCalled();
