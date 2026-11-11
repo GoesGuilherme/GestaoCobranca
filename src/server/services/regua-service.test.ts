@@ -243,7 +243,11 @@ describe("régua de cobrança", () => {
     expect(caixa.caixa[0]?.para).toBe(autor("DONO").email);
     expect(caixa.caixa[0]?.para).not.toBe("cliente.regua@exemplo.test");
     expect(caixa.caixa[0]?.assunto.startsWith("[Teste] ")).toBe(true);
-    expect(caixa.caixa[0]?.texto).toContain("Modo teste");
+    expect(caixa.caixa[0]?.texto.startsWith("Modo teste:")).toBe(true);
+    expect(caixa.caixa[0]?.html).toContain("Em aberto");
+    expect(caixa.caixa[0]?.html).toContain("Baixar fatura");
+    expect(caixa.caixa[0]?.html).toContain("Empresa Régua");
+    expect(caixa.caixa[0]?.html).not.toContain("<img");
 
     await executarRegua({ agora: AGORA, empresaId, resend: caixa });
     expect(caixa.caixa).toHaveLength(1);

@@ -87,6 +87,7 @@ type PedidoLembrete = {
   destino: string;
   assunto: string;
   texto: string;
+  html: string | null;
   de: string;
   replyTo: string | null;
   chave: string;
@@ -106,6 +107,7 @@ async function registrarEnvio(
       para: dados.destino,
       assunto: dados.assunto,
       texto: dados.texto,
+      html: dados.html,
       replyTo: dados.replyTo,
     });
   } catch (erro) {

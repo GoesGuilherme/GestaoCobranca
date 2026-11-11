@@ -64,6 +64,7 @@ export function montarGruposMenu(opcoes: OpcoesMenu): GrupoMenu[] {
       titulo: "Configurações",
       itens: [
         ...(mostrarUsuarios ? [{ href: "/empresa", rotulo: "Empresa" }] : []),
+        ...(mostrarUsuarios ? [{ href: "/emails", rotulo: "E-mails" }] : []),
         ...(mostrarAsaas ? [{ href: "/banco", rotulo: "Banco" }] : []),
         ...(mostrarAsaas ? [{ href: "/asaas", rotulo: "Asaas" }] : []),
         ...(mostrarRegua ? [{ href: "/regua#whatsapp", rotulo: "WhatsApp" }] : []),

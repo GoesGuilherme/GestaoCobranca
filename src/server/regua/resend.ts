@@ -5,6 +5,7 @@ export type EmailResend = {
   para: string;
   assunto: string;
   texto: string;
+  html: string | null;
   replyTo: string | null;
 };
 
@@ -25,6 +26,7 @@ export function clienteResendMemoria(caixa: EmailResend[] = []): ClienteResend &
         para: dados.para,
         assunto: dados.assunto,
         texto: dados.texto,
+        html: dados.html,
         replyTo: dados.replyTo,
       });
     },
@@ -47,6 +49,7 @@ export function clienteResendHttp(): ClienteResend {
             to: [dados.para],
             subject: dados.assunto,
             text: dados.texto,
+            html: dados.html ?? undefined,
             reply_to: dados.replyTo ?? undefined,
           }),
         });

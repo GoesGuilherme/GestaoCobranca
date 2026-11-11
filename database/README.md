@@ -15,6 +15,8 @@ Estes arquivos existem para quem quiser ler o banco sem abrir o Prisma. Eles esp
 11. `011_cliente_bloqueado.sql` — acrescenta o status Bloqueado ao cliente. Espelha `prisma/migrations/20261026230000_cliente_bloqueado`.
 12. `012_redefinicao_senha.sql` — versão da sessão no usuário e a tabela do link de redefinição de senha (só o hash do token). Espelha `prisma/migrations/20261028150000_redefinicao_senha`.
 13. `013_cliente_ativado_em.sql` — data de ativação do cliente, opcional. Onde o campo ainda está vazio, copia a data do texto `1ª ativação OEM DD/MM/YYYY` nas observações, sem alterar as observações. A UAI CAFE CARREFOUR (CNPJ 50783953000141) recebe 24/06/2026. Espelha `prisma/migrations/20261029140000_cliente_ativado_em`.
+14. `014_fatura_criando.sql` — a fatura pode nascer sem id do Asaas, com chave de idempotência e o texto do erro de emissão. Espelha `prisma/migrations/20261029180000_fatura_criando`.
+15. `015_logo_empresa.sql` — logo da empresa (PNG ou JPG, até 512 KB) usada no topo dos e-mails de aviso. Uma linha por empresa, com RLS e sem política. Espelha `prisma/migrations/20261111182100_logo_empresa`.
 
 A fonte da verdade é a pasta `prisma/migrations`. Se uma migration nova entrar, estes scripts precisam ser atualizados para continuar iguais a ela. Não rode os dois jeitos no mesmo banco: ou o Prisma Migrate, ou estes arquivos, nunca os dois em sequência no mesmo esquema vazio.
 
