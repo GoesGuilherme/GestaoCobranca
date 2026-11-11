@@ -9,6 +9,8 @@ import {
 } from "@/lib/validacao";
 import { asaasRespondeu, traduzirErroAsaas } from "@/server/asaas/abrir";
 import type { ClienteHttpAsaas, EncargosAsaas } from "@/server/asaas/contrato";
+import type { ClienteResend } from "@/server/regua/resend";
+import type { ClienteTwilio } from "@/server/twilio/contrato";
 import { logAsaas, logAsaasErro, mensagemLogAsaas } from "@/server/asaas/log";
 import { clienteAsaasDaEmpresa } from "@/server/pagamentos/fabrica";
 import { espelhoAssinaturaAsaas } from "@/server/pagamentos/gravacao";
@@ -41,6 +43,30 @@ import {
   pausarRecorrenciaInter,
   retomarRecorrenciaInter,
 } from "./inter-recorrencia";
+import { executarRegua } from "./regua-job";
+
+type OpcoesEnvioCartao = {
+  agora?: Date;
+  resend?: ClienteResend;
+  twilio?: ClienteTwilio;
+};
+
+async function avisarLinkDoCartao(empresaId: string, clienteServicoId: string, opcoes: OpcoesEnvioCartao = {}) {
+  const faturas = await prisma.fatura.findMany({
+    where: { empresaId, clienteServicoId, formaCobranca: "CREDIT_CARD", excluida: false },
+    select: { id: true },
+  });
+  if (faturas.length === 0) return;
+  await executarRegua({
+    agora: opcoes.agora,
+    empresaId,
+    resend: opcoes.resend,
+    twilio: opcoes.twilio,
+    somenteEmissao: true,
+    ignorarJanela: true,
+    faturaIds: faturas.map((fatura) => fatura.id),
+  });
+}
 
 const PODE_SUBSTITUIR = new Set(["CANCELADA", "EXPIRED"]);
 const STATUS_CRIANDO = "CRIANDO";
@@ -184,6 +210,7 @@ export async function ativarRecorrencia(
   clienteServicoId: string,
   entrada: unknown,
   clienteHttp?: ClienteHttpAsaas,
+  opcoes: OpcoesEnvioCartao = {},
 ): Promise<ClienteServicoDTO> {
   exigirCobranca(autor);
   const dados = lerEsquema(esquemaAtivarRecorrencia, entrada);
@@ -324,6 +351,17 @@ export async function ativarRecorrencia(
         clienteServicoId: vinculo.id,
         mensagem: mensagemLogAsaas(erro),
       });
+    }
+    if (formaCobrancaDe(assinatura.formaCobranca) === "CREDIT_CARD") {
+      try {
+        await avisarLinkDoCartao(autor.empresaId, vinculo.id, opcoes);
+      } catch (erro) {
+        logAsaasErro("falha ao enviar link do cartão", {
+          empresaId: autor.empresaId,
+          clienteServicoId: vinculo.id,
+          mensagem: mensagemLogAsaas(erro),
+        });
+      }
     }
     return paraClienteServico(await buscarVinculo(autor.empresaId, vinculo.id), true, true);
   } catch (erro) {

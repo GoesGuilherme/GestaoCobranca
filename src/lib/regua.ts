@@ -163,7 +163,7 @@ export function dentroDaJanela(hora: number, inicio: number, fim: number): boole
 export const JANELA_EMISSAO_MS = 72 * 60 * 60 * 1000;
 
 export const TEXTO_PASSO_NA_EMISSAO =
-  "Sai cerca de uma hora depois que o boleto ou o link fica pronto, inclusive no sábado e no domingo, dentro do horário desta régua. Fora desse horário espera a próxima hora permitida, também no fim de semana. A opção de não enviar no fim de semana não vale para este passo. Cobrança criada antes deste passo não recebe este aviso.";
+  "Sai cerca de uma hora depois que o boleto ou o link fica pronto, inclusive no sábado e no domingo, dentro do horário desta régua. Fora desse horário espera a próxima hora permitida, também no fim de semana. A opção de não enviar no fim de semana não vale para este passo. Cobrança criada antes deste passo não recebe este aviso. No cartão de crédito, o link de cadastro sai na hora em que a recorrência é criada, pelos canais ligados neste passo.";
 
 export function cobrancaComLink(cobranca: { boletoUrl?: string | null; faturaUrl?: string | null }): boolean {
   return Boolean(cobranca.boletoUrl?.trim() || cobranca.faturaUrl?.trim());

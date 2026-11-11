@@ -60,6 +60,8 @@ export async function executarRegua(
     resend?: ClienteResend;
     twilio?: ClienteTwilio;
     somenteEmissao?: boolean;
+    ignorarJanela?: boolean;
+    faturaIds?: string[];
   } = {},
 ): Promise<ResultadoRegua> {
   const agora = opcoes.agora ?? new Date();
@@ -96,6 +98,7 @@ export async function executarRegua(
           excluida: false,
           OR: ABERTAS_POR_PROVEDOR,
           ...(opcoes.somenteEmissao ? { criadoEm: { gte: desdeEmissao } } : {}),
+          ...(opcoes.faturaIds?.length ? { id: { in: opcoes.faturaIds } } : {}),
         },
         include: {
           cliente: true,
@@ -155,7 +158,7 @@ export async function executarRegua(
       // continuam no passoCombina, que respeita enviarFimDeSemana.
       // O horário da régua vale para a emissão também: fora da janela a hora
       // seguinte tenta de novo, inclusive no fim de semana.
-      if (!dentroDaJanela(hora, regua.horaInicio, regua.horaFim)) continue;
+      if (!opcoes.ignorarJanela && !dentroDaJanela(hora, regua.horaInicio, regua.horaFim)) continue;
 
       const vencimento = isoDeData(fatura.vencimento);
 
@@ -297,7 +300,15 @@ export async function executarRegua(
     agora,
     empresaId: opcoes.empresaId,
     twilio,
-    ...(opcoes.somenteEmissao ? { tipos: ["BOLETO_GERADO" as const], conciliar: false } : {}),
+    ...(opcoes.faturaIds?.length ? { faturaIds: opcoes.faturaIds } : {}),
+    ...(opcoes.somenteEmissao
+      ? {
+          tipos: opcoes.faturaIds?.length
+            ? (["BOLETO_GERADO", "VENCE_EM_DIAS", "VENCEU"] as const)
+            : (["BOLETO_GERADO"] as const),
+          conciliar: false,
+        }
+      : {}),
   });
   resultado.whatsappEnviados = fila.enviados;
   resultado.whatsappFalhas = fila.falhas;

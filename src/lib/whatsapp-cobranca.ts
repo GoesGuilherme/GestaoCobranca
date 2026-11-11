@@ -1,4 +1,6 @@
+import { dataHojeIso, isoDeData } from "./data";
 import { somenteDigitos, whatsappValido } from "./documento";
+import { diferencaDias } from "./regua";
 
 export const TIPOS_TEMPLATE_WHATSAPP = ["BOLETO_GERADO", "VENCE_EM_DIAS", "VENCEU", "PAGO"] as const;
 
@@ -89,6 +91,48 @@ export function tipoTemplateDoPasso(passo: { naEmissao: boolean; dias: number | 
   if (passo.naEmissao) return "BOLETO_GERADO";
   if ((passo.dias ?? 0) > 0) return "VENCEU";
   return "VENCE_EM_DIAS";
+}
+
+export const ROTULO_WHATSAPP_LINK_CARTAO = "WhatsApp · link do cartão";
+
+// O template "boleto gerado" diz "Seu boleto". Cartão usa um texto já aprovado
+// que também leva o link do Asaas: cobrança a vencer, ou em atraso se o
+// vencimento já passou. Pix e "cliente escolhe" continuam de fora.
+export function tipoWhatsappDaEmissao(
+  forma: string | null | undefined,
+  vencimentoIso: string,
+  hojeIso: string,
+): Exclude<TipoTemplateWhatsapp, "PAGO"> | null {
+  if (formaUsaTemplateBoleto(forma)) return "BOLETO_GERADO";
+  if ((forma ?? "").trim().toUpperCase() !== "CREDIT_CARD") return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(vencimentoIso) || !/^\d{4}-\d{2}-\d{2}$/.test(hojeIso)) return null;
+  return diferencaDias(vencimentoIso, hojeIso) > 0 ? "VENCEU" : "VENCE_EM_DIAS";
+}
+
+export function diasDoTemplateEmissao(vencimentoIso: string, hojeIso: string): number {
+  const atraso = diferencaDias(vencimentoIso, hojeIso);
+  if (atraso > 0) return atraso;
+  return Math.max(0, diferencaDias(hojeIso, vencimentoIso));
+}
+
+function isoDoVencimento(vencimento: Date | string | null | undefined): string {
+  if (vencimento instanceof Date) return isoDeData(vencimento);
+  if (typeof vencimento === "string") return vencimento.slice(0, 10);
+  return "";
+}
+
+export function resolverWhatsappDoPasso(
+  passo: { naEmissao: boolean; dias: number | null },
+  cobranca: { formaCobranca?: string | null; vencimento?: Date | string | null } | null,
+  agora = new Date(),
+): { tipo: Exclude<TipoTemplateWhatsapp, "PAGO">; dias: number | null } | null {
+  if (!passo.naEmissao) return { tipo: tipoTemplateDoPasso(passo), dias: passo.dias };
+  const vencimento = isoDoVencimento(cobranca?.vencimento);
+  const hoje = dataHojeIso(agora);
+  const tipo = tipoWhatsappDaEmissao(cobranca?.formaCobranca, vencimento, hoje);
+  if (!tipo) return null;
+  if (tipo === "BOLETO_GERADO") return { tipo, dias: passo.dias };
+  return { tipo, dias: diasDoTemplateEmissao(vencimento, hoje) };
 }
 
 export function rotuloTemplateWhatsapp(tipo: TipoTemplateWhatsapp, dias: number | null = null): string {
