@@ -36,16 +36,16 @@ describe("validação da logo", () => {
 
   it("monta a url pública só em https e só para o id da empresa", () => {
     const id = "c123456789012345678901234";
-    expect(urlPublicaLogo(id, "2026-11-11T00:00:00.000Z", {})).toBeNull();
-    expect(origemDosEmails({ PAGAMENTOS_PUBLIC_URL: "http://inseguro.test" })).toBeNull();
-    expect(urlPublicaLogo(id, "2026-11-11T00:00:00.000Z", { PAGAMENTOS_PUBLIC_URL: "https://app.exemplo.test/" })).toBe(
+    expect(urlPublicaLogo(id, "2026-11-11T00:00:00.000Z", { NODE_ENV: "test" })).toBeNull();
+    expect(origemDosEmails({ NODE_ENV: "test", PAGAMENTOS_PUBLIC_URL: "http://inseguro.test" })).toBeNull();
+    expect(urlPublicaLogo(id, "2026-11-11T00:00:00.000Z", { NODE_ENV: "test", PAGAMENTOS_PUBLIC_URL: "https://app.exemplo.test/" })).toBe(
       "https://app.exemplo.test/api/publico/logos/c123456789012345678901234?v=2026-11-11T00%3A00%3A00.000Z",
     );
-    expect(urlPublicaLogo("../outra", "1", { VERCEL_PROJECT_PRODUCTION_URL: "taguaro.exemplo.test" })).toBeNull();
-    expect(urlPublicaLogo("collab_software", "2026-11-11T00:00:00.000Z", { PAGAMENTOS_PUBLIC_URL: "https://app.exemplo.test" })).toBe(
+    expect(urlPublicaLogo("../outra", "1", { NODE_ENV: "test", VERCEL_PROJECT_PRODUCTION_URL: "taguaro.exemplo.test" })).toBeNull();
+    expect(urlPublicaLogo("collab_software", "2026-11-11T00:00:00.000Z", { NODE_ENV: "test", PAGAMENTOS_PUBLIC_URL: "https://app.exemplo.test" })).toBe(
       "https://app.exemplo.test/api/publico/logos/collab_software?v=2026-11-11T00%3A00%3A00.000Z",
     );
-    expect(origemDosEmails({ VERCEL_URL: "gestao-cobranca-beta.vercel.app" })).toBe(
+    expect(origemDosEmails({ NODE_ENV: "test", VERCEL_URL: "gestao-cobranca-beta.vercel.app" })).toBe(
       "https://gestao-cobranca-beta.vercel.app",
     );
   });

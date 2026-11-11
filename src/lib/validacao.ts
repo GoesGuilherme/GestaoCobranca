@@ -680,6 +680,22 @@ export const esquemaConexaoTwilio = z.object({
   coexistencia: z.boolean("Informe se quer pedir coexistência com o app WhatsApp Business."),
 });
 
+export const esquemaNumeroTwilio = z.object({
+  telefone: z
+    .string()
+    .trim()
+    .min(8, "Informe o número com DDI.")
+    .max(24, "O número está longo demais."),
+  canal: z.enum(["WHATSAPP", "SMS"], "Escolha WhatsApp ou SMS."),
+});
+
+export const esquemaStatusNumeroTwilio = z
+  .object({
+    status: z.enum(["CADASTRADO", "PENDENTE", "ATIVO", "INATIVO"], "Escolha o status do número.").optional(),
+    padrao: z.boolean("Informe se este número é o padrão do canal.").optional(),
+  })
+  .refine((dados) => dados.status !== undefined || dados.padrao !== undefined, "Informe o status ou o número padrão.");
+
 export const esquemaCodigoTwilio = z.object({
   codigo: z
     .string()

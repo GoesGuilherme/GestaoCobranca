@@ -180,6 +180,19 @@ export async function middleware(request: NextRequest) {
     );
   }
 
+  const rotaTelefones =
+    pathname === "/telefones" ||
+    pathname.startsWith("/telefones/") ||
+    pathname === "/api/telefones" ||
+    pathname.startsWith("/api/telefones/");
+  if (rotaTelefones && sessao.papel !== "DONO") {
+    return paginaProibida(
+      pathname,
+      "Só o dono cadastra os telefones",
+      "A subconta Twilio e os números de WhatsApp e SMS ficam com o dono da empresa. Financeiro e suporte não entram aqui.",
+    );
+  }
+
   const rotaEmails =
     pathname === "/emails" ||
     pathname.startsWith("/emails/") ||

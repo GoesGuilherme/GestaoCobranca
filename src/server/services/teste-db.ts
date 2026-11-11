@@ -40,6 +40,8 @@ export function usarBancoDeTeste() {
     await prisma.usuario.deleteMany();
     await prisma.limiteCadastro.deleteMany();
     await prisma.logoEmpresa.deleteMany();
+    await prisma.numeroTwilioEmpresa.deleteMany();
+    await prisma.subcontaTwilio.deleteMany();
     await prisma.empresa.deleteMany();
   });
 }

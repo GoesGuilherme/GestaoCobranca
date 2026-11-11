@@ -46,8 +46,13 @@ describe("menu lateral", () => {
       href: "/emails",
       rotulo: "E-mails",
     });
+    expect(grupos.find((grupo) => grupo.id === "configuracoes")?.itens).toContainEqual({
+      href: "/telefones",
+      rotulo: "Telefones",
+    });
     expect(montarGruposMenu(suporte).flatMap((grupo) => grupo.itens).map((item) => item.rotulo)).not.toContain("Banco");
     expect(montarGruposMenu(financeiro).flatMap((grupo) => grupo.itens).map((item) => item.rotulo)).not.toContain("E-mails");
+    expect(montarGruposMenu(financeiro).flatMap((grupo) => grupo.itens).map((item) => item.rotulo)).not.toContain("Telefones");
   });
 
   it("mantém Visão geral com um item para o menu fechado destacar a aba atual", () => {
@@ -81,7 +86,9 @@ describe("menu lateral", () => {
     expect(idGrupoAtual("/admin/empresas", "", grupos)).toBe("plataforma");
     expect(idGrupoAtual("/empresa", "", grupos)).toBe("configuracoes");
     expect(idGrupoAtual("/emails", "", grupos)).toBe("configuracoes");
+    expect(idGrupoAtual("/telefones", "", grupos)).toBe("configuracoes");
     expect(itemAtivo("/emails", "", "/emails")).toBe(true);
+    expect(itemAtivo("/telefones", "", "/telefones")).toBe(true);
     expect(itemAtivo("/empresa", "", "/emails")).toBe(false);
   });
 });

@@ -209,6 +209,35 @@ export async function processarWebhookTwilio(dados: {
     return registrarEntrada(config.empresaId, evento);
   }
 
+  const subconta = await prisma.subcontaTwilio.findUnique({ where: { subaccountSid: accountSid } });
+  if (subconta) {
+    let authToken = "";
+    try {
+      authToken = decifrarSegredoAsaas(subconta.credencialCifrada);
+    } catch {
+      recusar();
+    }
+    let webhookUrl = "";
+    try {
+      webhookUrl = urlWebhookTwilio();
+    } catch {
+      recusar();
+    }
+    if (!assinaturaTwilioValida({
+      url: webhookUrl,
+      parametros: dados.parametros,
+      assinatura,
+      authToken,
+    })) {
+      recusar();
+    }
+    const evento = eventoAutenticado(dados.parametros);
+    if (!evento.inbound && evento.messageStatus) {
+      return registrarStatus(subconta.empresaId, { ...evento, messageStatus: evento.messageStatus });
+    }
+    return registrarEntrada(subconta.empresaId, evento);
+  }
+
   const sandbox = sandboxWhatsappLigado();
   const oficial = remetenteOficialTesteLigado();
   const pai = contaPai(accountSid, sandbox || oficial);
