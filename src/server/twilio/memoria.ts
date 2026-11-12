@@ -136,6 +136,9 @@ export function criarClienteTwilioMemoria(
         }
       );
     },
+    async listarConteudosComAprovacao() {
+      return [...conteudos.values()].map((item) => ({ ...item, nome: "" }));
+    },
     async enviarMensagem(_conta, mensagem) {
       const registrada = { ...mensagem, sid: sid("SM") };
       enviados.push(registrada);
