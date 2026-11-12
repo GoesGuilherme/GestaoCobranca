@@ -1,6 +1,7 @@
 import { ErroAplicacao } from "@/server/erros";
 import {
   type ClienteTwilio,
+  type ConteudoComAprovacao,
   type CredencialTwilio,
   type PedidoSender,
   type SenderTwilio,
@@ -18,6 +19,7 @@ type FetchTwilio = (input: string, init: RequestInit) => Promise<Response>;
 const URL_CONTAS = "https://api.twilio.com/2010-04-01/Accounts.json";
 const URL_SENDERS = "https://messaging.twilio.com/v2/Channels/Senders";
 const URL_CONTENT = "https://content.twilio.com/v1/Content";
+const URL_APROVACOES = "https://content.twilio.com/v1/ContentAndApprovals";
 
 export function afirmarHttpTwilioPermitido(env: AmbienteTwilio = process.env) {
   if (env.NODE_ENV !== "production") {
@@ -64,6 +66,24 @@ function codigoDe(corpo: Record<string, unknown>): number | null {
 function mensagemDe(corpo: Record<string, unknown>, status: number, segredos: string[]) {
   const bruto = typeof corpo.message === "string" ? corpo.message : `A Twilio respondeu ${status}.`;
   return redigir(bruto, segredos);
+}
+
+function conteudoComAprovacao(item: unknown, accountSid: string): ConteudoComAprovacao | null {
+  if (!item || typeof item !== "object") return null;
+  const bloco = item as Record<string, unknown>;
+  const sid = typeof bloco.sid === "string" ? bloco.sid : "";
+  if (!/^HX[0-9a-fA-F]{32}$/.test(sid)) return null;
+  const dono = typeof bloco.account_sid === "string" ? bloco.account_sid : accountSid;
+  if (dono !== accountSid) return null;
+  const pedidoBruto = bloco.approval_requests;
+  const pedido = pedidoBruto && typeof pedidoBruto === "object" ? (pedidoBruto as Record<string, unknown>) : {};
+  const whatsapp = pedido.whatsapp && typeof pedido.whatsapp === "object" ? (pedido.whatsapp as Record<string, unknown>) : null;
+  const fonte = whatsapp ?? pedido;
+  const aprovacao = typeof fonte.status === "string" && fonte.status.trim() ? fonte.status : "unsubmitted";
+  const motivoBruto = typeof fonte.rejection_reason === "string" ? fonte.rejection_reason.trim() : "";
+  const categoria = typeof fonte.category === "string" && fonte.category.trim() ? fonte.category : "UTILITY";
+  const nome = typeof bloco.friendly_name === "string" ? bloco.friendly_name : "";
+  return { sid, aprovacao, motivo: motivoBruto || null, categoria, nome };
 }
 
 function senderDe(corpo: Record<string, unknown>, accountTypeAceito: boolean, pedirCoexistencia: boolean): SenderTwilio {
@@ -263,6 +283,28 @@ export function criarClienteTwilioHttp(
       const motivo = typeof bloco.rejection_reason === "string" ? bloco.rejection_reason : null;
       const categoria = typeof bloco.category === "string" ? bloco.category : "UTILITY";
       return { sid: contentSid, aprovacao: status, motivo, categoria };
+    },
+    async listarConteudosComAprovacao(conta) {
+      const itens: ConteudoComAprovacao[] = [];
+      const vistos = new Set<string>();
+      let url: string | null = `${URL_APROVACOES}?PageSize=100`;
+      for (let pagina = 0; url && pagina < 20; pagina += 1) {
+        if (vistos.has(url) || !url.startsWith("https://content.twilio.com/")) break;
+        vistos.add(url);
+        const { resposta, json } = await pedir(conta, url, "GET", undefined, "application/json");
+        if (!resposta.ok) {
+          throw new ErroTwilio(mensagemDe(json, resposta.status, [conta.authToken]), resposta.status, codigoDe(json));
+        }
+        const lista = Array.isArray(json.contents) ? json.contents : [];
+        for (const item of lista) {
+          const conteudo = conteudoComAprovacao(item, conta.accountSid);
+          if (conteudo) itens.push(conteudo);
+        }
+        const meta = json.meta && typeof json.meta === "object" ? (json.meta as Record<string, unknown>) : {};
+        const proxima = typeof meta.next_page_url === "string" ? meta.next_page_url : "";
+        url = proxima.startsWith("https://content.twilio.com/") ? proxima : null;
+      }
+      return itens;
     },
     async enviarMensagem(conta, mensagem) {
       const { resposta, json } = await pedir(

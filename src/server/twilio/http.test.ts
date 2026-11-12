@@ -119,4 +119,67 @@ describe("cliente HTTP da Twilio", () => {
     await expect(cliente.obterSubconta(PAI, PAI.accountSid)).rejects.toThrow(/conta pai/);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
+
+  it("lista ContentAndApprovals da subconta sem enviar mensagem", async () => {
+    const urls: string[] = [];
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      urls.push(`${init?.method ?? "GET"} ${url}`);
+      expect(init?.method ?? "GET").toBe("GET");
+      if (url.includes("PageToken=2")) {
+        return new Response(
+          JSON.stringify({
+            contents: [
+              {
+                sid: "HXbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                account_sid: CONTA.accountSid,
+                friendly_name: "pago",
+                approval_requests: {
+                  status: "rejected",
+                  rejection_reason: "texto fora do padrão",
+                  category: "UTILITY",
+                },
+              },
+            ],
+            meta: { next_page_url: "http://exemplo.invalido/seguir" },
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(
+        JSON.stringify({
+          contents: [
+            {
+              sid: "HXaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              account_sid: CONTA.accountSid,
+              friendly_name: "boleto",
+              approval_requests: { status: "pending", rejection_reason: "", category: "UTILITY" },
+            },
+          ],
+          meta: { next_page_url: "https://content.twilio.com/v1/ContentAndApprovals?PageSize=1&PageToken=2" },
+        }),
+        { status: 200 },
+      );
+    });
+    const cliente = criarClienteTwilioHttp({ fetchImpl, env: { NODE_ENV: "production" } });
+    const lista = await cliente.listarConteudosComAprovacao(CONTA);
+    expect(lista).toEqual([
+      {
+        sid: "HXaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        aprovacao: "pending",
+        motivo: null,
+        categoria: "UTILITY",
+        nome: "boleto",
+      },
+      {
+        sid: "HXbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        aprovacao: "rejected",
+        motivo: "texto fora do padrão",
+        categoria: "UTILITY",
+        nome: "pago",
+      },
+    ]);
+    expect(urls[0]).toBe("GET https://content.twilio.com/v1/ContentAndApprovals?PageSize=100");
+    expect(urls.some((item) => item.includes("Messages.json") || item.includes("exemplo.invalido"))).toBe(false);
+    expect(urls.join("\n")).not.toContain(CONTA.authToken);
+  });
 });

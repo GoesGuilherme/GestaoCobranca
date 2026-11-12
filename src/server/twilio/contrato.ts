@@ -48,6 +48,10 @@ export type ConteudoTwilio = {
   categoria: string;
 };
 
+export type ConteudoComAprovacao = ConteudoTwilio & {
+  nome: string;
+};
+
 export type MensagemTemplate = {
   de: string;
   para: string;
@@ -71,6 +75,7 @@ export type ClienteTwilio = {
   enviarCodigo(conta: CredencialTwilio, senderSid: string, codigo: string): Promise<SenderTwilio>;
   publicarTemplate(conta: CredencialTwilio, template: TemplateConteudo): Promise<ConteudoTwilio>;
   consultarTemplate(conta: CredencialTwilio, contentSid: string): Promise<ConteudoTwilio>;
+  listarConteudosComAprovacao(conta: CredencialTwilio): Promise<ConteudoComAprovacao[]>;
   enviarMensagem(conta: CredencialTwilio, mensagem: MensagemTemplate): Promise<{ sid: string }>;
   enviarTexto(conta: CredencialTwilio, mensagem: MensagemTexto): Promise<{ sid: string }>;
 };

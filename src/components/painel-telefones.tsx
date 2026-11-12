@@ -33,8 +33,13 @@ export function PainelTelefones({ inicial }: { inicial: PainelTelefonesDTO }) {
   const [criando, setCriando] = useState(false);
   const [vinculando, setVinculando] = useState(false);
   const [salvandoModelos, setSalvandoModelos] = useState(false);
+  const [atualizandoModelos, setAtualizandoModelos] = useState(false);
   const [ocupado, setOcupado] = useState<string | null>(null);
   const chaveModelos = inicial.templates.map((item) => `${item.tipo}:${item.contentSid ?? ""}:${item.status}`).join("|");
+  const modelosAlterados = inicial.templates.some(
+    (item) => (modelos[item.tipo] ?? "").trim() !== (item.contentSid ?? ""),
+  );
+  const temSidSalvo = inicial.templates.some((item) => Boolean(item.contentSid));
 
   useEffect(() => {
     setModelos(mapaTemplates(inicial));
@@ -83,6 +88,18 @@ export function PainelTelefones({ inicial }: { inicial: PainelTelefonesDTO }) {
       return;
     }
     avisarSucesso("Modelos salvos");
+    router.refresh();
+  }
+
+  async function atualizarStatus() {
+    setAtualizandoModelos(true);
+    const resposta = await enviarJson("/api/telefones/templates/atualizar", "POST");
+    setAtualizandoModelos(false);
+    if (!resposta.ok) {
+      avisarErro(resposta.erro);
+      return;
+    }
+    avisarSucesso("Status atualizado");
     router.refresh();
   }
 
@@ -201,8 +218,8 @@ export function PainelTelefones({ inicial }: { inicial: PainelTelefonesDTO }) {
       <form onSubmit={salvarModelos} className="max-w-2xl space-y-4 rounded-3xl border border-line bg-card p-6">
         <h2 className="font-display text-2xl">Modelos de WhatsApp</h2>
         <p className="text-sm leading-6 text-muted">
-          Informe o ContentSid de cada modelo já aprovado na subconta. Ao salvar, o status fica Aprovado. O envio pela
-          subconta só usa modelo aprovado. Se faltar o modelo do tipo, a mensagem segue pelo número oficial.
+          Informe o ContentSid de cada modelo na subconta. Ao salvar, o status vem da análise da Meta. Só o modelo
+          aprovado entra no envio. Se faltar o modelo do tipo, a mensagem segue pelo número oficial.
         </p>
         <div className="space-y-4">
           {inicial.templates.map((modelo) => (
@@ -212,6 +229,7 @@ export function PainelTelefones({ inicial }: { inicial: PainelTelefonesDTO }) {
                   {modelo.rotulo}
                 </label>
                 <p className="text-xs text-muted">{modelo.statusRotulo}</p>
+                {modelo.motivo ? <p className="text-xs leading-5 text-clay">{modelo.motivo}</p> : null}
               </div>
               <input
                 id={`modelo-${modelo.tipo}`}
@@ -226,9 +244,23 @@ export function PainelTelefones({ inicial }: { inicial: PainelTelefonesDTO }) {
             </div>
           ))}
         </div>
-        <button type="submit" className={classeBotaoPrimario} disabled={salvandoModelos}>
-          {salvandoModelos ? "Salvando..." : "Salvar modelos"}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="submit"
+            className={classeBotaoPrimario}
+            disabled={salvandoModelos || atualizandoModelos || !modelosAlterados}
+          >
+            {salvandoModelos ? "Salvando..." : "Salvar modelos"}
+          </button>
+          <button
+            type="button"
+            className={classeBotaoSecundario}
+            disabled={atualizandoModelos || salvandoModelos || !temSidSalvo || modelosAlterados}
+            onClick={() => void atualizarStatus()}
+          >
+            {atualizandoModelos ? "Consultando..." : "Atualizar status"}
+          </button>
+        </div>
       </form>
 
       <form onSubmit={cadastrar} className="max-w-2xl space-y-4 rounded-3xl border border-line bg-card p-6">

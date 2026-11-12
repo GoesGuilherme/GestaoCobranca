@@ -77,6 +77,7 @@ export {
   criarSubcontaTwilio,
   obterPainelTelefones,
   removerNumeroTwilio,
+  atualizarStatusTemplatesWhatsapp,
   salvarTemplatesWhatsapp,
   vincularSubcontaExistente,
 } from "./twilio-empresa-service";

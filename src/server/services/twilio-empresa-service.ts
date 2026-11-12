@@ -19,7 +19,7 @@ import type { Acesso } from "@/server/auth/acesso";
 import { exigirDono } from "@/server/auth/acesso";
 import { prisma } from "@/server/db";
 import { ErroAplicacao } from "@/server/erros";
-import type { ClienteTwilio } from "@/server/twilio/contrato";
+import { statusAprovacao, type ClienteTwilio, type ConteudoComAprovacao, type CredencialTwilio } from "@/server/twilio/contrato";
 import { clienteTwilioPadrao, credenciaisPaiTwilio } from "@/server/twilio/fabrica";
 import { remetenteDaEmpresa } from "@/server/twilio/remetente";
 import { lerEsquema } from "@/server/validar";
@@ -36,7 +36,7 @@ type LinhaNumero = {
 };
 
 function templatesDoPainel(
-  linhas: { tipo: string; contentSid: string | null; status: string }[],
+  linhas: { tipo: string; contentSid: string | null; status: string; motivo?: string | null }[],
 ): TemplateTelefoneDTO[] {
   return TIPOS_TEMPLATE_WHATSAPP.map((tipo) => {
     const linha = linhas.find((item) => item.tipo === tipo);
@@ -47,6 +47,7 @@ function templatesDoPainel(
       contentSid: linha?.contentSid ?? null,
       status,
       statusRotulo: rotuloStatusTemplateWhatsapp(status || null),
+      motivo: linha?.motivo ?? null,
     };
   });
 }
@@ -85,7 +86,10 @@ export async function obterPainelTelefones(
       where: { empresaId: acesso.empresaId },
       orderBy: [{ canal: "asc" }, { criadoEm: "asc" }],
     }),
-    prisma.templateWhatsapp.findMany({ where: { empresaId: acesso.empresaId } }),
+    prisma.templateWhatsapp.findMany({
+      where: { empresaId: acesso.empresaId },
+      select: { tipo: true, contentSid: true, status: true, motivo: true },
+    }),
     remetenteDaEmpresa(acesso.empresaId, "WHATSAPP", env),
     remetenteDaEmpresa(acesso.empresaId, "SMS", env),
   ]);
@@ -313,7 +317,59 @@ export async function vincularSubcontaExistente(
   return obterPainelTelefones(acesso, env);
 }
 
-export async function gravarTemplatesDaEmpresa(empresaId: string, entrada: unknown) {
+type OpcoesTwilioEmpresa = { twilio?: ClienteTwilio; env?: NodeJS.ProcessEnv };
+
+async function contaDaSubconta(empresaId: string): Promise<CredencialTwilio> {
+  const subconta = await prisma.subcontaTwilio.findUnique({ where: { empresaId } });
+  if (!subconta || subconta.status !== "CONFIGURADA") {
+    throw new ErroAplicacao("Vincule a subconta antes de consultar os modelos.", 400, "twilio_sem_subconta");
+  }
+  let token = "";
+  try {
+    token = decifrarSegredoAsaas(subconta.credencialCifrada).trim();
+  } catch {
+    token = "";
+  }
+  if (token.length < 16) {
+    throw new ErroAplicacao("A credencial da subconta está ilegível.", 500, "twilio_ilegivel");
+  }
+  return { accountSid: subconta.subaccountSid, authToken: token };
+}
+
+async function aprovacoesDaSubconta(
+  empresaId: string,
+  opcoes: OpcoesTwilioEmpresa,
+): Promise<Map<string, ConteudoComAprovacao>> {
+  const conta = await contaDaSubconta(empresaId);
+  const cliente = opcoes.twilio ?? clienteTwilioPadrao(opcoes.env ?? process.env);
+  try {
+    const lista = await cliente.listarConteudosComAprovacao(conta);
+    return new Map(lista.map((item) => [item.sid, item]));
+  } catch (erro) {
+    if (erro instanceof ErroAplicacao) {
+      throw new ErroAplicacao(textoSemSegredo(erro.message, [conta.authToken]), erro.status, erro.codigo);
+    }
+    const bruto = erro instanceof Error ? erro.message : "Falha ao falar com a Twilio.";
+    throw new ErroAplicacao(textoSemSegredo(bruto, [conta.authToken]), 502, "twilio");
+  }
+}
+
+function dadosDoModelo(tipo: TipoTemplateWhatsapp, contentSid: string, encontrado: ConteudoComAprovacao) {
+  const modelo = templateCobrancaWhatsapp(tipo);
+  const status = statusAprovacao(encontrado.aprovacao);
+  const motivo = status === "REJEITADO" ? (encontrado.motivo || "A Meta recusou este modelo.").slice(0, 500) : null;
+  return {
+    contentSid,
+    nome: encontrado.nome.trim().slice(0, 120) || modelo.nome,
+    idioma: "pt_BR",
+    categoria: "UTILITY",
+    status,
+    corpo: modelo.corpo,
+    motivo,
+  };
+}
+
+function validarListaDeModelos(entrada: unknown) {
   const dados = lerEsquema(esquemaTemplatesWhatsappEmpresa, entrada);
   const vistos = new Set<string>();
   for (const item of dados.templates) {
@@ -329,22 +385,35 @@ export async function gravarTemplatesDaEmpresa(empresaId: string, entrada: unkno
       );
     }
   }
-  for (const item of dados.templates) {
+  return dados.templates;
+}
+
+export async function gravarTemplatesDaEmpresa(
+  empresaId: string,
+  entrada: unknown,
+  opcoes: OpcoesTwilioEmpresa = {},
+) {
+  const templates = validarListaDeModelos(entrada);
+  const comSid = templates.filter((item) => item.contentSid);
+  const aprovacoes = comSid.length > 0 ? await aprovacoesDaSubconta(empresaId, opcoes) : new Map<string, ConteudoComAprovacao>();
+  for (const item of comSid) {
+    if (!aprovacoes.has(item.contentSid)) {
+      throw new ErroAplicacao(
+        `O ContentSid de ${rotuloTipoTemplateWhatsapp(item.tipo)} não está nesta subconta.`,
+        400,
+        "content_sid_ausente",
+      );
+    }
+  }
+  for (const item of templates) {
     const tipo = item.tipo as TipoTemplateWhatsapp;
     if (!item.contentSid) {
       await prisma.templateWhatsapp.deleteMany({ where: { empresaId, tipo } });
       continue;
     }
-    const modelo = templateCobrancaWhatsapp(tipo);
-    const gravado = {
-      contentSid: item.contentSid,
-      nome: modelo.nome,
-      idioma: "pt_BR",
-      categoria: "UTILITY",
-      status: "APROVADO",
-      corpo: modelo.corpo,
-      motivo: null,
-    };
+    const encontrado = aprovacoes.get(item.contentSid);
+    if (!encontrado) continue;
+    const gravado = dadosDoModelo(tipo, item.contentSid, encontrado);
     await prisma.templateWhatsapp.upsert({
       where: { empresaId_tipo: { empresaId, tipo } },
       create: { empresaId, tipo, ...gravado },
@@ -356,8 +425,42 @@ export async function gravarTemplatesDaEmpresa(empresaId: string, entrada: unkno
 export async function salvarTemplatesWhatsapp(
   acesso: Acesso,
   entrada: unknown,
+  opcoes: OpcoesTwilioEmpresa = {},
 ): Promise<PainelTelefonesDTO> {
   exigirDono(acesso);
-  await gravarTemplatesDaEmpresa(acesso.empresaId, entrada);
-  return obterPainelTelefones(acesso);
+  await gravarTemplatesDaEmpresa(acesso.empresaId, entrada, opcoes);
+  return obterPainelTelefones(acesso, opcoes.env);
+}
+
+export async function atualizarStatusTemplatesWhatsapp(
+  acesso: Acesso,
+  opcoes: OpcoesTwilioEmpresa = {},
+): Promise<PainelTelefonesDTO> {
+  exigirDono(acesso);
+  const linhas = await prisma.templateWhatsapp.findMany({ where: { empresaId: acesso.empresaId } });
+  const comSid = linhas.filter((linha) => contentSidValido(linha.contentSid));
+  if (comSid.length === 0) {
+    throw new ErroAplicacao("Não há ContentSid salvo para atualizar.", 400, "template_sem_sid");
+  }
+  const aprovacoes = await aprovacoesDaSubconta(acesso.empresaId, opcoes);
+  for (const linha of comSid) {
+    const sid = linha.contentSid ?? "";
+    const encontrado = aprovacoes.get(sid);
+    if (!encontrado) {
+      await prisma.templateWhatsapp.update({
+        where: { id: linha.id },
+        data: { status: "FALHOU", motivo: "Este ContentSid não está na subconta." },
+      });
+      continue;
+    }
+    const status = statusAprovacao(encontrado.aprovacao);
+    await prisma.templateWhatsapp.update({
+      where: { id: linha.id },
+      data: {
+        status,
+        motivo: status === "REJEITADO" ? (encontrado.motivo || "A Meta recusou este modelo.").slice(0, 500) : null,
+      },
+    });
+  }
+  return obterPainelTelefones(acesso, opcoes.env);
 }

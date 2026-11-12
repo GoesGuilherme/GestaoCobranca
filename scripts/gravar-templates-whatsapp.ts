@@ -1,8 +1,9 @@
 import "dotenv/config";
 
-// Grava os ContentSids dos modelos de WhatsApp da empresa. Não chama a Twilio
-// e não envia mensagem. ContentSid válido fica com status APROVADO. Variável
-// vazia apaga o modelo daquele tipo.
+// Grava os ContentSids dos modelos de WhatsApp da empresa. Consulta o status
+// real na subconta (ContentAndApprovals) e só grava Aprovado se a Meta aprovou.
+// Não envia mensagem. Variável vazia apaga o modelo daquele tipo.
+// A empresa precisa já ter a subconta vinculada.
 //
 // Collab Software (empresa collab_software), ContentSids da subconta:
 // BOLETO_GERADO  HX1c2451e77bedd7d377700c1cc1e98438

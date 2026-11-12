@@ -22,6 +22,7 @@ import {
   criarSubcontaTwilio,
   obterPainelTelefones,
   removerNumeroTwilio,
+  atualizarStatusTemplatesWhatsapp,
   salvarTemplatesWhatsapp,
   vincularSubcontaExistente,
 } from "./twilio-empresa-service";
@@ -70,6 +71,30 @@ function acesso(id: string, papel: Acesso["papel"] = "DONO"): Acesso {
     cnpjEmpresa: "59300000000100",
     papel,
     superadministrador: false,
+  };
+}
+
+function twilioComModelos(
+  modelos: { sid: string; aprovacao: string; motivo?: string | null }[],
+  chamadas: string[] = [],
+): ClienteTwilio {
+  const base = criarClienteTwilioMemoria();
+  return {
+    ...base,
+    async listarConteudosComAprovacao(conta) {
+      chamadas.push(`lista:${conta.accountSid}`);
+      return modelos.map((item) => ({
+        sid: item.sid,
+        aprovacao: item.aprovacao,
+        motivo: item.motivo ?? null,
+        categoria: "UTILITY",
+        nome: "modelo",
+      }));
+    },
+    async enviarMensagem() {
+      chamadas.push("enviar");
+      throw new Error("não envia");
+    },
   };
 }
 
@@ -373,9 +398,13 @@ describe("subconta e números da empresa", () => {
     ).rejects.toMatchObject({ status: 400, codigo: "twilio_sid_pai" });
 
     const sidEmpresa = `HX${"a".repeat(32)}`;
-    const salvo = await salvarTemplatesWhatsapp(acesso(empresaId), {
-      templates: [{ tipo: "VENCE_EM_DIAS", contentSid: sidEmpresa }],
-    });
+    const chamadasModelo: string[] = [];
+    const salvo = await salvarTemplatesWhatsapp(
+      acesso(empresaId),
+      { templates: [{ tipo: "VENCE_EM_DIAS", contentSid: sidEmpresa }] },
+      { twilio: twilioComModelos([{ sid: sidEmpresa, aprovacao: "approved" }], chamadasModelo), env },
+    );
+    expect(chamadasModelo).toEqual([`lista:${SID_SUB}`]);
     expect(salvo.templates.find((item) => item.tipo === "VENCE_EM_DIAS")).toMatchObject({
       contentSid: sidEmpresa,
       status: "APROVADO",
@@ -481,6 +510,84 @@ describe("subconta e números da empresa", () => {
     ).rejects.toMatchObject({ status: 403 });
   });
 
+  it("grava o status da Meta e não marca pendente como aprovado", async () => {
+    const env = {
+      ...process.env,
+      TWILIO_ACCOUNT_SID: PAI,
+      TWILIO_AUTH_TOKEN: "token-pai-de-teste-0001",
+      TWILIO_WEBHOOK_URL: "https://taguaro.test/api/webhooks/twilio",
+    };
+    await vincularSubcontaExistente(acesso(empresaId), { subaccountSid: SID_SUB }, { twilio: twilioQueConta([]), env });
+    const pendente = `HX${"1".repeat(32)}`;
+    const recusado = `HX${"2".repeat(32)}`;
+    const aprovado = `HX${"3".repeat(32)}`;
+    const chamadas: string[] = [];
+    const salvo = await salvarTemplatesWhatsapp(
+      acesso(empresaId),
+      {
+        templates: [
+          { tipo: "BOLETO_GERADO", contentSid: pendente },
+          { tipo: "VENCEU", contentSid: recusado },
+          { tipo: "PAGO", contentSid: aprovado },
+        ],
+      },
+      {
+        twilio: twilioComModelos(
+          [
+            { sid: pendente, aprovacao: "pending" },
+            { sid: recusado, aprovacao: "rejected", motivo: "parâmetro no fim do texto" },
+            { sid: aprovado, aprovacao: "approved" },
+          ],
+          chamadas,
+        ),
+        env,
+      },
+    );
+    expect(chamadas).toEqual([`lista:${SID_SUB}`]);
+    expect(JSON.stringify(salvo)).not.toContain(TOKEN_SUB);
+    expect(salvo.templates.find((item) => item.tipo === "BOLETO_GERADO")).toMatchObject({
+      contentSid: pendente,
+      status: "ENVIADO_APROVACAO",
+      statusRotulo: "Em aprovação",
+      motivo: null,
+    });
+    expect(salvo.templates.find((item) => item.tipo === "VENCEU")).toMatchObject({
+      contentSid: recusado,
+      status: "REJEITADO",
+      statusRotulo: "Rejeitado",
+      motivo: "parâmetro no fim do texto",
+    });
+    expect(salvo.templates.find((item) => item.tipo === "PAGO")?.status).toBe("APROVADO");
+    expect(await prisma.templateWhatsapp.findFirst({ where: { empresaId, tipo: "BOLETO_GERADO" } })).toMatchObject({
+      status: "ENVIADO_APROVACAO",
+    });
+
+    await expect(
+      salvarTemplatesWhatsapp(
+        acesso(empresaId),
+        { templates: [{ tipo: "VENCE_HOJE", contentSid: `HX${"4".repeat(32)}` }] },
+        { twilio: twilioComModelos([], chamadas), env },
+      ),
+    ).rejects.toMatchObject({ status: 400, codigo: "content_sid_ausente" });
+    expect(await prisma.templateWhatsapp.count({ where: { empresaId, tipo: "VENCE_HOJE" } })).toBe(0);
+    expect(chamadas).not.toContain("enviar");
+
+    const atualizado = await atualizarStatusTemplatesWhatsapp(acesso(empresaId), {
+      twilio: twilioComModelos([{ sid: pendente, aprovacao: "approved" }, { sid: recusado, aprovacao: "rejected", motivo: "parâmetro no fim do texto" }, { sid: aprovado, aprovacao: "approved" }]),
+      env,
+    });
+    expect(atualizado.templates.find((item) => item.tipo === "BOLETO_GERADO")).toMatchObject({
+      contentSid: pendente,
+      status: "APROVADO",
+      statusRotulo: "Aprovado",
+    });
+    expect(atualizado.templates.find((item) => item.tipo === "VENCEU")?.motivo).toBe("parâmetro no fim do texto");
+    await expect(atualizarStatusTemplatesWhatsapp(acesso(empresaId, "FINANCEIRO"), { env })).rejects.toMatchObject({ status: 403 });
+    await expect(
+      salvarTemplatesWhatsapp(acesso(outraId), { templates: [{ tipo: "PAGO", contentSid: aprovado }] }, { twilio: twilioComModelos([{ sid: aprovado, aprovacao: "approved" }]), env }),
+    ).rejects.toMatchObject({ status: 400, codigo: "twilio_sem_subconta" });
+  });
+
   it("passo com dias zero usa VENCE_HOJE aprovado e, sem ele, continua em VENCE_EM_DIAS", async () => {
     process.env.TWILIO_WHATSAPP_SENDER_OFICIAL = "true";
     process.env.TWILIO_WHATSAPP_OFICIAL_DESDE = "2026-01-01T00:00:00.000Z";
@@ -573,7 +680,11 @@ describe("subconta e números da empresa", () => {
     expect((await prisma.filaWhatsapp.findFirstOrThrow({ where: { empresaId, passoId: passo.id } })).tipo).toBe("VENCE_EM_DIAS");
 
     const sidHoje = "HX578d21bad62d99aa8e22582067eb2ec2";
-    await salvarTemplatesWhatsapp(acesso(empresaId), { templates: [{ tipo: "VENCE_HOJE", contentSid: sidHoje }] });
+    await salvarTemplatesWhatsapp(
+      acesso(empresaId),
+      { templates: [{ tipo: "VENCE_HOJE", contentSid: sidHoje }] },
+      { twilio: twilioComModelos([{ sid: sidHoje, aprovacao: "approved" }]), env },
+    );
     await prisma.filaWhatsapp.deleteMany({ where: { empresaId } });
     expect(await enfileirarWhatsappDoPasso(linha, passo, false, agora)).toBe("enfileirado");
     const hoje = await prisma.filaWhatsapp.findFirstOrThrow({ where: { empresaId, passoId: passo.id } });

@@ -348,6 +348,7 @@ export type TemplateTelefoneDTO = {
   contentSid: string | null;
   status: string;
   statusRotulo: string;
+  motivo: string | null;
 };
 
 export type CanalWhatsappServidor = {
