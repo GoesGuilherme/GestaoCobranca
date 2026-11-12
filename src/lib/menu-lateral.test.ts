@@ -41,6 +41,17 @@ describe("menu lateral", () => {
     expect(grupos.find((grupo) => grupo.id === "visao")?.itens).toEqual([
       { href: "/dashboards/painel", rotulo: "Dashboards" },
     ]);
+    expect(grupos.find((grupo) => grupo.id === "cobranca")?.itens).toContainEqual({
+      href: "/mensagens",
+      rotulo: "Mensagens",
+    });
+    expect(montarGruposMenu(financeiro).find((grupo) => grupo.id === "cobranca")?.itens).toContainEqual({
+      href: "/mensagens",
+      rotulo: "Mensagens",
+    });
+    expect(montarGruposMenu(suporte).flatMap((grupo) => grupo.itens).map((item) => item.rotulo)).not.toContain(
+      "Mensagens",
+    );
     expect(grupos.find((grupo) => grupo.id === "configuracoes")?.itens.map((item) => item.rotulo)).toContain("Banco");
     expect(grupos.find((grupo) => grupo.id === "configuracoes")?.itens).toContainEqual({
       href: "/emails",

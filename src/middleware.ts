@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { NOME_PRODUTO } from "@/lib/marca";
-import { podeConfigurarAsaas, podeVerAssessor, podeVerFaturas, podeVerMetricas, podeVerRegua, podeVerResultado } from "@/lib/permissoes";
+import { podeConfigurarAsaas, podeVerAssessor, podeVerFaturas, podeVerMensagens, podeVerMetricas, podeVerRegua, podeVerResultado } from "@/lib/permissoes";
 import { COOKIE_SESSAO } from "@/server/auth/constantes";
 import { verificarToken } from "@/server/auth/token";
 
@@ -141,6 +141,19 @@ export async function middleware(request: NextRequest) {
       pathname,
       "A régua fica com o dono e o financeiro",
       "Só o dono ou o financeiro pode ver a régua de cobrança.",
+    );
+  }
+
+  const rotaMensagens =
+    pathname === "/mensagens" ||
+    pathname.startsWith("/mensagens/") ||
+    pathname === "/api/mensagens" ||
+    pathname.startsWith("/api/mensagens/");
+  if (rotaMensagens && !podeVerMensagens(sessao.papel)) {
+    return paginaProibida(
+      pathname,
+      "As mensagens ficam com o dono e o financeiro",
+      "Só o dono ou o financeiro pode ver o WhatsApp e o SMS enviados pela empresa.",
     );
   }
 

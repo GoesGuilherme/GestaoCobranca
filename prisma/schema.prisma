@@ -157,6 +157,8 @@ model Empresa {
   filaWhatsapp       FilaWhatsapp[]
   eventosWhatsapp    EventoWhatsapp[]
   optoutsWhatsapp    OptOutWhatsapp[]
+  leiturasWhatsapp   LeituraWhatsapp[]
+  respostasWhatsapp  RespostaWhatsapp[]
   configuracaoAssessor ConfiguracaoAssessor?
   conversasAssessor    ConversaAssessor[]
   mensagensAssessor    MensagemAssessor[]
@@ -208,6 +210,7 @@ model Usuario {
   empresa            Empresa      @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   redefinicoesSenha  RedefinicaoSenha[]
   promessasRegistradas PromessaPagamento[]
+  respostasWhatsapp    RespostaWhatsapp[]
   estadosOauth         EstadoOauth[]
 
   @@index([empresaId])
@@ -270,6 +273,7 @@ model Cliente {
   lembretesRegua  LembreteRegua[]
   filaWhatsapp    FilaWhatsapp[]
   conversasAssessor ConversaAssessor[]
+  respostasWhatsapp RespostaWhatsapp[]
   pedidosAtendimento PedidoAtendimento[]
   promessas          PromessaPagamento[]
 
@@ -807,6 +811,40 @@ model OptOutWhatsapp {
   @@unique([empresaId, telefone])
   @@index([empresaId])
   @@map("optouts_whatsapp")
+}
+
+// Até quando a empresa já viu as respostas deste telefone. O não lido
+// conta mensagens de entrada posteriores a lido_em.
+model LeituraWhatsapp {
+  id        String   @id @default(cuid())
+  empresaId String   @map("empresa_id")
+  telefone  String
+  lidoEm    DateTime @map("lido_em") @db.Timestamptz(3)
+  empresa   Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+
+  @@unique([empresaId, telefone])
+  @@index([empresaId])
+  @@map("leituras_whatsapp")
+}
+
+// Texto livre enviado por um usuário da empresa, dentro da janela de 24 horas.
+// A fila da régua continua só com modelo aprovado.
+model RespostaWhatsapp {
+  id         String   @id @default(cuid())
+  empresaId  String   @map("empresa_id")
+  telefone   String
+  clienteId  String?  @map("cliente_id")
+  usuarioId  String?  @map("usuario_id")
+  corpo      String   @db.Text
+  messageSid String?  @unique @map("message_sid")
+  criadoEm   DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
+  empresa    Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  cliente    Cliente? @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+  usuario    Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+
+  @@index([empresaId, telefone, criadoEm])
+  @@index([empresaId])
+  @@map("respostas_whatsapp")
 }
 
 // Liga ou desliga o assessor de uma empresa. O texto livre da empresa não
