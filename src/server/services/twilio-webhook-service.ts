@@ -232,6 +232,8 @@ export async function processarWebhookTwilio(dados: {
     return registrarEntrada(config.empresaId, evento);
   }
 
+  // O envio pela subconta usa esta mesma URL em StatusCallback. A assinatura
+  // confere o token cifrado desta subconta, não o token da conta pai.
   const subconta = await prisma.subcontaTwilio.findUnique({ where: { subaccountSid: accountSid } });
   if (subconta) {
     let authToken = "";

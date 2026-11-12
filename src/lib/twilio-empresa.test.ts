@@ -5,6 +5,8 @@ import {
   remetenteDoCanal,
   rotuloStatusNumeroTwilio,
   rotuloStatusSubconta,
+  rotuloStatusTemplateWhatsapp,
+  rotuloTipoTemplateWhatsapp,
 } from "./twilio-empresa";
 
 describe("telefone e status da subconta", () => {
@@ -22,6 +24,9 @@ describe("telefone e status da subconta", () => {
     expect(rotuloStatusNumeroTwilio("ATIVO")).toBe("Ativo");
     expect(rotuloStatusNumeroTwilio("INATIVO")).toBe("Inativo");
     expect(rotuloStatusSubconta("CONFIGURADA", true)).toBe("Configurada");
+    expect(rotuloTipoTemplateWhatsapp("VENCE_HOJE")).toBe("Vence hoje");
+    expect(rotuloStatusTemplateWhatsapp("APROVADO")).toBe("Aprovado");
+    expect(rotuloStatusTemplateWhatsapp(null)).toBe("Não cadastrado");
     expect(rotuloStatusSubconta("CONFIGURADA", false)).toBe("Credencial ilegível");
     expect(criacaoSubcontaHabilitada({})).toBe(false);
     expect(criacaoSubcontaHabilitada({ TWILIO_CRIAR_SUBCONTA: "" })).toBe(false);

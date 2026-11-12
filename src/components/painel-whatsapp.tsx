@@ -14,6 +14,7 @@ import { avisarCamposObrigatorios, avisarErro, avisarSucesso } from "./notificad
 const ROTULO: Record<string, string> = {
   BOLETO_GERADO: "Boleto gerado",
   VENCE_EM_DIAS: "Vence em X dias",
+  VENCE_HOJE: "Vence hoje",
   VENCEU: "Venceu",
   PAGO: "Pago",
 };

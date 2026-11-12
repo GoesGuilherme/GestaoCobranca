@@ -18,6 +18,7 @@ Estes arquivos existem para quem quiser ler o banco sem abrir o Prisma. Eles esp
 14. `014_fatura_criando.sql` — a fatura pode nascer sem id do Asaas, com chave de idempotência e o texto do erro de emissão. Espelha `prisma/migrations/20261029180000_fatura_criando`.
 15. `015_logo_empresa.sql` — logo da empresa (PNG ou JPG, até 512 KB) usada no topo dos e-mails de aviso. Uma linha por empresa, com RLS e sem política. Espelha `prisma/migrations/20261111182100_logo_empresa`.
 16. `016_subcontas_twilio.sql` — subconta Twilio da empresa (SID e credencial cifrada) e os números de WhatsApp ou SMS, com status e um padrão por canal. RLS ligado, sem política. Espelha `prisma/migrations/20261111233000_subcontas_twilio`. Não cria subconta na Twilio.
+17. `017_whatsapp_vence_hoje.sql` — acrescenta o tipo `VENCE_HOJE` nos modelos e na fila de WhatsApp. Espelha `prisma/migrations/20261112143000_whatsapp_vence_hoje`. Não cria subconta e não envia mensagem.
 
 A fonte da verdade é a pasta `prisma/migrations`. Se uma migration nova entrar, estes scripts precisam ser atualizados para continuar iguais a ela. Não rode os dois jeitos no mesmo banco: ou o Prisma Migrate, ou estes arquivos, nunca os dois em sequência no mesmo esquema vazio.
 

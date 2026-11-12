@@ -1,4 +1,4 @@
-import { TIPOS_TEMPLATE_WHATSAPP, type TipoTemplateWhatsapp } from "@/lib/whatsapp-cobranca";
+import { contentSidValido, type TipoTemplateWhatsapp } from "@/lib/whatsapp-cobranca";
 
 // Remetente fixo do WhatsApp Sandbox da Twilio. Não aceitamos outro From
 // com a credencial da conta pai: o sandbox só existe nesse número.
@@ -9,11 +9,10 @@ export const REMETENTE_SANDBOX_WHATSAPP = "whatsapp:+14155238886";
 // Fora do modo teste ele fala com o cliente só depois de TWILIO_WHATSAPP_OFICIAL_DESDE.
 export const REMETENTE_OFICIAL_WHATSAPP = "whatsapp:+16504762069";
 
-const SID_CONTEUDO = /^HX[0-9a-fA-F]{32}$/;
-
 type AmbienteSandbox = Record<string, string | undefined>;
 
-const CHAVE_CONTENT_SID: Record<TipoTemplateWhatsapp, string> = {
+// VENCE_HOJE não tem ContentSid na conta pai. Ele só existe na subconta.
+const CHAVE_CONTENT_SID: Record<Exclude<TipoTemplateWhatsapp, "VENCE_HOJE">, string> = {
   BOLETO_GERADO: "TWILIO_CONTENT_SID_BOLETO_GERADO",
   VENCE_EM_DIAS: "TWILIO_CONTENT_SID_VENCE_EM_DIAS",
   VENCEU: "TWILIO_CONTENT_SID_VENCEU",
@@ -65,7 +64,9 @@ export function inicioWhatsappOficialProducao(env: AmbienteSandbox = process.env
 export type RotaWhatsapp = "oficial_teste" | "oficial_producao" | "sandbox" | "empresa" | "nenhuma";
 
 // O sandbox nunca sai do modo teste e nunca ganha do Sender oficial.
-// O número da empresa só entra quando a flag oficial está desligada.
+// empresaPronta é o Sender antigo de configuracoes_twilio e só entra com a
+// flag oficial desligada. A subconta de subcontas_twilio ganha da oficial em
+// decidirSubcontaWhatsapp, quando o modelo da empresa está aprovado.
 export function rotaWhatsapp(entrada: {
   modoTeste: boolean;
   oficialLigado: boolean;
@@ -94,8 +95,7 @@ export function sinaisCanalWhatsapp(env: AmbienteSandbox = process.env) {
 
 // ContentSid criado na conta pai. O da subconta não serve no sandbox.
 export function contentSidSandbox(tipo: string, env: AmbienteSandbox = process.env): string | null {
-  if (!TIPOS_TEMPLATE_WHATSAPP.includes(tipo as TipoTemplateWhatsapp)) return null;
-  const chave = CHAVE_CONTENT_SID[tipo as TipoTemplateWhatsapp];
-  const sid = env[chave]?.trim() ?? "";
-  return SID_CONTEUDO.test(sid) ? sid : null;
+  if (!Object.prototype.hasOwnProperty.call(CHAVE_CONTENT_SID, tipo)) return null;
+  const chave = CHAVE_CONTENT_SID[tipo as Exclude<TipoTemplateWhatsapp, "VENCE_HOJE">];
+  return contentSidValido(env[chave]);
 }

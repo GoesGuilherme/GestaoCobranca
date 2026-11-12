@@ -164,6 +164,29 @@ export function criarClienteTwilioHttp(
       if (!sid || !authToken) throw new ErroTwilio("A Twilio não devolveu a subconta.", 502, null);
       return { sid, authToken };
     },
+    async obterSubconta(pai, sid) {
+      if (!/^AC[0-9a-fA-F]{32}$/.test(sid) || sid === pai.accountSid) {
+        throw new ErroTwilio("Informe o SID de uma subconta, não o da conta pai.", 400, null);
+      }
+      const { resposta, json } = await pedir(
+        pai,
+        `https://api.twilio.com/2010-04-01/Accounts/${sid}.json`,
+        "GET",
+        undefined,
+        "application/json",
+      );
+      if (!resposta.ok) {
+        throw new ErroTwilio(mensagemDe(json, resposta.status, [pai.authToken]), resposta.status, codigoDe(json));
+      }
+      const authToken = typeof json.auth_token === "string" ? json.auth_token.trim() : "";
+      const owner = typeof json.owner_account_sid === "string" ? json.owner_account_sid : "";
+      const status = typeof json.status === "string" ? json.status : "";
+      const sidResposta = typeof json.sid === "string" ? json.sid : "";
+      if (sidResposta !== sid || owner !== pai.accountSid || status.toLowerCase() !== "active" || authToken.length < 16) {
+        throw new ErroTwilio("A Twilio não devolveu a subconta.", 502, null);
+      }
+      return { sid, authToken, status: "active" };
+    },
     criarSender(conta, pedido) {
       return criarSenderComTipo(conta, pedido, true);
     },

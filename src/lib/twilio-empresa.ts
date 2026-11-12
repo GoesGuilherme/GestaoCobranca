@@ -27,6 +27,24 @@ export function rotuloStatusNumeroTwilio(status: string): string {
   return "Cadastrado";
 }
 
+export function rotuloTipoTemplateWhatsapp(tipo: string): string {
+  if (tipo === "BOLETO_GERADO") return "Boleto gerado";
+  if (tipo === "VENCE_EM_DIAS") return "Vence em dias";
+  if (tipo === "VENCE_HOJE") return "Vence hoje";
+  if (tipo === "VENCEU") return "Venceu";
+  if (tipo === "PAGO") return "Pago";
+  return "Modelo";
+}
+
+export function rotuloStatusTemplateWhatsapp(status: string | null): string {
+  if (status === "APROVADO") return "Aprovado";
+  if (status === "ENVIADO_APROVACAO") return "Em aprovação";
+  if (status === "REJEITADO") return "Rejeitado";
+  if (status === "FALHOU") return "Falhou";
+  if (status === "RASCUNHO") return "Rascunho";
+  return "Não cadastrado";
+}
+
 export function rotuloStatusSubconta(status: string, legivel: boolean): string {
   if (!legivel) return "Credencial ilegível";
   if (status === "CONFIGURADA") return "Configurada";

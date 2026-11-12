@@ -16,7 +16,7 @@ export default async function PaginaTelefones() {
       <CabecalhoPagina
         olho="Configurações"
         titulo="Telefones"
-        descricao="A subconta e os números de WhatsApp e SMS desta empresa. Cadastrar um número não compra linha, não registra sender e não envia mensagem. Sem subconta configurada, o envio continua na conta global."
+        descricao="A subconta, os números e os modelos de WhatsApp desta empresa. Cadastrar um número não compra linha e não envia mensagem. Sem subconta configurada e número ativo, o WhatsApp continua no número oficial."
       />
       <PainelTelefones inicial={painel} />
     </>
