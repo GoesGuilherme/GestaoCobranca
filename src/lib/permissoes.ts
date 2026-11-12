@@ -46,6 +46,11 @@ export function podeVerRegua(papel: PapelUsuario): boolean {
   return papel === "DONO" || papel === "FINANCEIRO";
 }
 
+// A lista de WhatsApp e SMS e a conversa com o cliente ficam com quem vê a régua.
+export function podeVerMensagens(papel: PapelUsuario): boolean {
+  return podeVerRegua(papel);
+}
+
 export function podeConfigurarRegua(papel: PapelUsuario): boolean {
   return papel === "DONO";
 }

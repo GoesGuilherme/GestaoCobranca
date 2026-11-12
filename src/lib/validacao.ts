@@ -757,6 +757,11 @@ export const esquemaRespostaAssessor = z.object({
   texto: z.string().trim().min(1, "Escreva a mensagem.").max(1000, "A mensagem pode ter no máximo 1000 caracteres."),
 });
 
+export const esquemaRespostaWhatsapp = z.object({
+  telefone: z.string().trim().regex(/^\d{10,15}$/, "Telefone inválido."),
+  texto: z.string().trim().min(1, "Escreva a mensagem.").max(1000, "A mensagem pode ter no máximo 1000 caracteres."),
+});
+
 export type EntradaFatura = z.infer<typeof esquemaFatura>;
 export type EntradaAtivarRecorrencia = z.infer<typeof esquemaAtivarRecorrencia>;
 export type EntradaEditarRecorrencia = z.infer<typeof esquemaEditarRecorrencia>;

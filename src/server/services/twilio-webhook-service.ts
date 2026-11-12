@@ -50,10 +50,12 @@ async function registrarStatus(empresaId: string, dados: {
   de: string | null;
   para: string | null;
   errorCode: string | null;
+  errorMessage?: string | null;
 }) {
   const fila = await prisma.filaWhatsapp.findFirst({
     where: { empresaId, messageSid: dados.messageSid },
   });
+  const falha = dados.messageStatus === "failed" || dados.messageStatus === "undelivered";
   try {
     await prisma.eventoWhatsapp.create({
       data: {
@@ -64,6 +66,7 @@ async function registrarStatus(empresaId: string, dados: {
         status: dados.messageStatus,
         de: dados.de,
         para: dados.para,
+        corpo: falha ? dados.errorMessage ?? null : null,
       },
     });
   } catch (erro) {
@@ -174,8 +177,28 @@ function eventoAutenticado(parametros: Record<string, string>) {
     para: texto(parametros.To, 40),
     corpo: texto(parametros.Body, 500),
     errorCode: texto(parametros.ErrorCode, 20),
+    errorMessage: texto(parametros.ErrorMessage, 180),
     optOutType: parametros.OptOutType ?? "",
   };
+}
+
+function e164De(valor: string | null): string | null {
+  if (!valor) return null;
+  const sem = valor.replace(/^whatsapp:/i, "").trim();
+  return /^\+[1-9]\d{7,14}$/.test(sem) ? sem : null;
+}
+
+// Número próprio da empresa na conta pai. A subconta já foi escolhida pelo
+// AccountSid antes desta função. O remetente oficial e o sandbox ficam de fora
+// para o caminho atual continuar igual.
+async function empresasDoNumero(telefoneE164: string, canal?: "WHATSAPP" | "SMS"): Promise<string[]> {
+  const linhas = await prisma.numeroTwilioEmpresa.findMany({
+    where: { telefoneE164, status: "ATIVO", ...(canal ? { canal } : {}) },
+    select: { empresaId: true },
+  });
+  const ids = [...new Set(linhas.map((linha) => linha.empresaId))];
+  if (ids.length > 1) console.error("twilio_numero_ambiguo");
+  return ids;
 }
 
 export async function processarWebhookTwilio(dados: {
@@ -240,7 +263,10 @@ export async function processarWebhookTwilio(dados: {
 
   const sandbox = sandboxWhatsappLigado();
   const oficial = remetenteOficialTesteLigado();
-  const pai = contaPai(accountSid, sandbox || oficial);
+  // A assinatura da conta pai vale mesmo com o remetente global desligado:
+  // um número da empresa (subcontas_twilio / numeros_twilio_empresa) pode
+  // receber o webhook nessa mesma URL. O número global só segue se a flag dele estiver ligada.
+  const pai = contaPai(accountSid, true);
   if (!pai || !assinaturaTwilioValida({
     url: pai.webhookUrl,
     parametros: dados.parametros,
@@ -249,17 +275,42 @@ export async function processarWebhookTwilio(dados: {
   })) {
     recusar();
   }
+  const permitirGlobal = sandbox || oficial;
 
   const evento = eventoAutenticado(dados.parametros);
   if (!evento.inbound && evento.messageStatus) {
     const deOficial = evento.de === REMETENTE_OFICIAL_WHATSAPP;
     const deSandbox = evento.de === REMETENTE_SANDBOX_WHATSAPP;
-    if (!deOficial && !deSandbox) recusar();
+    if (!deOficial && !deSandbox) {
+      const e164 = e164De(evento.de);
+      const empresas = e164 ? await empresasDoNumero(e164) : [];
+      if (empresas.length !== 1) {
+        if (empresas.length > 1) return { recebido: true, duplicado: false };
+        recusar();
+      }
+      const empresaNumero = empresas[0] ?? "";
+      const fila = await prisma.filaWhatsapp.findFirst({
+        where: { messageSid: evento.messageSid, empresaId: empresaNumero },
+      });
+      if (!fila) return { recebido: true, duplicado: false };
+      return registrarStatus(empresaNumero, { ...evento, messageStatus: evento.messageStatus });
+    }
+    if (!permitirGlobal) recusar();
     if (deSandbox && !sandbox) recusar();
     const fila = await prisma.filaWhatsapp.findFirst({ where: { messageSid: evento.messageSid } });
     if (!fila) return { recebido: true, duplicado: false };
     if (deSandbox && !fila.modoTeste) return { recebido: true, duplicado: false };
     return registrarStatus(fila.empresaId, { ...evento, messageStatus: evento.messageStatus });
+  }
+
+  if (!permitirGlobal) {
+    const e164Para = e164De(evento.para);
+    if (evento.para?.toLowerCase().startsWith("whatsapp:") && e164Para) {
+      const empresas = await empresasDoNumero(e164Para, "WHATSAPP");
+      if (empresas.length > 1) return { recebido: true, duplicado: false };
+      if (empresas.length === 1) return registrarEntrada(empresas[0] ?? "", evento);
+    }
+    recusar();
   }
 
   if (evento.para === REMETENTE_OFICIAL_WHATSAPP) {
@@ -268,6 +319,13 @@ export async function processarWebhookTwilio(dados: {
       await registrarEntrada(empresaId, evento, { assessor: false });
     }
     return { recebido: true, duplicado: false };
+  }
+
+  const e164Para = e164De(evento.para);
+  if (evento.para?.toLowerCase().startsWith("whatsapp:") && e164Para) {
+    const empresas = await empresasDoNumero(e164Para, "WHATSAPP");
+    if (empresas.length > 1) return { recebido: true, duplicado: false };
+    if (empresas.length === 1) return registrarEntrada(empresas[0] ?? "", evento);
   }
 
   if (!sandbox) return { recebido: true, duplicado: false };
