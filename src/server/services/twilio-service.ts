@@ -1,7 +1,7 @@
 import { cifrarSegredoAsaas, decifrarSegredoAsaas } from "@/lib/asaas-cripto";
 import type { ConfiguracaoTwilioDTO, CoexistenciaTwilioDTO, TemplateWhatsappDTO } from "@/lib/tipos";
 import { esquemaCodigoTwilio, esquemaConexaoTwilio } from "@/lib/validacao";
-import { TEMPLATES_COBRANCA_WHATSAPP, whatsappE164 } from "@/lib/whatsapp-cobranca";
+import { TEMPLATES_COBRANCA_WHATSAPP, TIPOS_TEMPLATE_WHATSAPP, whatsappE164, type TipoTemplateWhatsapp } from "@/lib/whatsapp-cobranca";
 import type { AutorEmpresa } from "@/server/auth/papeis";
 import { exigirRegua, exigirVerRegua } from "@/server/auth/papeis";
 import { prisma } from "@/server/db";
@@ -35,7 +35,9 @@ function coexistenciaDe(valor: string): CoexistenciaTwilioDTO {
 }
 
 function paraTemplate(linha: { tipo: string; nome: string; status: string; motivo: string | null }): TemplateWhatsappDTO {
-  const tipo = linha.tipo === "VENCE_EM_DIAS" || linha.tipo === "VENCEU" || linha.tipo === "PAGO" ? linha.tipo : "BOLETO_GERADO";
+  const tipo = TIPOS_TEMPLATE_WHATSAPP.includes(linha.tipo as TipoTemplateWhatsapp)
+    ? (linha.tipo as TipoTemplateWhatsapp)
+    : "BOLETO_GERADO";
   return { tipo, nome: linha.nome, status: linha.status, motivo: linha.motivo };
 }
 

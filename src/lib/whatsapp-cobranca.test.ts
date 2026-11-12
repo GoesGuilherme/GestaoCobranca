@@ -147,6 +147,21 @@ describe("templates de cobrança", () => {
     expect(boleto && variaveisCompativeisComTemplate("BOLETO_GERADO", boleto)).toBe(true);
     expect(boleto && variaveisCompativeisComTemplate("VENCEU", boleto)).toBe(true);
     expect(boleto && variaveisCompativeisComTemplate("PAGO", boleto)).toBe(true);
+    expect(boleto && variaveisCompativeisComTemplate("VENCE_HOJE", boleto)).toBe(true);
+    expect(
+      variaveisDoTemplate("VENCE_HOJE", {
+        nome: "Ana",
+        valor: "R$ 10,00",
+        vencimento: "30/10/2026",
+        link: "https://www.asaas.com/i/abc",
+        dias: "0",
+      }),
+    ).toEqual({
+      "1": "Ana",
+      "2": "R$ 10,00",
+      "3": "30/10/2026",
+      "4": "https://www.asaas.com/i/abc",
+    });
     expect(
       variaveisCompativeisComTemplate("VENCE_EM_DIAS", {
         "1": "Ana",

@@ -65,6 +65,14 @@ export function criarClienteTwilioMemoria(
       subcontas.push(criada);
       return { sid: criada.sid, authToken: criada.authToken };
     },
+    async obterSubconta(pai, subSid) {
+      if (subSid === pai.accountSid) {
+        throw new ErroTwilio("Informe o SID de uma subconta, não o da conta pai.", 400, null);
+      }
+      const encontrada = subcontas.find((item) => item.sid === subSid);
+      if (!encontrada) throw new ErroTwilio("A Twilio não devolveu a subconta.", 404, 20404);
+      return { sid: encontrada.sid, authToken: encontrada.authToken, status: "active" };
+    },
     async criarSender(_conta, pedido) {
       if (modo === "INDISPONIVEL") {
         throw new ErroTwilio(

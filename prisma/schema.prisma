@@ -720,7 +720,9 @@ model NumeroTwilioEmpresa {
   @@map("numeros_twilio_empresa")
 }
 
-// Template UTILITY criado na Content API da subconta. Um de cada tipo por empresa.
+// Template da empresa, um de cada tipo. O envio pela subconta só usa status
+// APROVADO. VENCE_HOJE vale no passo com dias = 0 quando esse modelo está
+// aprovado. Sem ele, o passo continua em VENCE_EM_DIAS.
 model TemplateWhatsapp {
   id          String   @id @default(cuid())
   empresaId   String   @map("empresa_id")

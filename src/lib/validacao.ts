@@ -680,6 +680,28 @@ export const esquemaConexaoTwilio = z.object({
   coexistencia: z.boolean("Informe se quer pedir coexistência com o app WhatsApp Business."),
 });
 
+export const esquemaSubcontaExistente = z.object({
+  subaccountSid: z
+    .string()
+    .trim()
+    .regex(/^AC[0-9a-fA-F]{32}$/, "Informe o SID da subconta. Ele começa com AC."),
+});
+
+export const esquemaTemplatesWhatsappEmpresa = z.object({
+  templates: z
+    .array(
+      z.object({
+        tipo: z.enum(
+          ["BOLETO_GERADO", "VENCE_EM_DIAS", "VENCE_HOJE", "VENCEU", "PAGO"],
+          "Escolha o tipo do modelo.",
+        ),
+        contentSid: z.string().trim().max(40, "O ContentSid está longo demais."),
+      }),
+    )
+    .min(1, "Informe ao menos um modelo.")
+    .max(5, "São cinco modelos."),
+});
+
 export const esquemaNumeroTwilio = z.object({
   telefone: z
     .string()

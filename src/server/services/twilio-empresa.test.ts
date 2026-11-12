@@ -22,8 +22,10 @@ import {
   criarSubcontaTwilio,
   obterPainelTelefones,
   removerNumeroTwilio,
+  salvarTemplatesWhatsapp,
+  vincularSubcontaExistente,
 } from "./twilio-empresa-service";
-import { processarFilaWhatsapp } from "./whatsapp-fila";
+import { enfileirarWhatsappDoPasso, processarFilaWhatsapp } from "./whatsapp-fila";
 
 process.env.ASAAS_ENCRYPTION_KEY = randomBytes(32).toString("base64");
 process.env.TWILIO_ACCOUNT_SID = `AC${"a".repeat(32)}`;
@@ -78,6 +80,13 @@ function twilioQueConta(chamadas: string[]): ClienteTwilio {
     async criarSubconta(pai, nome) {
       chamadas.push(`criar:${pai.accountSid}:${nome}`);
       return { sid: SID_SUB, authToken: TOKEN_SUB };
+    },
+    async obterSubconta(pai, sid) {
+      chamadas.push(`obter:${pai.accountSid}:${sid}`);
+      if (sid === pai.accountSid) {
+        throw new Error("SID da conta pai");
+      }
+      return { sid, authToken: TOKEN_SUB, status: "active" };
     },
   };
 }
@@ -294,18 +303,310 @@ describe("subconta e números da empresa", () => {
     expect(aindaGlobal.twilio.enviados[0]?.de).toBe(REMETENTE_OFICIAL_WHATSAPP);
 
     await atualizarNumeroTwilio(acesso(empresaId), id, { status: "ATIVO" });
+    await prisma.templateWhatsapp.create({
+      data: {
+        empresaId,
+        tipo: "VENCE_EM_DIAS",
+        contentSid: `HX${"f".repeat(32)}`,
+        nome: "taguaro_vence_em_dias_v2",
+        corpo: "Olá, {{1}}. Texto {{5}}.",
+        status: "RASCUNHO",
+      },
+    });
     await enfileirar();
     const daEmpresa = clienteQueGrava();
-    const comSubconta = await processarFilaWhatsapp({
+    const avisos: string[] = [];
+    const info = console.info;
+    console.info = (...args: unknown[]) => {
+      avisos.push(args.map((item) => String(item)).join(" "));
+    };
+    let comSubconta: { enviados: number };
+    try {
+      comSubconta = await processarFilaWhatsapp({
+        agora: new Date("2026-10-26T16:00:00.000Z"),
+        empresaId,
+        twilio: daEmpresa.twilio,
+        conciliar: false,
+      });
+    } finally {
+      console.info = info;
+    }
+    expect(comSubconta.enviados).toBe(1);
+    expect(daEmpresa.contas.map((conta) => conta.accountSid)).toEqual([PAI]);
+    expect(daEmpresa.twilio.enviados[0]?.de).toBe(REMETENTE_OFICIAL_WHATSAPP);
+    expect(daEmpresa.twilio.enviados[0]?.contentSid).toBe(process.env.TWILIO_CONTENT_SID_VENCE_EM_DIAS);
+    expect(daEmpresa.twilio.enviados[0]?.statusCallback).toBe("https://taguaro.test/api/webhooks/twilio");
+    const filaFallback = await prisma.filaWhatsapp.findFirstOrThrow({
+      where: { empresaId, messageSid: daEmpresa.twilio.enviados[0]?.sid },
+    });
+    expect(filaFallback.motivo).toContain("modelo aprovado");
+    expect(avisos.join("\n")).toContain("whatsapp_fallback_subconta");
+    expect(avisos.join("\n")).not.toContain(TOKEN_SUB);
+  });
+
+  it("com modelo aprovado a subconta ganha do número oficial e o webhook usa o token dela", async () => {
+    process.env.TWILIO_WHATSAPP_SENDER_OFICIAL = "true";
+    process.env.TWILIO_WHATSAPP_OFICIAL_DESDE = "2026-01-01T00:00:00.000Z";
+    process.env.TWILIO_CONTENT_SID_VENCE_EM_DIAS = `HX${"e".repeat(32)}`;
+    const env = {
+      ...process.env,
+      TWILIO_CRIAR_SUBCONTA: "",
+      TWILIO_ACCOUNT_SID: PAI,
+      TWILIO_AUTH_TOKEN: "token-pai-de-teste-0001",
+      TWILIO_WEBHOOK_URL: "https://taguaro.test/api/webhooks/twilio",
+    };
+    const chamadas: string[] = [];
+    const twilioBusca = twilioQueConta(chamadas);
+    await expect(
+      vincularSubcontaExistente(acesso(empresaId, "FINANCEIRO"), { subaccountSid: SID_SUB }, { twilio: twilioBusca, env }),
+    ).rejects.toMatchObject({ status: 403 });
+    const painel = await vincularSubcontaExistente(acesso(empresaId), { subaccountSid: SID_SUB }, { twilio: twilioBusca, env });
+    expect(chamadas).toEqual([`obter:${PAI}:${SID_SUB}`]);
+    expect(JSON.stringify(painel)).not.toContain(TOKEN_SUB);
+    expect(painel.criacaoHabilitada).toBe(false);
+    expect(painel.subconta?.sid).toBe(SID_SUB);
+    const linha = await prisma.subcontaTwilio.findUniqueOrThrow({ where: { empresaId } });
+    expect(decifrarSegredoAsaas(linha.credencialCifrada)).toBe(TOKEN_SUB);
+    expect(linha.credencialCifrada).not.toContain(TOKEN_SUB);
+    await expect(
+      vincularSubcontaExistente(acesso(empresaId), { subaccountSid: PAI }, { twilio: twilioBusca, env }),
+    ).rejects.toMatchObject({ status: 400, codigo: "twilio_sid_pai" });
+
+    const sidEmpresa = `HX${"a".repeat(32)}`;
+    const salvo = await salvarTemplatesWhatsapp(acesso(empresaId), {
+      templates: [{ tipo: "VENCE_EM_DIAS", contentSid: sidEmpresa }],
+    });
+    expect(salvo.templates.find((item) => item.tipo === "VENCE_EM_DIAS")).toMatchObject({
+      contentSid: sidEmpresa,
+      status: "APROVADO",
+      statusRotulo: "Aprovado",
+    });
+    await expect(
+      salvarTemplatesWhatsapp(acesso(empresaId), { templates: [{ tipo: "PAGO", contentSid: "HXcurto" }] }),
+    ).rejects.toMatchObject({ status: 400, codigo: "content_sid_invalido" });
+    await expect(salvarTemplatesWhatsapp(acesso(empresaId, "FINANCEIRO"), { templates: [] })).rejects.toMatchObject({ status: 403 });
+
+    const cadastrado = await cadastrarNumeroTwilio(acesso(empresaId), { telefone: "+5511911112222", canal: "WHATSAPP" });
+    await atualizarNumeroTwilio(acesso(empresaId), cadastrado.numeros[0]?.id ?? "", { status: "ATIVO" });
+    const cliente = await criarCliente(empresaId, {
+      nomeFantasia: "Cliente da Régua",
+      razaoSocial: "Cliente da Régua Ltda",
+      documento: completarCnpj("593000000004"),
+      segmento: "RESTAURANTE",
+      contatoNome: "Ana Exemplo",
+      whatsapp: "13988881001",
+      email: "cliente.subconta@exemplo.test",
+      cidade: "Santos",
+      uf: "SP",
+      status: "ATIVO",
+    });
+    const fatura = await prisma.fatura.create({
+      data: {
+        empresaId,
+        clienteId: cliente.id,
+        asaasPaymentId: `pay_${randomBytes(4).toString("hex")}`,
+        valor: "150.00",
+        vencimento: new Date("2026-10-26T00:00:00.000Z"),
+        status: "PENDING",
+        formaCobranca: "BOLETO",
+        boletoUrl: "https://www.asaas.com/i/exemplo-boleto",
+        descricao: "Serviço exemplo",
+        criadoEm: new Date("2026-10-26T15:00:00.000Z"),
+      },
+    });
+    await prisma.filaWhatsapp.create({
+      data: {
+        empresaId,
+        faturaId: fatura.id,
+        clienteId: cliente.id,
+        tipo: "VENCE_EM_DIAS",
+        chaveIdempotencia: `wa:sub:${randomBytes(4).toString("hex")}`,
+        status: "PENDENTE",
+        destino: "whatsapp:+5513988881001",
+        modoTeste: false,
+        rotulo: "vence",
+        variaveis: JSON.stringify({
+          "1": "Cliente da Régua",
+          "2": "R$ 150,00",
+          "3": "5",
+          "4": "26/10/2026",
+          "5": "https://www.asaas.com/i/exemplo-boleto",
+        }),
+        disponivelEm: new Date("2026-10-26T15:00:00.000Z"),
+      },
+    });
+    const base = criarClienteTwilioMemoria();
+    const contas: CredencialTwilio[] = [];
+    const twilio = {
+      ...base,
+      async enviarMensagem(conta: CredencialTwilio, mensagem: Parameters<ClienteTwilio["enviarMensagem"]>[1]) {
+        contas.push(conta);
+        return base.enviarMensagem(conta, mensagem);
+      },
+    };
+    const enviado = await processarFilaWhatsapp({
       agora: new Date("2026-10-26T16:00:00.000Z"),
       empresaId,
-      twilio: daEmpresa.twilio,
+      twilio,
       conciliar: false,
     });
-    expect(comSubconta.enviados).toBe(1);
-    expect(daEmpresa.contas).toEqual([{ accountSid: SID_SUB, authToken: TOKEN_SUB }]);
-    expect(daEmpresa.twilio.enviados[0]?.de).toBe("whatsapp:+5511911112222");
-    expect(daEmpresa.twilio.enviados[0]?.contentSid).toBe(process.env.TWILIO_CONTENT_SID_VENCE_EM_DIAS);
+    expect(enviado.enviados).toBe(1);
+    expect(contas).toEqual([{ accountSid: SID_SUB, authToken: TOKEN_SUB }]);
+    expect(twilio.enviados[0]).toMatchObject({
+      de: "whatsapp:+5511911112222",
+      para: "whatsapp:+5513988881001",
+      contentSid: sidEmpresa,
+      statusCallback: "https://taguaro.test/api/webhooks/twilio",
+    });
+    expect(twilio.enviados[0]?.contentSid).not.toBe(process.env.TWILIO_CONTENT_SID_VENCE_EM_DIAS);
+    const messageSid = twilio.enviados[0]?.sid ?? "";
+    const parametros = {
+      AccountSid: SID_SUB,
+      MessageSid: messageSid,
+      MessageStatus: "delivered",
+      From: "whatsapp:+5511911112222",
+      To: "whatsapp:+5513988881001",
+    };
+    const status = await processarWebhookTwilio({
+      assinatura: assinaturaTwilio(env.TWILIO_WEBHOOK_URL, parametros, TOKEN_SUB),
+      parametros,
+    });
+    expect(status).toMatchObject({ recebido: true, duplicado: false });
+    expect(await prisma.eventoWhatsapp.findFirst({ where: { empresaId, messageSid } })).toMatchObject({ status: "delivered" });
+    await expect(
+      processarWebhookTwilio({
+        assinatura: assinaturaTwilio(env.TWILIO_WEBHOOK_URL, parametros, env.TWILIO_AUTH_TOKEN),
+        parametros,
+      }),
+    ).rejects.toMatchObject({ status: 403 });
+  });
+
+  it("passo com dias zero usa VENCE_HOJE aprovado e, sem ele, continua em VENCE_EM_DIAS", async () => {
+    process.env.TWILIO_WHATSAPP_SENDER_OFICIAL = "true";
+    process.env.TWILIO_WHATSAPP_OFICIAL_DESDE = "2026-01-01T00:00:00.000Z";
+    process.env.TWILIO_CONTENT_SID_VENCE_EM_DIAS = `HX${"e".repeat(32)}`;
+    const env = {
+      ...process.env,
+      TWILIO_ACCOUNT_SID: PAI,
+      TWILIO_AUTH_TOKEN: "token-pai-de-teste-0001",
+      TWILIO_WEBHOOK_URL: "https://taguaro.test/api/webhooks/twilio",
+    };
+    const cliente = await criarCliente(empresaId, {
+      nomeFantasia: "Cliente da Régua",
+      razaoSocial: "Cliente da Régua Ltda",
+      documento: completarCnpj("593000000005"),
+      segmento: "RESTAURANTE",
+      contatoNome: "Ana Exemplo",
+      whatsapp: "13988881001",
+      email: "cliente.hoje@exemplo.test",
+      cidade: "Santos",
+      uf: "SP",
+      status: "ATIVO",
+    });
+    const fatura = await prisma.fatura.create({
+      data: {
+        empresaId,
+        clienteId: cliente.id,
+        asaasPaymentId: `pay_${randomBytes(4).toString("hex")}`,
+        valor: "150.00",
+        vencimento: new Date("2026-10-26T00:00:00.000Z"),
+        status: "PENDING",
+        formaCobranca: "BOLETO",
+        boletoUrl: "https://www.asaas.com/i/exemplo-boleto",
+        descricao: "Serviço exemplo",
+        criadoEm: new Date("2026-10-26T15:00:00.000Z"),
+      },
+    });
+    const regua = await prisma.reguaCobranca.create({
+      data: {
+        empresaId,
+        nome: "Régua do dia",
+        horaInicio: 8,
+        horaFim: 18,
+        passos: {
+          create: {
+            empresaId,
+            ordem: 0,
+            naEmissao: false,
+            dias: 0,
+            canal: "EMAIL",
+            assunto: "Vence hoje",
+            corpo: "Texto do passo",
+            enviarWhatsapp: true,
+          },
+        },
+      },
+      include: { passos: true },
+    });
+    const passo = regua.passos[0];
+    if (!passo) throw new Error("passo ausente");
+    const linha = {
+      ...fatura,
+      boletoUrl: fatura.boletoUrl,
+      faturaUrl: fatura.faturaUrl,
+      cliente: {
+        id: cliente.id,
+        nomeFantasia: cliente.nomeFantasia,
+        whatsapp: cliente.whatsapp,
+        status: cliente.status,
+        reguaModo: cliente.reguaModo,
+        reguaPausada: cliente.reguaPausada,
+      },
+    };
+    const agora = new Date("2026-10-26T16:00:00.000Z");
+    expect(await enfileirarWhatsappDoPasso(linha, passo, false, agora)).toBe("enfileirado");
+    const semSubconta = await prisma.filaWhatsapp.findFirstOrThrow({ where: { empresaId, passoId: passo.id } });
+    expect(semSubconta.tipo).toBe("VENCE_EM_DIAS");
+    expect(JSON.parse(semSubconta.variaveis)).toMatchObject({
+      "1": "Cliente da Régua",
+      "2": "R$ 150,00",
+      "3": "0",
+      "4": "26/10/2026",
+      "5": "https://www.asaas.com/i/exemplo-boleto",
+    });
+
+    await vincularSubcontaExistente(acesso(empresaId), { subaccountSid: SID_SUB }, { twilio: twilioQueConta([]), env });
+    const numero = await cadastrarNumeroTwilio(acesso(empresaId), { telefone: "+551148633947", canal: "WHATSAPP" });
+    await atualizarNumeroTwilio(acesso(empresaId), numero.numeros[0]?.id ?? "", { status: "ATIVO" });
+    await prisma.filaWhatsapp.deleteMany({ where: { empresaId } });
+    expect(await enfileirarWhatsappDoPasso(linha, passo, false, agora)).toBe("enfileirado");
+    expect((await prisma.filaWhatsapp.findFirstOrThrow({ where: { empresaId, passoId: passo.id } })).tipo).toBe("VENCE_EM_DIAS");
+
+    const sidHoje = "HX578d21bad62d99aa8e22582067eb2ec2";
+    await salvarTemplatesWhatsapp(acesso(empresaId), { templates: [{ tipo: "VENCE_HOJE", contentSid: sidHoje }] });
+    await prisma.filaWhatsapp.deleteMany({ where: { empresaId } });
+    expect(await enfileirarWhatsappDoPasso(linha, passo, false, agora)).toBe("enfileirado");
+    const hoje = await prisma.filaWhatsapp.findFirstOrThrow({ where: { empresaId, passoId: passo.id } });
+    expect(hoje.tipo).toBe("VENCE_HOJE");
+    expect(hoje.rotulo).toBe("WhatsApp · vence hoje");
+    const variaveis = JSON.parse(hoje.variaveis) as Record<string, string>;
+    expect(variaveis).toEqual({
+      "1": "Cliente da Régua",
+      "2": "R$ 150,00",
+      "3": "26/10/2026",
+      "4": "https://www.asaas.com/i/exemplo-boleto",
+    });
+    expect(variaveis["5"]).toBeUndefined();
+
+    const base = criarClienteTwilioMemoria();
+    const contas: CredencialTwilio[] = [];
+    const twilio = {
+      ...base,
+      async enviarMensagem(conta: CredencialTwilio, mensagem: Parameters<ClienteTwilio["enviarMensagem"]>[1]) {
+        contas.push(conta);
+        return base.enviarMensagem(conta, mensagem);
+      },
+    };
+    const enviado = await processarFilaWhatsapp({ agora, empresaId, twilio, conciliar: false });
+    expect(enviado.enviados).toBe(1);
+    expect(contas).toEqual([{ accountSid: SID_SUB, authToken: TOKEN_SUB }]);
+    expect(twilio.enviados[0]).toMatchObject({
+      de: "whatsapp:+551148633947",
+      contentSid: sidHoje,
+      statusCallback: "https://taguaro.test/api/webhooks/twilio",
+      variaveis,
+    });
+    expect(twilio.enviados[0]?.contentSid).not.toBe(process.env.TWILIO_CONTENT_SID_VENCE_EM_DIAS);
   });
 
   it("aceita o webhook da subconta e recusa o token da conta pai nesse SID", async () => {

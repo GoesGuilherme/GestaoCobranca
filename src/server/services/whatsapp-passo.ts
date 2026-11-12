@@ -3,6 +3,7 @@ import { resolverWhatsappDoPasso, type TipoTemplateWhatsapp } from "@/lib/whatsa
 import { prisma } from "@/server/db";
 import type { ClienteTwilio } from "@/server/twilio/contrato";
 import { inicioWhatsappOficialProducao, remetenteOficialLigado } from "@/server/twilio/sandbox";
+import { tipoWhatsappDoPasso } from "@/server/twilio/subconta-whatsapp";
 import { enfileirarWhatsappDoPasso, processarFilaWhatsapp } from "./whatsapp-fila";
 
 type ClientePasso = {
@@ -81,7 +82,7 @@ export async function prepararWhatsappDoPasso(
 ): Promise<{ processar: boolean; canal: ResultadoCanalReenvio | null }> {
   const naoAplica = motivoWhatsappNaoAplica(fatura, passo, modoTeste, agora);
   if (naoAplica) return { processar: false, canal: canal("ignorado", naoAplica) };
-  const tipo = resolverWhatsappDoPasso(passo, fatura, agora)?.tipo;
+  const tipo = (await tipoWhatsappDoPasso(fatura.empresaId, passo, fatura, agora))?.tipo;
   if (!tipo) return { processar: false, canal: canal("ignorado", "WhatsApp não se aplica a esta cobrança.") };
   const fila = await enfileirarWhatsappDoPasso(fatura, passo, modoTeste, agora);
   const linha = await lerLinha(fatura.empresaId, fatura.id, passo.id, tipo);
@@ -109,6 +110,11 @@ export async function concluirWhatsappDoPasso(
       tipos.add("VENCEU");
       continue;
     }
+    if (passo.dias === 0) {
+      tipos.add("VENCE_EM_DIAS");
+      tipos.add("VENCE_HOJE");
+      continue;
+    }
     const tipo = resolverWhatsappDoPasso(passo, null)?.tipo;
     if (tipo) tipos.add(tipo);
   }
@@ -127,7 +133,7 @@ export async function canalWhatsappGravado(
   fatura: FaturaWhatsappPasso,
   passo: PassoWhatsapp,
 ): Promise<ResultadoCanalReenvio> {
-  const tipo = resolverWhatsappDoPasso(passo, fatura)?.tipo;
+  const tipo = (await tipoWhatsappDoPasso(fatura.empresaId, passo, fatura))?.tipo;
   const linha = tipo ? await lerLinha(fatura.empresaId, fatura.id, passo.id, tipo) : null;
   if (!linha) return canal("ignorado", "WhatsApp não se aplica a esta cobrança.");
   return canalDaLinha(linha.status, linha.motivo, false);

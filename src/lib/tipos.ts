@@ -336,10 +336,18 @@ export type PassoReguaDTO = {
 export type CoexistenciaTwilioDTO = "NAO_SOLICITADA" | "SOLICITADA" | "ATIVA" | "INDISPONIVEL";
 
 export type TemplateWhatsappDTO = {
-  tipo: "BOLETO_GERADO" | "VENCE_EM_DIAS" | "VENCEU" | "PAGO";
+  tipo: "BOLETO_GERADO" | "VENCE_EM_DIAS" | "VENCE_HOJE" | "VENCEU" | "PAGO";
   nome: string;
   status: string;
   motivo: string | null;
+};
+
+export type TemplateTelefoneDTO = {
+  tipo: TemplateWhatsappDTO["tipo"];
+  rotulo: string;
+  contentSid: string | null;
+  status: string;
+  statusRotulo: string;
 };
 
 export type CanalWhatsappServidor = {
@@ -370,6 +378,7 @@ export type PainelTelefonesDTO = {
   } | null;
   criacaoHabilitada: boolean;
   numeros: NumeroTwilioDTO[];
+  templates: TemplateTelefoneDTO[];
   envioWhatsapp: "global" | "empresa";
   envioSms: "global" | "empresa";
 };

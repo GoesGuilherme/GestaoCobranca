@@ -2,7 +2,7 @@ import { dataHojeIso, isoDeData } from "./data";
 import { somenteDigitos, whatsappValido } from "./documento";
 import { diferencaDias } from "./regua";
 
-export const TIPOS_TEMPLATE_WHATSAPP = ["BOLETO_GERADO", "VENCE_EM_DIAS", "VENCEU", "PAGO"] as const;
+export const TIPOS_TEMPLATE_WHATSAPP = ["BOLETO_GERADO", "VENCE_EM_DIAS", "VENCE_HOJE", "VENCEU", "PAGO"] as const;
 
 export type TipoTemplateWhatsapp = (typeof TIPOS_TEMPLATE_WHATSAPP)[number];
 
@@ -74,7 +74,22 @@ export const TEMPLATES_COBRANCA_WHATSAPP: TemplateCobrancaWhatsapp[] = [
   },
 ];
 
+// O passo com dias === 0 usa este modelo só na subconta, e só se estiver aprovado.
+// Ele não entra na publicação automática da conta antiga: o ContentSid já existe na subconta.
+export const MODELO_VENCE_HOJE: TemplateCobrancaWhatsapp = {
+  tipo: "VENCE_HOJE",
+  nome: "taguaro_vence_hoje",
+  corpo: `Olá, {{1}}. Sua cobrança de {{2}} vence hoje, na data {{3}}. Acesse o link do Asaas: {{4}}. ${FECHO_TEMPLATE}`,
+  variaveisExemplo: {
+    "1": "Maria Exemplo",
+    "2": "R$ 150,00",
+    "3": "30/10/2026",
+    "4": "https://www.asaas.com/i/exemplo",
+  },
+};
+
 export function templateCobrancaWhatsapp(tipo: TipoTemplateWhatsapp): TemplateCobrancaWhatsapp {
+  if (tipo === "VENCE_HOJE") return MODELO_VENCE_HOJE;
   const encontrado = TEMPLATES_COBRANCA_WHATSAPP.find((item) => item.tipo === tipo);
   if (!encontrado) throw new Error("Template de WhatsApp desconhecido.");
   return encontrado;
@@ -87,7 +102,9 @@ export function formaUsaTemplateBoleto(forma: string | null | undefined): boolea
   return texto === "BOLETO" || texto === "BOLETO_PIX";
 }
 
-export function tipoTemplateDoPasso(passo: { naEmissao: boolean; dias: number | null }): Exclude<TipoTemplateWhatsapp, "PAGO"> {
+// dias === 0 fica em VENCE_EM_DIAS. A fila só troca para VENCE_HOJE quando a
+// empresa tem esse modelo aprovado na subconta. Sem ele, o passo segue como hoje.
+export function tipoTemplateDoPasso(passo: { naEmissao: boolean; dias: number | null }): Exclude<TipoTemplateWhatsapp, "PAGO" | "VENCE_HOJE"> {
   if (passo.naEmissao) return "BOLETO_GERADO";
   if ((passo.dias ?? 0) > 0) return "VENCEU";
   return "VENCE_EM_DIAS";
@@ -137,6 +154,7 @@ export function resolverWhatsappDoPasso(
 
 export function rotuloTemplateWhatsapp(tipo: TipoTemplateWhatsapp, dias: number | null = null): string {
   if (tipo === "BOLETO_GERADO") return "WhatsApp · boleto gerado";
+  if (tipo === "VENCE_HOJE") return "WhatsApp · vence hoje";
   if (tipo === "VENCEU") return "WhatsApp · venceu";
   if (tipo === "PAGO") return "WhatsApp · pago";
   const n = Math.abs(dias ?? 0);
@@ -188,6 +206,13 @@ export function variaveisDoTemplate(
     return { "1": nome, "2": valor, "3": dias, "4": vencimento, "5": link };
   }
   return { "1": nome, "2": valor, "3": vencimento, "4": link };
+}
+
+const SID_CONTEUDO = /^HX[0-9a-fA-F]{32}$/;
+
+export function contentSidValido(valor: string | null | undefined): string | null {
+  const sid = valor?.trim() ?? "";
+  return SID_CONTEUDO.test(sid) ? sid : null;
 }
 
 const LINK_TEMPLATE = /^https?:\/\/\S+$/i;

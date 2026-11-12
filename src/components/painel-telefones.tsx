@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { enviarJson } from "@/lib/api-cliente";
 import type { PainelTelefonesDTO, NumeroTwilioDTO } from "@/lib/tipos";
@@ -19,13 +19,26 @@ function textoEnvio(canal: string, origem: "global" | "empresa") {
   return `O ${canal} continua saindo pela conta e pelo número globais.`;
 }
 
+function mapaTemplates(painel: PainelTelefonesDTO) {
+  return Object.fromEntries(painel.templates.map((item) => [item.tipo, item.contentSid ?? ""]));
+}
+
 export function PainelTelefones({ inicial }: { inicial: PainelTelefonesDTO }) {
   const router = useRouter();
   const [telefone, setTelefone] = useState("");
   const [canal, setCanal] = useState<"WHATSAPP" | "SMS">("WHATSAPP");
+  const [sid, setSid] = useState("");
+  const [modelos, setModelos] = useState<Record<string, string>>(() => mapaTemplates(inicial));
   const [enviando, setEnviando] = useState(false);
   const [criando, setCriando] = useState(false);
+  const [vinculando, setVinculando] = useState(false);
+  const [salvandoModelos, setSalvandoModelos] = useState(false);
   const [ocupado, setOcupado] = useState<string | null>(null);
+  const chaveModelos = inicial.templates.map((item) => `${item.tipo}:${item.contentSid ?? ""}:${item.status}`).join("|");
+
+  useEffect(() => {
+    setModelos(mapaTemplates(inicial));
+  }, [chaveModelos, inicial]);
 
   async function cadastrar(evento: React.FormEvent) {
     evento.preventDefault();
@@ -38,6 +51,38 @@ export function PainelTelefones({ inicial }: { inicial: PainelTelefonesDTO }) {
     }
     setTelefone("");
     avisarSucesso("Número cadastrado");
+    router.refresh();
+  }
+
+  async function vincularSubconta(evento: React.FormEvent) {
+    evento.preventDefault();
+    setVinculando(true);
+    const resposta = await enviarJson("/api/telefones/subconta/vincular", "POST", { subaccountSid: sid.trim() });
+    setVinculando(false);
+    if (!resposta.ok) {
+      avisarErro(resposta.erro);
+      return;
+    }
+    setSid("");
+    avisarSucesso("Subconta vinculada");
+    router.refresh();
+  }
+
+  async function salvarModelos(evento: React.FormEvent) {
+    evento.preventDefault();
+    setSalvandoModelos(true);
+    const resposta = await enviarJson("/api/telefones/templates", "POST", {
+      templates: inicial.templates.map((item) => ({
+        tipo: item.tipo,
+        contentSid: (modelos[item.tipo] ?? "").trim(),
+      })),
+    });
+    setSalvandoModelos(false);
+    if (!resposta.ok) {
+      avisarErro(resposta.erro);
+      return;
+    }
+    avisarSucesso("Modelos salvos");
     router.refresh();
   }
 
@@ -124,9 +169,67 @@ export function PainelTelefones({ inicial }: { inicial: PainelTelefonesDTO }) {
             {criando ? "Consultando..." : "Criar subconta"}
           </button>
         )}
+        {inicial.subconta ? null : (
+          <form onSubmit={vincularSubconta} className="space-y-3 border-t border-line pt-4">
+            <h3 className="text-lg font-medium text-ink">Vincular subconta existente</h3>
+            <p className="text-sm leading-6 text-muted">
+              Não cria subconta e não envia mensagem. A conta pai busca o token do SID informado e o sistema guarda só a cifra.
+            </p>
+            <label className="block text-sm font-medium text-ink" htmlFor="sid-subconta">
+              SID da subconta
+              <input
+                id="sid-subconta"
+                name="subaccountSid"
+                value={sid}
+                onChange={(evento) => setSid(evento.target.value)}
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="AC…"
+                className={`${classeCampo} mt-1`}
+                required
+              />
+            </label>
+            <button type="submit" className={classeBotaoPrimario} disabled={vinculando || sid.trim().length < 34}>
+              {vinculando ? "Vinculando..." : "Vincular subconta"}
+            </button>
+          </form>
+        )}
         <p className="text-sm leading-6 text-ink">{textoEnvio("WhatsApp", inicial.envioWhatsapp)}</p>
         <p className="text-sm leading-6 text-ink">{textoEnvio("SMS", inicial.envioSms)}</p>
       </section>
+
+      <form onSubmit={salvarModelos} className="max-w-2xl space-y-4 rounded-3xl border border-line bg-card p-6">
+        <h2 className="font-display text-2xl">Modelos de WhatsApp</h2>
+        <p className="text-sm leading-6 text-muted">
+          Informe o ContentSid de cada modelo já aprovado na subconta. Ao salvar, o status fica Aprovado. O envio pela
+          subconta só usa modelo aprovado. Se faltar o modelo do tipo, a mensagem segue pelo número oficial.
+        </p>
+        <div className="space-y-4">
+          {inicial.templates.map((modelo) => (
+            <div key={modelo.tipo} className="grid gap-2 sm:grid-cols-[9rem_1fr] sm:items-center">
+              <div>
+                <label className="text-sm font-medium text-ink" htmlFor={`modelo-${modelo.tipo}`}>
+                  {modelo.rotulo}
+                </label>
+                <p className="text-xs text-muted">{modelo.statusRotulo}</p>
+              </div>
+              <input
+                id={`modelo-${modelo.tipo}`}
+                name={modelo.tipo}
+                value={modelos[modelo.tipo] ?? ""}
+                onChange={(evento) => setModelos((atual) => ({ ...atual, [modelo.tipo]: evento.target.value }))}
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="HX…"
+                className={classeCampo}
+              />
+            </div>
+          ))}
+        </div>
+        <button type="submit" className={classeBotaoPrimario} disabled={salvandoModelos}>
+          {salvandoModelos ? "Salvando..." : "Salvar modelos"}
+        </button>
+      </form>
 
       <form onSubmit={cadastrar} className="max-w-2xl space-y-4 rounded-3xl border border-line bg-card p-6">
         <h2 className="font-display text-2xl">Cadastrar número</h2>

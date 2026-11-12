@@ -4,7 +4,6 @@ import { formatarDataIso } from "@/lib/formatacao";
 import {
   digitosWhatsapp,
   ROTULO_WHATSAPP_LINK_CARTAO,
-  resolverWhatsappDoPasso,
   rotuloTemplateWhatsapp,
   variaveisCompativeisComTemplate,
   variaveisDoTemplate,
@@ -17,7 +16,12 @@ import { prisma } from "@/server/db";
 import { ErroTwilio } from "@/server/twilio/contrato";
 import type { ClienteTwilio, CredencialTwilio, MensagemTemplate } from "@/server/twilio/contrato";
 import { credenciaisPaiTwilio, numeroTesteWhatsapp, urlWebhookTwilio } from "@/server/twilio/fabrica";
-import { aplicarRemetenteEmpresa } from "@/server/twilio/remetente";
+import { aplicarRemetenteEmpresa, remetenteDaEmpresa } from "@/server/twilio/remetente";
+import {
+  decidirSubcontaWhatsapp,
+  registrarFallbackSubconta,
+  tipoWhatsappDoPasso,
+} from "@/server/twilio/subconta-whatsapp";
 import {
   contentSidSandbox,
   inicioWhatsappOficialProducao,
@@ -142,7 +146,11 @@ async function montar(
   modoTeste: boolean,
   agora: Date,
 ): Promise<DadosFila> {
-  const conexao = await db.configuracaoTwilio.findUnique({ where: { empresaId: fatura.empresaId } });
+  const [conexao, remetenteEmpresa] = await Promise.all([
+    db.configuracaoTwilio.findUnique({ where: { empresaId: fatura.empresaId } }),
+    remetenteDaEmpresa(fatura.empresaId, "WHATSAPP"),
+  ]);
+  const subcontaPronta = Boolean(remetenteEmpresa);
   const rota = rotaWhatsapp({
     modoTeste,
     oficialLigado: remetenteOficialLigado(),
@@ -162,10 +170,10 @@ async function montar(
     rotulo: rotuloTemplateWhatsapp(tipo, dias),
     disponivelEm: agora,
   };
-  if (!conexao && !canalPai) {
+  if (!conexao && !canalPai && !subcontaPronta) {
     return { ...base, status: "IGNORADO", destino: null, motivo: "WhatsApp não conectado", variaveis: "{}" };
   }
-  if (conexao && conexao.senderStatus !== "ONLINE" && !canalPai) {
+  if (conexao && conexao.senderStatus !== "ONLINE" && !canalPai && !subcontaPronta) {
     return { ...base, status: "IGNORADO", destino: null, motivo: "sender ainda não está online", variaveis: "{}" };
   }
   const regra = await destinoEMotivo(db, fatura.empresaId, fatura.cliente, modoTeste);
@@ -206,7 +214,7 @@ export async function enfileirarWhatsappDoPasso(
   chaveSufixo?: string,
 ): Promise<ResultadoFila> {
   if (!passo.enviarWhatsapp || fatura.excluida) return "nao_aplica";
-  const resolvido = resolverWhatsappDoPasso(passo, fatura, agora);
+  const resolvido = await tipoWhatsappDoPasso(fatura.empresaId, passo, fatura, agora);
   if (!resolvido) return "nao_aplica";
   if (!modoTeste && remetenteOficialLigado() && !faturaLiberadaOficial(fatura.criadoEm)) return "nao_aplica";
   const dados = await montar(db, fatura, resolvido.tipo, passo.id, resolvido.dias, modoTeste, agora);
@@ -285,10 +293,11 @@ async function concluirEnvio(
   agora: Date,
   conta: CredencialTwilio,
   mensagem: MensagemTemplate,
+  motivoSucesso: string | null = null,
 ) {
   try {
     const envio = await twilio.enviarMensagem(conta, mensagem);
-    await marcar(item.id, { status: "ENVIADO", messageSid: envio.sid, destino: mensagem.para, motivo: null });
+    await marcar(item.id, { status: "ENVIADO", messageSid: envio.sid, destino: mensagem.para, motivo: motivoSucesso });
     return "enviado" as const;
   } catch (erro) {
     const tentativas = item.tentativas + 1;
@@ -392,12 +401,13 @@ export async function processarFilaWhatsapp(
       continue;
     }
 
-    const [conexao, regua, template] = await Promise.all([
+    const [conexao, regua, template, decisao] = await Promise.all([
       prisma.configuracaoTwilio.findUnique({ where: { empresaId: item.empresaId } }),
       prisma.configuracaoRegua.findUnique({ where: { empresaId: item.empresaId } }),
       prisma.templateWhatsapp.findUnique({
         where: { empresaId_tipo: { empresaId: item.empresaId, tipo: item.tipo } },
       }),
+      decidirSubcontaWhatsapp(item.empresaId, item.tipo),
     ]);
     // Fila criada no modo teste não passa a ir para o cliente se a régua sair do teste.
     const modoEfetivo = item.modoTeste || Boolean(regua?.modoTeste);
@@ -416,6 +426,38 @@ export async function processarFilaWhatsapp(
         continue;
       }
     }
+    if (decisao.usar) {
+      if (!modoEfetivo) {
+        const teste = whatsappE164(numeroTesteWhatsapp() ?? "");
+        if (!clienteE164 || regra.destino !== `whatsapp:${clienteE164}` || regra.destino === REMETENTE_SANDBOX_WHATSAPP) {
+          await marcar(item.id, { status: "IGNORADO", motivo: "destino não é o WhatsApp do cliente", destino: null });
+          resultado.ignorados += 1;
+          continue;
+        }
+        if (teste && regra.destino === `whatsapp:${teste}` && teste !== clienteE164) {
+          await marcar(item.id, { status: "IGNORADO", motivo: "produção não envia para o número de teste", destino: null });
+          resultado.ignorados += 1;
+          continue;
+        }
+      }
+      const variaveisEmpresa = variaveisGravadas(item.variaveis);
+      if (!variaveisEmpresa || !variaveisCompativeisComTemplate(item.tipo, variaveisEmpresa)) {
+        await marcar(item.id, { status: "FALHOU", motivo: "variáveis inválidas" });
+        resultado.falhas += 1;
+        continue;
+      }
+      const envioEmpresa = await concluirEnvio(twilio, item, agora, decisao.conta, {
+        de: decisao.de,
+        para: regra.destino,
+        contentSid: decisao.contentSid,
+        variaveis: variaveisEmpresa,
+        statusCallback: decisao.statusCallback,
+      });
+      if (envioEmpresa === "enviado") resultado.enviados += 1;
+      if (envioEmpresa === "falha") resultado.falhas += 1;
+      continue;
+    }
+    if (decisao.motivo) registrarFallbackSubconta(item.empresaId, item.tipo, decisao.motivo);
     const producaoPronta = Boolean(
       conexao &&
         conexao.senderStatus === "ONLINE" &&
@@ -450,8 +492,8 @@ export async function processarFilaWhatsapp(
         item.id,
         item.criadoEm,
         agora,
-        "template aguardando aprovação",
-        "template ou sender não ficou pronto a tempo",
+        decisao.motivo ?? "template aguardando aprovação",
+        decisao.motivo ?? "template ou sender não ficou pronto a tempo",
       );
       if (espera === "ignorado") resultado.ignorados += 1;
       continue;
@@ -484,7 +526,7 @@ export async function processarFilaWhatsapp(
           item.id,
           item.criadoEm,
           agora,
-          oficial ? "remetente oficial sem ContentSid da conta pai" : "sandbox sem ContentSid da conta pai",
+          decisao.motivo ?? (oficial ? "remetente oficial sem ContentSid da conta pai" : "sandbox sem ContentSid da conta pai"),
         );
         if (espera === "ignorado") resultado.ignorados += 1;
         continue;
@@ -544,16 +586,20 @@ export async function processarFilaWhatsapp(
       continue;
     }
 
-    const remetente = await aplicarRemetenteEmpresa(item.empresaId, "WHATSAPP", {
-      conta,
-      de: mensagem.de,
-      statusCallback: mensagem.statusCallback,
-    });
-    const envio = await concluirEnvio(twilio, item, agora, remetente.conta, {
-      ...mensagem,
-      de: remetente.de,
-      statusCallback: remetente.statusCallback,
-    });
+    const baseEnvio = { conta, de: mensagem.de, statusCallback: mensagem.statusCallback };
+    // Sem modelo aprovado na subconta, não trocamos a conta: o ContentSid da pai
+    // não existe na subconta. O motivo fica na fila.
+    const remetente = decisao.motivo
+      ? { ...baseEnvio, origem: "global" as const }
+      : await aplicarRemetenteEmpresa(item.empresaId, "WHATSAPP", baseEnvio);
+    const envio = await concluirEnvio(
+      twilio,
+      item,
+      agora,
+      remetente.conta,
+      { ...mensagem, de: remetente.de, statusCallback: remetente.statusCallback },
+      decisao.motivo,
+    );
     if (envio === "enviado") resultado.enviados += 1;
     if (envio === "falha") resultado.falhas += 1;
   }

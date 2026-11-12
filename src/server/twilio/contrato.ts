@@ -65,6 +65,7 @@ export type MensagemTexto = {
 
 export type ClienteTwilio = {
   criarSubconta(pai: CredencialTwilio, nome: string): Promise<{ sid: string; authToken: string }>;
+  obterSubconta(pai: CredencialTwilio, sid: string): Promise<{ sid: string; authToken: string; status: string }>;
   criarSender(conta: CredencialTwilio, pedido: PedidoSender): Promise<SenderTwilio>;
   obterSender(conta: CredencialTwilio, senderSid: string): Promise<SenderTwilio>;
   enviarCodigo(conta: CredencialTwilio, senderSid: string, codigo: string): Promise<SenderTwilio>;

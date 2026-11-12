@@ -98,4 +98,25 @@ describe("cliente HTTP da Twilio", () => {
     expect(chamadas[0]?.body.includes("Body=")).toBe(true);
     expect(chamadas[0]?.body.includes("ContentSid")).toBe(false);
   });
+
+  it("busca o token da subconta na conta pai sem colocar o segredo na requisição", async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      expect(url).toBe("https://api.twilio.com/2010-04-01/Accounts/ACcccccccccccccccccccccccccccccccc.json");
+      return new Response(
+        JSON.stringify({
+          sid: "ACcccccccccccccccccccccccccccccccc",
+          auth_token: "segredo-subconta-buscado",
+          status: "active",
+          owner_account_sid: PAI.accountSid,
+        }),
+        { status: 200 },
+      );
+    });
+    const cliente = criarClienteTwilioHttp({ fetchImpl, env: { NODE_ENV: "production" } });
+    const sub = await cliente.obterSubconta(PAI, "ACcccccccccccccccccccccccccccccccc");
+    expect(sub).toEqual({ sid: "ACcccccccccccccccccccccccccccccccc", authToken: "segredo-subconta-buscado", status: "active" });
+    expect(JSON.stringify(fetchImpl.mock.calls)).not.toContain("segredo-subconta-buscado");
+    await expect(cliente.obterSubconta(PAI, PAI.accountSid)).rejects.toThrow(/conta pai/);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
 });
