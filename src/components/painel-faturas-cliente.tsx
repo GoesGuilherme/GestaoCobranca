@@ -198,6 +198,7 @@ export function PainelFaturasCliente({
               vencimento={emitida.vencimento}
               modeloMensagem={preferencias.modeloMensagem}
               modeloAssunto={preferencias.modeloAssunto}
+              envioCartao={emitida.formaCobranca === "CREDIT_CARD" ? { faturaId: emitida.id } : undefined}
             />
           </div>
         </div>

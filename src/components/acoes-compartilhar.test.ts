@@ -1,8 +1,12 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { documentoDaFatura, MENSAGEM_FATURA_SEM_DOCUMENTO } from "@/lib/baixar-fatura";
 import { AcoesCompartilhar } from "./acoes-compartilhar";
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: () => undefined, refresh: () => undefined }),
+}));
 
 const base = {
   link: "https://sandbox.asaas.com/i/pay_1",
@@ -66,5 +70,15 @@ describe("painel da fatura: baixar no lugar de copiar link", () => {
 
     expect(markup).toContain("Copiar link");
     expect(markup).not.toContain("Baixar fatura");
+  });
+
+  it("no link do cartão o e-mail e o WhatsApp saem pelo servidor", () => {
+    const markup = html({ ...base, envioCartao: { faturaId: "fatura-cartao-1" } });
+
+    expect(markup).toContain("Copiar link");
+    expect(markup).toContain("Enviar por WhatsApp");
+    expect(markup).toContain("Enviar por e-mail");
+    expect(markup).not.toContain("wa.me/");
+    expect(markup).not.toContain("mailto:");
   });
 });

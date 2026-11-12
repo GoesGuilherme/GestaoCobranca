@@ -269,6 +269,11 @@ export function AcoesRecorrencia({
             vencimento={assinatura.proximoVencimento ?? ""}
             modeloMensagem={preferencias.modeloMensagem}
             modeloAssunto={preferencias.modeloAssunto}
+            envioCartao={
+              assinatura.formaCobranca === "CREDIT_CARD" || assinatura.cartaoStatus
+                ? { clienteServicoId: vinculo.id }
+                : undefined
+            }
           />
         </div>
       ) : null}
