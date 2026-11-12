@@ -715,6 +715,10 @@ export const esquemaLembreteManual = z.object({
   passoId: z.string().trim().min(1, "Escolha o passo.").max(64),
 });
 
+export const esquemaEnvioLinkCartao = z.object({
+  canal: z.enum(["EMAIL", "WHATSAPP"], "Escolha e-mail ou WhatsApp."),
+});
+
 export const esquemaReenvioBoletos = z.object({
   ids: z
     .array(

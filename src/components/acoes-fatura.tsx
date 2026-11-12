@@ -80,6 +80,7 @@ export function AcoesFatura({
           modeloMensagem={preferencias.modeloMensagem}
           modeloAssunto={preferencias.modeloAssunto}
           baixar={documentoDaFatura({ boletoUrl: fatura.boletoUrl })}
+          envioCartao={fatura.formaCobranca === "CREDIT_CARD" ? { faturaId: fatura.id } : undefined}
         />
         {temCodigo ? (
           <div>

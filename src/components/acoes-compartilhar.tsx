@@ -1,6 +1,8 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useId, useRef, useState } from "react";
+import { enviarJson } from "@/lib/api-cliente";
 import {
   lerMensagemDownload,
   MENSAGEM_DOWNLOAD_FALHOU,
@@ -9,6 +11,12 @@ import {
 import { MODELO_ASSUNTO_PADRAO, MODELO_MENSAGEM_PADRAO, linkEmail, linkWhatsapp, textoCobranca } from "@/lib/cobranca";
 import { formatarReais } from "@/lib/dinheiro";
 import { formatarDataIso } from "@/lib/formatacao";
+
+type CanalServidor = "EMAIL" | "WHATSAPP";
+
+type EnvioCartao = { faturaId: string } | { clienteServicoId: string };
+
+type RetornoCanal = { texto: string; ok: boolean };
 
 const classeCompartilhar =
   "inline-flex cursor-pointer items-center justify-center rounded-full border border-line bg-card px-3 py-1.5 text-xs font-medium text-ink transition hover:bg-sand disabled:cursor-not-allowed disabled:opacity-50";
@@ -24,6 +32,7 @@ export function AcoesCompartilhar({
   modeloMensagem,
   modeloAssunto,
   baixar,
+  envioCartao,
 }: {
   link: string | null;
   whatsapp: string;
@@ -35,10 +44,15 @@ export function AcoesCompartilhar({
   modeloMensagem: string;
   modeloAssunto: string;
   baixar?: DocumentoFatura;
+  envioCartao?: EnvioCartao;
 }) {
+  const router = useRouter();
   const [copiado, setCopiado] = useState(false);
   const [baixando, setBaixando] = useState(false);
   const [falhaDownload, setFalhaDownload] = useState<string | null>(null);
+  const [canalAtivo, setCanalAtivo] = useState<CanalServidor | null>(null);
+  const [retornos, setRetornos] = useState<Partial<Record<CanalServidor, RetornoCanal>>>({});
+  const ocupado = useRef(false);
   const avisoId = useId();
   const linkUtil = link?.trim() ?? "";
   if (!linkUtil && !baixar) return null;
@@ -52,9 +66,44 @@ export function AcoesCompartilhar({
   };
   const mensagem = linkUtil ? textoCobranca(modeloMensagem, MODELO_MENSAGEM_PADRAO, dados) : "";
   const assunto = linkUtil ? textoCobranca(modeloAssunto, MODELO_ASSUNTO_PADRAO, dados) : "";
-  const whatsappUrl = linkUtil ? linkWhatsapp(whatsapp, mensagem) : null;
-  const emailUrl = linkUtil ? linkEmail(email, assunto, mensagem) : null;
+  const whatsappUrl = envioCartao || !linkUtil ? null : linkWhatsapp(whatsapp, mensagem);
+  const emailUrl = envioCartao || !linkUtil ? null : linkEmail(email, assunto, mensagem);
   const aviso = baixar && !baixar.disponivel ? baixar.mensagem : falhaDownload;
+
+  function urlDoEnvio() {
+    if (!envioCartao) return "";
+    if ("faturaId" in envioCartao) return `/api/faturas/${envioCartao.faturaId}/link-cartao`;
+    return `/api/servicos-cliente/${envioCartao.clienteServicoId}/link-cartao`;
+  }
+
+  async function enviarPeloServidor(canal: CanalServidor) {
+    if (!envioCartao || ocupado.current || retornos[canal]?.ok) return;
+    ocupado.current = true;
+    setCanalAtivo(canal);
+    try {
+      const resposta = await enviarJson<{ envio: { mensagem: string; resultado: string } }>(urlDoEnvio(), "POST", { canal });
+      if (!resposta.ok) {
+        if (resposta.status === 401) {
+          router.push("/login");
+          return;
+        }
+        setRetornos((atual) => ({ ...atual, [canal]: { texto: resposta.erro, ok: false } }));
+        return;
+      }
+      const ok = resposta.dados.envio.resultado === "aceito";
+      setRetornos((atual) => ({ ...atual, [canal]: { texto: resposta.dados.envio.mensagem, ok } }));
+      if (ok) router.refresh();
+    } finally {
+      ocupado.current = false;
+      setCanalAtivo(null);
+    }
+  }
+
+  function textoBotao(canal: CanalServidor, ocioso: string) {
+    if (canalAtivo === canal) return "Enviando…";
+    if (retornos[canal]?.ok) return canal === "EMAIL" ? "E-mail enviado" : "WhatsApp enviado";
+    return ocioso;
+  }
 
   async function copiar() {
     try {
@@ -138,7 +187,17 @@ export function AcoesCompartilhar({
   return (
     <div className="flex flex-wrap items-center gap-2">
       {acaoPrincipal}
-      {whatsappUrl ? (
+      {envioCartao ? (
+        <button
+          type="button"
+          className={classeCompartilhar}
+          disabled={canalAtivo !== null || retornos.WHATSAPP?.ok === true}
+          aria-busy={canalAtivo === "WHATSAPP"}
+          onClick={() => void enviarPeloServidor("WHATSAPP")}
+        >
+          {textoBotao("WHATSAPP", "Enviar por WhatsApp")}
+        </button>
+      ) : whatsappUrl ? (
         <a className={classeCompartilhar} href={whatsappUrl} target="_blank" rel="noopener noreferrer">
           Enviar por WhatsApp
         </a>
@@ -147,7 +206,17 @@ export function AcoesCompartilhar({
           Enviar por WhatsApp
         </button>
       )}
-      {emailUrl ? (
+      {envioCartao ? (
+        <button
+          type="button"
+          className={classeCompartilhar}
+          disabled={canalAtivo !== null || retornos.EMAIL?.ok === true}
+          aria-busy={canalAtivo === "EMAIL"}
+          onClick={() => void enviarPeloServidor("EMAIL")}
+        >
+          {textoBotao("EMAIL", "Enviar por e-mail")}
+        </button>
+      ) : emailUrl ? (
         <a className={classeCompartilhar} href={emailUrl}>
           Enviar por e-mail
         </a>
@@ -156,6 +225,16 @@ export function AcoesCompartilhar({
           Enviar por e-mail
         </button>
       )}
+      {retornos.WHATSAPP ? (
+        <p role="status" className={`basis-full text-sm ${retornos.WHATSAPP.ok ? "font-medium text-ink" : "text-clay"}`}>
+          {retornos.WHATSAPP.texto}
+        </p>
+      ) : null}
+      {retornos.EMAIL ? (
+        <p role="status" className={`basis-full text-sm ${retornos.EMAIL.ok ? "font-medium text-ink" : "text-clay"}`}>
+          {retornos.EMAIL.texto}
+        </p>
+      ) : null}
       {aviso ? (
         <p id={avisoId} role="status" className="basis-full text-sm text-muted">
           {aviso}

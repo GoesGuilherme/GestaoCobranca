@@ -203,12 +203,15 @@ export async function enfileirarWhatsappDoPasso(
   modoTeste: boolean,
   agora = new Date(),
   db: AcessoFila = prisma,
+  chaveSufixo?: string,
 ): Promise<ResultadoFila> {
   if (!passo.enviarWhatsapp || fatura.excluida) return "nao_aplica";
   const resolvido = resolverWhatsappDoPasso(passo, fatura, agora);
   if (!resolvido) return "nao_aplica";
   if (!modoTeste && remetenteOficialLigado() && !faturaLiberadaOficial(fatura.criadoEm)) return "nao_aplica";
   const dados = await montar(db, fatura, resolvido.tipo, passo.id, resolvido.dias, modoTeste, agora);
+  const sufixo = chaveSufixo?.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40) ?? "";
+  if (sufixo) dados.chaveIdempotencia = `${dados.chaveIdempotencia}:${sufixo}`;
   if (passo.naEmissao && resolvido.tipo !== "BOLETO_GERADO") dados.rotulo = ROTULO_WHATSAPP_LINK_CARTAO;
   return gravar(db, dados);
 }
