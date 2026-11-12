@@ -4,9 +4,12 @@ import {
   remetenteDoCanal,
   type CanalTwilioEmpresa,
 } from "@/lib/twilio-empresa";
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db";
 import type { CredencialTwilio } from "@/server/twilio/contrato";
 import { urlWebhookTwilio } from "@/server/twilio/fabrica";
+
+export type DbRemetente = Pick<Prisma.TransactionClient, "subcontaTwilio" | "numeroTwilioEmpresa">;
 
 const SID_CONTA = /^AC[0-9a-fA-F]{32}$/;
 
@@ -25,10 +28,11 @@ export async function remetenteDaEmpresa(
   empresaId: string,
   canal: CanalTwilioEmpresa,
   env: NodeJS.ProcessEnv = process.env,
+  db: DbRemetente = prisma,
 ): Promise<RemetenteEmpresa | null> {
   const [subconta, numero] = await Promise.all([
-    prisma.subcontaTwilio.findUnique({ where: { empresaId } }),
-    prisma.numeroTwilioEmpresa.findFirst({
+    db.subcontaTwilio.findUnique({ where: { empresaId } }),
+    db.numeroTwilioEmpresa.findFirst({
       where: { empresaId, canal, padrao: true, status: "ATIVO" },
     }),
   ]);
@@ -62,8 +66,9 @@ export async function aplicarRemetenteEmpresa<T extends { conta: CredencialTwili
   canal: CanalTwilioEmpresa,
   atual: T,
   env: NodeJS.ProcessEnv = process.env,
+  db: DbRemetente = prisma,
 ): Promise<T & { origem: "empresa" | "global" }> {
-  const empresa = await remetenteDaEmpresa(empresaId, canal, env);
+  const empresa = await remetenteDaEmpresa(empresaId, canal, env, db);
   if (!empresa) return { ...atual, origem: "global" };
   return {
     ...atual,

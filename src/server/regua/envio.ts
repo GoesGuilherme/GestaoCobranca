@@ -92,6 +92,7 @@ type PedidoLembrete = {
   replyTo: string | null;
   chave: string;
   resend: ClienteResend;
+  db?: GravadorLembrete;
 };
 
 type GravadorLembrete = Prisma.TransactionClient | typeof prisma;
@@ -161,6 +162,7 @@ async function registrarEnvio(
 
 export async function dispararLembrete(dados: PedidoLembrete): Promise<{ lembrete: LembreteReguaDTO; repetido: boolean }> {
   const passoId = dados.passoId;
+  if (dados.db) return registrarEnvio(dados.db, dados);
   if (dados.automatico && passoId) {
     return prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${dados.faturaId}), hashtext(${passoId}))`;

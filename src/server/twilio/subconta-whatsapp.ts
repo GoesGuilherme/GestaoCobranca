@@ -1,7 +1,10 @@
 import { contentSidValido, resolverWhatsappDoPasso, TIPOS_TEMPLATE_WHATSAPP, type TipoTemplateWhatsapp } from "@/lib/whatsapp-cobranca";
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db";
 import type { CredencialTwilio } from "@/server/twilio/contrato";
-import { remetenteDaEmpresa } from "@/server/twilio/remetente";
+import { remetenteDaEmpresa, type DbRemetente } from "@/server/twilio/remetente";
+
+type DbModelo = DbRemetente & Pick<Prisma.TransactionClient, "templateWhatsapp">;
 
 export type DecisaoSubcontaWhatsapp =
   | {
@@ -18,9 +21,9 @@ function tipoConhecido(tipo: string): tipo is TipoTemplateWhatsapp {
   return TIPOS_TEMPLATE_WHATSAPP.includes(tipo as TipoTemplateWhatsapp);
 }
 
-async function sidAprovado(empresaId: string, tipo: string): Promise<string | null> {
+async function sidAprovado(empresaId: string, tipo: string, db: DbModelo): Promise<string | null> {
   if (!tipoConhecido(tipo)) return null;
-  const linha = await prisma.templateWhatsapp.findUnique({
+  const linha = await db.templateWhatsapp.findUnique({
     where: { empresaId_tipo: { empresaId, tipo } },
   });
   if (!linha || linha.status !== "APROVADO") return null;
@@ -33,10 +36,11 @@ export async function contentSidAprovadoDaEmpresa(
   empresaId: string,
   tipo: string,
   env: NodeJS.ProcessEnv = process.env,
+  db: DbModelo = prisma,
 ): Promise<string | null> {
-  const remetente = await remetenteDaEmpresa(empresaId, "WHATSAPP", env);
+  const remetente = await remetenteDaEmpresa(empresaId, "WHATSAPP", env, db);
   if (!remetente) return null;
-  return sidAprovado(empresaId, tipo);
+  return sidAprovado(empresaId, tipo, db);
 }
 
 export function motivoSemModeloAprovado(tipo: string): string {
@@ -52,10 +56,11 @@ export async function decidirSubcontaWhatsapp(
   empresaId: string,
   tipo: string,
   env: NodeJS.ProcessEnv = process.env,
+  db: DbModelo = prisma,
 ): Promise<DecisaoSubcontaWhatsapp> {
-  const remetente = await remetenteDaEmpresa(empresaId, "WHATSAPP", env);
+  const remetente = await remetenteDaEmpresa(empresaId, "WHATSAPP", env, db);
   if (!remetente) return { usar: false, motivo: null };
-  const contentSid = await sidAprovado(empresaId, tipo);
+  const contentSid = await sidAprovado(empresaId, tipo, db);
   if (!contentSid) return { usar: false, motivo: motivoSemModeloAprovado(tipo) };
   return {
     usar: true,
@@ -75,11 +80,12 @@ export async function tipoWhatsappDoPasso(
   cobranca: { formaCobranca?: string | null; vencimento?: Date | string | null } | null,
   agora = new Date(),
   env: NodeJS.ProcessEnv = process.env,
+  db: DbModelo = prisma,
 ): Promise<{ tipo: TipoTemplateWhatsapp; dias: number | null } | null> {
   const resolvido = resolverWhatsappDoPasso(passo, cobranca, agora);
   if (!resolvido) return null;
   if (passo.naEmissao || passo.dias !== 0 || resolvido.tipo !== "VENCE_EM_DIAS") return resolvido;
-  const contentSid = await contentSidAprovadoDaEmpresa(empresaId, "VENCE_HOJE", env);
+  const contentSid = await contentSidAprovadoDaEmpresa(empresaId, "VENCE_HOJE", env, db);
   if (!contentSid) return resolvido;
   return { tipo: "VENCE_HOJE", dias: 0 };
 }
