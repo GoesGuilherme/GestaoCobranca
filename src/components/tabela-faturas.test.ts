@@ -97,6 +97,7 @@ describe("selo de promessa no cartão da fatura", () => {
     expect(vezes(html, "Promessa até 10/11")).toBe(1);
     expect(html.match(/bg-gold-soft/g)).toHaveLength(1);
     expect(textosVisiveis(html)).toContain("Abrir fatura");
+    expect(textosVisiveis(html)).toContain("Alterar");
     expect(html).toContain("Promessa até 10/11. A régua automática desta fatura está pausada.");
   });
 

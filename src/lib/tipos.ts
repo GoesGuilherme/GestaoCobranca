@@ -311,6 +311,12 @@ export type ResultadoReenvioBoletos = {
   itens: ItemReenvioBoleto[];
 };
 
+export type ResultadoAlteracaoFatura = {
+  fatura: FaturaDTO;
+  reenvio: ResultadoReenvioBoletos;
+  reemitido: boolean;
+};
+
 export type ConfiguracaoReguaDTO = {
   gravada: boolean;
   ativa: boolean;

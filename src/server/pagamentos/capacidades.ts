@@ -15,7 +15,8 @@ export const CAPACIDADES_ASAAS: Capacidades = {
 };
 
 // Parceria Cora, boleto v2 com Pix. Sem assinatura nativa e sem assinatura de webhook.
-// A API de fatura que usamos não edita vencimento: o boleto emitido fica como saiu.
+// A API não altera a invoice emitida. O Taguaro cancela e emite outra na mesma fatura.
+// editarVencimento continua falso: não há PATCH de vencimento na Cora.
 export const CAPACIDADES_CORA: Capacidades = {
   boleto: true,
   boletoComPix: true,

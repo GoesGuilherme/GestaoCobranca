@@ -5,6 +5,7 @@ import { normalizarDinheiro } from "@/lib/dinheiro";
 import {
   type AssinaturaAsaas,
   type AtualizacaoAssinaturaAsaas,
+  type AtualizacaoCobrancaAsaas,
   type ClienteAsaas,
   type ClienteHttpAsaas,
   type CobrancaAsaas,
@@ -309,6 +310,16 @@ export function criarClienteHttpAsaas(opcoes: {
       if (dados.referencia) corpo.externalReference = dados.referencia;
       const { json } = await pedir("POST", "/payments", corpoComValor(corpo, dados.valor, dados.encargos));
       return lerCobranca(json);
+    },
+
+    async atualizarCobranca(id, dados: AtualizacaoCobrancaAsaas) {
+      const corpo: Record<string, unknown> = {};
+      if (dados.vencimento) corpo.dueDate = dados.vencimento;
+      if (dados.descricao !== undefined) corpo.description = dados.descricao ?? "";
+      const json = dados.valor ? corpoComValor(corpo, dados.valor) : JSON.stringify(corpo);
+      if (json === "{}") throw new ErroAsaas("Nada para atualizar no Asaas.", 400);
+      const { json: resposta } = await pedir("PUT", `/payments/${idAsaasSeguro(id)}`, json);
+      return lerCobranca(resposta);
     },
 
     async buscarCobrancaPorReferencia(referencia) {

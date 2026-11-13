@@ -2,6 +2,7 @@ import { somenteDocumento } from "@/lib/documento";
 import {
   type AssinaturaAsaas,
   type AtualizacaoAssinaturaAsaas,
+  type AtualizacaoCobrancaAsaas,
   type ClienteAsaas,
   type ClienteHttpAsaas,
   type CobrancaAsaas,
@@ -59,6 +60,8 @@ export class AsaasMemoria implements ClienteHttpAsaas {
   lancarDepoisDeCriarAssinatura = false;
   cancelarCobrancaLanca = false;
   cancelarAssinaturaLanca = false;
+  atualizarCobrancaLanca = false;
+  atualizacoes = 0;
   visualizacoes = new Map<string, VisualizacaoCobrancaAsaas>();
   private sequencia = 0;
 
@@ -118,6 +121,28 @@ export class AsaasMemoria implements ClienteHttpAsaas {
     return cobranca;
   }
 
+  async atualizarCobranca(id: string, dados: AtualizacaoCobrancaAsaas) {
+    if (this.atualizarCobrancaLanca) throw new ErroAsaas("Não foi possível falar com o Asaas.", 502);
+    const cobranca = this.cobrancas.get(id);
+    if (!cobranca || cobranca.excluida) throw new ErroAsaas("Cobrança não encontrada.", 404);
+    if (cobranca.status !== "PENDING" && cobranca.status !== "OVERDUE") {
+      throw new ErroAsaas("Só é possível alterar cobrança em aberto ou vencida.", 400);
+    }
+    this.atualizacoes += 1;
+    if (dados.valor) cobranca.valor = dados.valor;
+    if (dados.vencimento) {
+      cobranca.vencimento = dados.vencimento;
+      if (cobranca.status === "OVERDUE") cobranca.status = "PENDING";
+    }
+    if (dados.descricao !== undefined) cobranca.descricao = dados.descricao;
+    const versao = `${cobranca.valor}-${cobranca.vencimento}`;
+    if (cobranca.formaCobranca !== "PIX" && cobranca.formaCobranca !== "CREDIT_CARD") {
+      cobranca.boletoUrl = `https://sandbox.asaas.com/b/pdf/${id}?v=${encodeURIComponent(versao)}`;
+    }
+    cobranca.faturaUrl = `https://sandbox.asaas.com/i/${id}?v=${encodeURIComponent(versao)}`;
+    return cobranca;
+  }
+
   async buscarCobrancaPorReferencia(referencia: string) {
     return (
       [...this.cobrancas.values()].find((cobranca) => cobranca.referencia === referencia && !cobranca.excluida) ?? null
@@ -141,8 +166,10 @@ export class AsaasMemoria implements ClienteHttpAsaas {
 
   async obterLinhaDigitavel(id: string) {
     const cobranca = this.cobrancas.get(id);
-    if (!cobranca || cobranca.formaCobranca === "PIX") return null;
-    return "2379338128600000000030000000040184340000018990";
+    if (!cobranca || cobranca.formaCobranca === "PIX" || cobranca.formaCobranca === "CREDIT_CARD") return null;
+    const centavos = cobranca.valor.replace(/\D/g, "").padStart(12, "0");
+    const data = cobranca.vencimento.replace(/-/g, "");
+    return `23793${centavos}${data}`;
   }
 
   async obterPix(id: string) {

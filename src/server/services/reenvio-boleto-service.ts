@@ -68,7 +68,13 @@ function passoWhatsapp(passo: PassoEmissao): PassoWhatsapp {
 export async function reenviarBoletos(
   autor: AutorReenvio,
   entrada: unknown,
-  opcoes: { resend?: ClienteResend; twilio?: ClienteTwilio; agora?: Date } = {},
+  opcoes: {
+    resend?: ClienteResend;
+    twilio?: ClienteTwilio;
+    agora?: Date;
+    sufixoWhatsapp?: string;
+    limiteFila?: number;
+  } = {},
 ): Promise<ResultadoReenvioBoletos> {
   exigirCobranca(autor);
   const dados = lerEsquema(esquemaReenvioBoletos, entrada);
@@ -165,7 +171,7 @@ export async function reenviarBoletos(
     } catch (erro) {
       email = motivoDe(erro);
     }
-    const preparado = await prepararWhatsappDoPasso(fatura, passo, modoTeste, agora);
+    const preparado = await prepararWhatsappDoPasso(fatura, passo, modoTeste, agora, opcoes.sufixoWhatsapp);
     if (preparado.processar) pendentes.push({ fatura, passo });
     itens.push({ id, canais: [email, preparado.canal ?? { canal: "WHATSAPP", resultado: "na_fila", motivo: null }] });
   }
@@ -177,6 +183,7 @@ export async function reenviarBoletos(
       pendentes.map((item) => item.passo),
       opcoes.twilio ?? clienteTwilioPadrao(),
       agora,
+      opcoes.limiteFila,
     );
     for (const item of pendentes) {
       const gravado = await canalWhatsappGravado(item.fatura, item.passo);

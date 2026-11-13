@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { faturaPodeSerAlterada } from "@/lib/alteracao-fatura";
 import { documentoDaFatura } from "@/lib/baixar-fatura";
 import { PREFERENCIAS_COBRANCA_PADRAO } from "@/lib/cobranca";
 import { formatarDiaMes } from "@/lib/formatacao";
@@ -10,6 +11,7 @@ import type { ClienteServicoDTO, FaturaDTO, PreferenciasCobrancaDTO } from "@/li
 import { AcoesCompartilhar } from "./acoes-compartilhar";
 import { AcoesLembrete } from "./acoes-lembrete";
 import { BotaoCancelarFatura } from "./botao-cancelar-fatura";
+import { DialogoAlterarFatura } from "./dialogo-alterar-fatura";
 import { DialogoPromessa } from "./dialogo-promessa";
 import { classeBotaoSecundario } from "./estilos";
 
@@ -44,6 +46,7 @@ export function AcoesFatura({
 }) {
   const [codigos, setCodigos] = useState(false);
   const [promessaAberta, setPromessaAberta] = useState(false);
+  const [alterarAberta, setAlterarAberta] = useState(false);
   if (fatura.excluida) {
     return <p className="text-sm text-muted">Cancelada em {formatarDiaMes(fatura.atualizadoEm)}</p>;
   }
@@ -52,6 +55,7 @@ export function AcoesFatura({
   const temCodigo = Boolean(fatura.linhaDigitavel || fatura.pixCopiaCola);
   const recorrencia = recorrenciaAtivaDaFatura(fatura, vinculos);
   const podePrometer = podeCancelar && faturaAceitaPromessa(fatura.status, fatura.excluida);
+  const podeAlterar = podeCancelar && faturaPodeSerAlterada(fatura);
 
   return (
     <details className="relative">
@@ -109,8 +113,16 @@ export function AcoesFatura({
           emailCliente={fatura.email}
           emailLogado={emailLogado}
         />
+        {podeAlterar ? (
+          <button type="button" className="text-left text-sm font-medium text-canopy hover:underline" onClick={() => setAlterarAberta(true)}>
+            Alterar
+          </button>
+        ) : null}
         {podeCancelar ? <BotaoCancelarFatura id={fatura.id} recorrencia={recorrencia} /> : null}
       </div>
+      {alterarAberta ? (
+        <DialogoAlterarFatura fatura={fatura} aberto onFechar={() => setAlterarAberta(false)} />
+      ) : null}
       {podePrometer ? (
         <DialogoPromessa
           aberto={promessaAberta}

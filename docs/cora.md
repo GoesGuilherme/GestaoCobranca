@@ -39,7 +39,7 @@ O access token dura cerca de 24 horas. O Taguaro renova com o refresh token e gr
 
 Emissão em `POST /v2/invoices`, com `Idempotency-Key` (UUID) gravado em `faturas.idempotency_key_cora` antes da chamada. Um retry da mesma fatura reenvia a mesma chave. O boleto sai com Pix (`BANK_SLIP` e `PIX`) quando a conta Cora tem chave Pix. Cancelamento é `DELETE /v2/invoices/{id}`. Consulta é `GET /v2/invoices/{id}`.
 
-Status: `OPEN` pendente, `LATE` vencido, `PAID` pago, `CANCELLED`/`CANCELED` cancelado, `DRAFT` criando. A Cora não tem assinatura nativa: a mensalidade continua no cron do Taguaro, como no Inter. A API de fatura usada aqui não edita boleto já emitido.
+Status: `OPEN` pendente, `LATE` vencido, `PAID` pago, `CANCELLED`/`CANCELED` cancelado, `DRAFT` criando. A Cora não tem assinatura nativa: a mensalidade continua no cron do Taguaro, como no Inter. A API de fatura não edita boleto já emitido. Alterar vencimento, valor ou descrição no Taguaro cancela a invoice (`DELETE /v2/invoices/{id}`) e emite outra (`POST /v2/invoices`) na mesma fatura, com uma Idempotency-Key nova. O vínculo com o serviço do cliente permanece. Se o cancelamento passar e a emissão nova falhar, os códigos antigos saem da fatura e a próxima alteração reaproveita a chave nova, sem cancelar de novo.
 
 ## Webhook
 

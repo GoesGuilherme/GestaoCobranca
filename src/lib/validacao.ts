@@ -421,6 +421,18 @@ export const esquemaConfiguracaoAsaas = z.object({
   ),
 });
 
+export const esquemaAlteracaoFatura = z.object({
+  valor: esquemaValorPositivo,
+  vencimento: z
+    .string()
+    .trim()
+    .refine((valor) => dataIsoValida(valor), "Informe o vencimento."),
+  descricao: z.preprocess(
+    (valor) => (valor == null ? "" : valor),
+    z.string().trim().max(500, "A descrição pode ter no máximo 500 caracteres."),
+  ),
+});
+
 export const esquemaFatura = z.object({
   valor: esquemaValorPositivo,
   vencimento: z
@@ -789,6 +801,7 @@ export const esquemaRespostaWhatsapp = z.object({
 });
 
 export type EntradaFatura = z.infer<typeof esquemaFatura>;
+export type EntradaAlteracaoFatura = z.infer<typeof esquemaAlteracaoFatura>;
 export type EntradaAtivarRecorrencia = z.infer<typeof esquemaAtivarRecorrencia>;
 export type EntradaEditarRecorrencia = z.infer<typeof esquemaEditarRecorrencia>;
 export type EntradaRetomarRecorrencia = z.infer<typeof esquemaRetomarRecorrencia>;

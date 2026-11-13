@@ -99,7 +99,7 @@ export function exigirAtualizarVisualizacoes(autor: AutorEmpresa) {
 export function exigirCobranca(autor: AutorEmpresa) {
   if (!podeEmitirCobranca(autor.papel)) {
     throw new ErroAplicacao(
-      "Só o dono ou o financeiro pode emitir ou cancelar cobranças.",
+      "Só o dono ou o financeiro pode emitir, alterar ou cancelar cobranças.",
       403,
       "sem_permissao",
     );
