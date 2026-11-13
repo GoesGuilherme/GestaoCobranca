@@ -458,6 +458,15 @@ export const esquemaConfiguracaoPix = z
     }
   });
 
+export const esquemaConfirmarOfx = z.object({
+  transacaoId: z.string().trim().min(1, "Informe a sugestão.").max(64),
+  faturaId: z.string().trim().min(1, "Escolha a cobrança.").max(64),
+});
+
+export const esquemaIgnorarOfx = z.object({
+  transacaoId: z.string().trim().min(1, "Informe a sugestão.").max(64),
+});
+
 export const esquemaBaixaManual = z.object({
   pagoEm: z
     .string()

@@ -119,6 +119,8 @@ export async function middleware(request: NextRequest) {
   const rotaFaturas =
     pathname === "/faturas" ||
     pathname.startsWith("/faturas/") ||
+    pathname === "/conciliacao" ||
+    pathname.startsWith("/conciliacao/") ||
     pathname === "/api/faturas" ||
     pathname.startsWith("/api/faturas/") ||
     pathname.startsWith("/api/recorrencias") ||

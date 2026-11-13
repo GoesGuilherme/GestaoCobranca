@@ -111,12 +111,22 @@ enum TipoChavePix {
 }
 
 // MANUAL é a baixa feita no painel. OPEN_FINANCE fica reservado para uma
-// conciliação futura (Pluggy ou similar) sem misturar com o status do provedor.
+// conciliação futura (Pluggy ou similar). OFX é a baixa do extrato importado.
 enum OrigemConciliacao {
   MANUAL
   OPEN_FINANCE
+  OFX
 
   @@map("origem_conciliacao")
+}
+
+enum SituacaoTransacaoOfx {
+  BAIXADA
+  SUGESTAO
+  NAO_IDENTIFICADA
+  IGNORADA
+
+  @@map("situacao_transacao_ofx")
 }
 
 enum CanalPromessa {
@@ -193,6 +203,8 @@ model Empresa {
   logo                 LogoEmpresa?
   configuracaoPix      ConfiguracaoPixProprio?
   conciliacoes         ConciliacaoPagamento[]
+  importacoesOfx       ImportacaoOfx[]
+  transacoesOfx        TransacaoOfx[]
 
   @@map("empresas")
 }
@@ -510,6 +522,7 @@ model Fatura {
   filaWhatsapp     FilaWhatsapp[]
   promessas        PromessaPagamento[]
   conciliacoes     ConciliacaoPagamento[]
+  transacoesOfx    TransacaoOfx[]
 
   @@unique([empresaId, asaasPaymentId])
   @@unique([empresaId, chaveIdempotencia])
@@ -595,6 +608,55 @@ model ConciliacaoPagamento {
   @@index([empresaId, faturaId])
   @@index([empresaId, referenciaExterna])
   @@map("conciliacoes_pagamento")
+}
+
+// Um envio de extrato. Os créditos ficam em transacoes_ofx, um FITID por conta.
+model ImportacaoOfx {
+  id                String         @id @default(cuid())
+  empresaId         String         @map("empresa_id")
+  usuarioId         String?        @map("usuario_id")
+  nomeArquivo       String         @map("nome_arquivo")
+  bankId            String         @map("bank_id")
+  acctId            String         @map("acct_id")
+  moeda             String         @default("BRL")
+  baixadas          Int            @default(0)
+  sugestoes         Int            @default(0)
+  naoIdentificadas  Int            @default(0) @map("nao_identificadas")
+  jaImportadas      Int            @default(0) @map("ja_importadas")
+  criadoEm          DateTime       @default(now()) @map("criado_em") @db.Timestamptz(3)
+  empresa           Empresa        @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  transacoes        TransacaoOfx[]
+
+  @@index([empresaId, criadoEm])
+  @@map("importacoes_ofx")
+}
+
+// Crédito do extrato. A chave empresa + banco + conta + FITID impede segunda baixa.
+// A fatura some do vínculo se for apagada; o FITID continua para não reprocessar.
+model TransacaoOfx {
+  id            String                @id @default(cuid())
+  empresaId     String                @map("empresa_id")
+  importacaoId  String                @map("importacao_id")
+  bankId        String                @map("bank_id")
+  acctId        String                @map("acct_id")
+  fitId         String                @map("fit_id")
+  valor         Decimal               @db.Decimal(12, 2)
+  dataCredito   DateTime              @map("data_credito") @db.Date
+  memo          String?               @db.Text
+  nome          String?               @db.Text
+  situacao      SituacaoTransacaoOfx
+  faturaId      String?               @map("fatura_id")
+  candidatas    Json                  @default("[]")
+  criadoEm      DateTime              @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm  DateTime              @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  empresa       Empresa               @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  importacao    ImportacaoOfx         @relation(fields: [importacaoId], references: [id], onDelete: Restrict)
+  fatura        Fatura?               @relation(fields: [faturaId], references: [id], onDelete: SetNull)
+
+  @@unique([empresaId, bankId, acctId, fitId])
+  @@index([empresaId, situacao])
+  @@index([importacaoId])
+  @@map("transacoes_ofx")
 }
 
 // Evento já traduzido para o status do Taguaro. eventos_asaas continua
