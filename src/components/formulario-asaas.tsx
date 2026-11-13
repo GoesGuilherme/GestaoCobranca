@@ -92,13 +92,19 @@ export function FormularioAsaas({ inicial }: { inicial: ConfiguracaoAsaasDTO }) 
   }
 
   return (
-    <div className="grid gap-6">
+    <div id="asaas" className="grid scroll-mt-40 gap-6 md:scroll-mt-6">
       {configuracao.simulado ? (
         <p className="rounded-2xl border border-gold/40 bg-gold/15 px-4 py-3 text-sm">
           Modo simulado neste computador. Nenhuma chamada sai para o Asaas. Não ligue isso em produção.
         </p>
       ) : null}
       <form onSubmit={salvar} className="grid gap-4 rounded-3xl border border-line bg-card p-6">
+        <div>
+          <h2 className="font-display text-2xl">Asaas</h2>
+          <p className="mt-2 text-sm leading-6 text-muted">
+            Cada empresa usa a própria conta e as próprias preferências de cobrança. A chave da API fica cifrada no banco com a ASAAS_ENCRYPTION_KEY do servidor. A tela mostra só os quatro últimos caracteres.
+          </p>
+        </div>
         <Campo label="Ambiente" htmlFor="ambiente-asaas" erro={campos.ambiente} dica="A chave de sandbox não funciona em produção, e o contrário também.">
           <select id="ambiente-asaas" className={classeCampo} value={ambiente} onChange={(evento) => setAmbiente(evento.target.value as "SANDBOX" | "PRODUCAO")}>
             {AMBIENTES_ASAAS.map((item) => (

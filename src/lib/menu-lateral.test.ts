@@ -52,7 +52,10 @@ describe("menu lateral", () => {
     expect(montarGruposMenu(suporte).flatMap((grupo) => grupo.itens).map((item) => item.rotulo)).not.toContain(
       "Mensagens",
     );
-    expect(grupos.find((grupo) => grupo.id === "configuracoes")?.itens.map((item) => item.rotulo)).toContain("Banco");
+    const configuracoes = grupos.find((grupo) => grupo.id === "configuracoes")?.itens ?? [];
+    expect(configuracoes.map((item) => item.rotulo)).toContain("Banco");
+    expect(configuracoes.map((item) => item.rotulo)).not.toContain("Asaas");
+    expect(configuracoes.filter((item) => item.href === "/banco")).toEqual([{ href: "/banco", rotulo: "Banco" }]);
     expect(grupos.find((grupo) => grupo.id === "configuracoes")?.itens).toContainEqual({
       href: "/emails",
       rotulo: "E-mails",
@@ -101,5 +104,21 @@ describe("menu lateral", () => {
     expect(itemAtivo("/emails", "", "/emails")).toBe(true);
     expect(itemAtivo("/telefones", "", "/telefones")).toBe(true);
     expect(itemAtivo("/empresa", "", "/emails")).toBe(false);
+  });
+
+  it("destaca Banco na configuração do Asaas e não deixa Asaas no primeiro nível", () => {
+    const grupos = montarGruposMenu(dono);
+    const itens = grupos.flatMap((grupo) => grupo.itens);
+
+    expect(itens.map((item) => item.rotulo)).not.toContain("Asaas");
+    expect(itens.map((item) => item.href)).not.toContain("/asaas");
+    expect(itemAtivo("/banco", "", "/banco")).toBe(true);
+    expect(itemAtivo("/banco", "#asaas", "/banco")).toBe(true);
+    expect(itemAtivo("/asaas", "", "/banco")).toBe(true);
+    expect(itemAtivo("/asaas/", "", "/banco")).toBe(true);
+    expect(itemAtivo("/asaas", "", "/empresa")).toBe(false);
+    expect(idGrupoAtual("/banco", "#asaas", grupos)).toBe("configuracoes");
+    expect(idGrupoAtual("/asaas", "", grupos)).toBe("configuracoes");
+    expect(montarGruposMenu(financeiro).flatMap((grupo) => grupo.itens).map((item) => item.href)).not.toContain("/banco");
   });
 });

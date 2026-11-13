@@ -38,6 +38,22 @@ describe("acesso da plataforma", () => {
     }
   });
 
+  it("redireciona /asaas para a seção dentro de Banco e mantém a permissão", async () => {
+    const dono = await token("DONO", false);
+    const pedido = new NextRequest("http://127.0.0.1/asaas", {
+      headers: { cookie: `${COOKIE_SESSAO}=${dono}` },
+    });
+    const resposta = await middleware(pedido);
+    const destino = new URL(resposta.headers.get("location") ?? "");
+    expect(resposta.status).toBe(307);
+    expect(destino.pathname).toBe("/banco");
+    expect(destino.hash).toBe("#asaas");
+    expect(await status("/asaas", await token("FINANCEIRO", false))).toBe(403);
+    expect(await status("/asaas", await token("SUPORTE", false))).toBe(403);
+    expect(await status("/api/asaas/configuracao", dono)).toBe(200);
+    expect(await status("/banco", dono)).toBe(200);
+  });
+
   it("não trata o preenchimento de pago em como ferramenta da plataforma", async () => {
     const dono = await token("DONO", false);
     expect(await status("/api/admin/pago-em", dono)).toBe(200);

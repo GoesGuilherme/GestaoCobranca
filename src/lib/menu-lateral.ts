@@ -17,12 +17,19 @@ export type OpcoesMenu = {
   mostrarAsaas: boolean;
 };
 
+/** A URL antiga do Asaas continua existindo, mas o item ativo é Banco. */
+function caminhoParaMenu(pathname: string) {
+  if (pathname === "/asaas" || pathname.startsWith("/asaas/")) return "/banco";
+  return pathname;
+}
+
 export function itemAtivo(pathname: string, hash: string, href: string) {
   const [caminho, ancora] = href.split("#");
+  const atual = caminhoParaMenu(pathname);
   const noCaminho =
     caminho === "/dashboards/painel"
-      ? pathname === "/" || pathname === "/dashboards" || pathname.startsWith("/dashboards/")
-      : pathname === caminho || pathname.startsWith(`${caminho}/`);
+      ? atual === "/" || atual === "/dashboards" || atual.startsWith("/dashboards/")
+      : atual === caminho || atual.startsWith(`${caminho}/`);
   if (!noCaminho) return false;
   if (ancora) return hash === `#${ancora}`;
   if (caminho === "/regua") return hash !== "#whatsapp";
@@ -68,7 +75,6 @@ export function montarGruposMenu(opcoes: OpcoesMenu): GrupoMenu[] {
         ...(mostrarUsuarios ? [{ href: "/emails", rotulo: "E-mails" }] : []),
         ...(mostrarUsuarios ? [{ href: "/telefones", rotulo: "Telefones" }] : []),
         ...(mostrarAsaas ? [{ href: "/banco", rotulo: "Banco" }] : []),
-        ...(mostrarAsaas ? [{ href: "/asaas", rotulo: "Asaas" }] : []),
         ...(mostrarRegua ? [{ href: "/regua#whatsapp", rotulo: "WhatsApp" }] : []),
         ...(mostrarUsuarios ? [{ href: "/usuarios", rotulo: "Usuários" }] : []),
       ],
