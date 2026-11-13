@@ -209,10 +209,11 @@ async function ignorarWhatsapp(
   modoTeste: boolean,
   agora: Date,
   motivo: string,
+  db: Pick<typeof prisma, "filaWhatsapp"> = prisma,
 ) {
   const chave = `wa:${fatura.empresaId}:${fatura.id}:manual:${motivo.slice(0, 40)}`;
   try {
-    await prisma.filaWhatsapp.create({
+    await db.filaWhatsapp.create({
       data: {
         empresaId: fatura.empresaId,
         faturaId: fatura.id,
@@ -259,6 +260,7 @@ async function enviarEmail(
   }
 
   const corte = new Date(agora.getTime() - JANELA_CLIQUE_MS);
+  const logoUrl = await urlLogoParaEmail(autor.empresaId);
   return prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${fatura.id}), hashtext('cartao-email'))`;
     const recente = await tx.lembreteRegua.findFirst({
@@ -278,7 +280,6 @@ async function enviarEmail(
       empresa: autor.nomeEmpresa,
     };
     const corpo = textoRegua(passo.corpo, campos);
-    const logoUrl = await urlLogoParaEmail(autor.empresaId);
     const carta = montarEmailAviso({
       empresa: autor.nomeEmpresa,
       cliente: campos.cliente,
@@ -310,6 +311,7 @@ async function enviarEmail(
         replyTo: config.replyTo,
         chave,
         resend,
+        db: tx,
       });
     } catch (erro) {
       return resultado("EMAIL", "falha", frase(textoErroEnvio(erro), "Falha ao enviar."), modoTeste);
@@ -369,7 +371,7 @@ async function enviarWhatsapp(
 
   const corte = new Date(agora.getTime() - JANELA_CLIQUE_MS);
   const sufixo = `m${Math.floor(agora.getTime() / JANELA_CLIQUE_MS)}`;
-  return prisma.$transaction(async (tx) => {
+  const preparo = await prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${fatura.id}), hashtext('cartao-whatsapp'))`;
     const recente = await tx.filaWhatsapp.findFirst({
       where: {
@@ -380,7 +382,7 @@ async function enviarWhatsapp(
         criadoEm: { gte: corte },
       },
     });
-    if (recente) return resultado("WHATSAPP", "aceito", "Este envio já saiu agora.", modoTeste);
+    if (recente) return { enviar: false as const, resultado: resultado("WHATSAPP", "aceito", "Este envio já saiu agora.", modoTeste) };
 
     const pendente = await tx.filaWhatsapp.findFirst({
       where: {
@@ -391,35 +393,41 @@ async function enviarWhatsapp(
       },
     });
     if (!pendente) {
-      const fila = await enfileirarWhatsappDoPasso(linhaFatura, passoWa, modoTeste, agora, prisma, sufixo);
+      const fila = await enfileirarWhatsappDoPasso(linhaFatura, passoWa, modoTeste, agora, tx, sufixo);
       if (fila === "nao_aplica") {
-        await ignorarWhatsapp(fatura, passo, modoTeste, agora, "WhatsApp oficial ainda não vale para esta cobrança.");
-        return resultado("WHATSAPP", "ignorado", "WhatsApp oficial ainda não vale para esta cobrança.", modoTeste);
+        await ignorarWhatsapp(fatura, passo, modoTeste, agora, "WhatsApp oficial ainda não vale para esta cobrança.", tx);
+        return {
+          enviar: false as const,
+          resultado: resultado("WHATSAPP", "ignorado", "WhatsApp oficial ainda não vale para esta cobrança.", modoTeste),
+        };
       }
     }
-    await processarFilaWhatsapp({
-      agora,
-      empresaId: fatura.empresaId,
-      twilio,
-      faturaIds: [fatura.id],
-      tipos: [resolvido.tipo],
-      limite: 5,
-      conciliar: false,
-    });
-    const linha = await tx.filaWhatsapp.findFirst({
-      where: { empresaId: fatura.empresaId, faturaId: fatura.id, rotulo: ROTULO_WHATSAPP_LINK_CARTAO },
-      orderBy: { criadoEm: "desc" },
-    });
-    if (!linha || linha.status === "IGNORADO") {
-      return resultado("WHATSAPP", "ignorado", frase(linha?.motivo, "WhatsApp ignorado."), modoTeste);
-    }
-    if (linha.status === "FALHOU") return resultado("WHATSAPP", "falha", frase(linha.motivo, "Falha ao enviar."), modoTeste);
-    if (linha.status === "ENVIADO") {
-      const mensagem = modoTeste
-        ? "Modo teste. O WhatsApp foi para o número de teste, não para o cliente."
-        : "WhatsApp enviado.";
-      return resultado("WHATSAPP", "aceito", mensagem, modoTeste);
-    }
-    return resultado("WHATSAPP", "na_fila", frase(linha.motivo, "WhatsApp na fila."), modoTeste);
+    return { enviar: true as const };
   }, { timeout: 20_000 });
+  if (!preparo.enviar) return preparo.resultado;
+
+  await processarFilaWhatsapp({
+    agora,
+    empresaId: fatura.empresaId,
+    twilio,
+    faturaIds: [fatura.id],
+    tipos: [resolvido.tipo],
+    limite: 5,
+    conciliar: false,
+  });
+  const linha = await prisma.filaWhatsapp.findFirst({
+    where: { empresaId: fatura.empresaId, faturaId: fatura.id, rotulo: ROTULO_WHATSAPP_LINK_CARTAO },
+    orderBy: { criadoEm: "desc" },
+  });
+  if (!linha || linha.status === "IGNORADO") {
+    return resultado("WHATSAPP", "ignorado", frase(linha?.motivo, "WhatsApp ignorado."), modoTeste);
+  }
+  if (linha.status === "FALHOU") return resultado("WHATSAPP", "falha", frase(linha.motivo, "Falha ao enviar."), modoTeste);
+  if (linha.status === "ENVIADO") {
+    const mensagem = modoTeste
+      ? "Modo teste. O WhatsApp foi para o número de teste, não para o cliente."
+      : "WhatsApp enviado.";
+    return resultado("WHATSAPP", "aceito", mensagem, modoTeste);
+  }
+  return resultado("WHATSAPP", "na_fila", frase(linha.motivo, "WhatsApp na fila."), modoTeste);
 }

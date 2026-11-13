@@ -9,7 +9,7 @@ import { provedorDaEmpresa } from "@/server/pagamentos/fabrica";
 import { normalizarWebhookAsaas, sinalAsaasConfirmaPagamento } from "@/server/pagamentos/webhook-asaas";
 import { espelharPagamentoAsaas } from "./asaas-pagamento";
 import { conciliarPromessas } from "./promessa-service";
-import { enfileirarPagoWhatsapp } from "./whatsapp-fila";
+import { enfileirarPagoDoPagamento } from "./whatsapp-pago";
 
 function brutoJson(valor: unknown): Prisma.InputJsonValue | undefined {
   try {
@@ -80,26 +80,15 @@ async function marcarFaturaVisualizada(
   });
 }
 
-// Mesma gravação do webhook: espelha a cobrança e, na passagem para paga,
-// enfileira o WhatsApp de pagamento confirmado. A chave da fila impede segundo envio.
+// Só espelha a cobrança. O WhatsApp de pago entra depois do commit, para não
+// segurar a conexão da transação com outra consulta no mesmo pool.
 export async function aplicarPagamentoAsaas(
   tx: Prisma.TransactionClient,
   empresaId: string,
   pagamento: Record<string, unknown>,
   tipo: string,
 ) {
-  const efeito = await espelharPagamentoAsaas(tx, empresaId, pagamento, tipo);
-  if (!sinalAsaasConfirmaPagamento(tipo, pagamento)) return efeito;
-  const asaasPaymentId = texto(pagamento.id, 80);
-  if (!asaasPaymentId) return efeito;
-  const fatura = await tx.fatura.findFirst({
-    where: { empresaId, asaasPaymentId, excluida: false },
-    include: { cliente: true },
-  });
-  if (!fatura) return efeito;
-  const regua = await tx.configuracaoRegua.findUnique({ where: { empresaId } });
-  await enfileirarPagoWhatsapp(tx, fatura, regua?.modoTeste ?? true);
-  return efeito;
+  return espelharPagamentoAsaas(tx, empresaId, pagamento, tipo);
 }
 
 export async function processarWebhookAsaas(token: string | null, corpo: unknown) {
@@ -140,6 +129,10 @@ export async function processarWebhookAsaas(token: string | null, corpo: unknown
   );
   if (!confirmado.baixar) return { duplicado: false as const };
 
+  const enfileirar =
+    Boolean(normalizado.alteraCobranca && pagamento) &&
+    sinalAsaasConfirmaPagamento(tipo, pagamento);
+
   try {
     await prisma.$transaction(async (tx) => {
       await tx.eventoAsaas.create({
@@ -164,12 +157,14 @@ export async function processarWebhookAsaas(token: string | null, corpo: unknown
 
       await aplicarPagamentoAsaas(tx, config.empresaId, pagamento, tipo);
     });
-    if (normalizado.alteraCobranca) {
-      await conciliarPromessas(config.empresaId);
-    }
-    return { duplicado: false as const };
   } catch (erro) {
-    if (conflitoDeEvento(erro)) return { duplicado: true as const };
-    throw erro;
+    if (!conflitoDeEvento(erro)) throw erro;
+    if (enfileirar && pagamento) await enfileirarPagoDoPagamento(config.empresaId, pagamento, tipo);
+    return { duplicado: true as const };
   }
+  if (enfileirar && pagamento) await enfileirarPagoDoPagamento(config.empresaId, pagamento, tipo);
+  if (normalizado.alteraCobranca) {
+    await conciliarPromessas(config.empresaId);
+  }
+  return { duplicado: false as const };
 }

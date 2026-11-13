@@ -16,7 +16,8 @@ import { prisma } from "@/server/db";
 import { ErroTwilio } from "@/server/twilio/contrato";
 import type { ClienteTwilio, CredencialTwilio, MensagemTemplate } from "@/server/twilio/contrato";
 import { credenciaisPaiTwilio, numeroTesteWhatsapp, urlWebhookTwilio } from "@/server/twilio/fabrica";
-import { aplicarRemetenteEmpresa, remetenteDaEmpresa } from "@/server/twilio/remetente";
+import { Prisma } from "@/generated/prisma/client";
+import { aplicarRemetenteEmpresa, remetenteDaEmpresa, type DbRemetente } from "@/server/twilio/remetente";
 import {
   decidirSubcontaWhatsapp,
   registrarFallbackSubconta,
@@ -89,7 +90,8 @@ type AcessoFila = {
       where: { empresaId_telefone: { empresaId: string; telefone: string } };
     }): Promise<{ ativo: boolean } | null>;
   };
-};
+} & DbRemetente &
+  Pick<Prisma.TransactionClient, "templateWhatsapp">;
 
 export type ResultadoFila = "enfileirado" | "ignorado" | "existente" | "nao_aplica";
 
@@ -148,7 +150,7 @@ async function montar(
 ): Promise<DadosFila> {
   const [conexao, remetenteEmpresa] = await Promise.all([
     db.configuracaoTwilio.findUnique({ where: { empresaId: fatura.empresaId } }),
-    remetenteDaEmpresa(fatura.empresaId, "WHATSAPP"),
+    remetenteDaEmpresa(fatura.empresaId, "WHATSAPP", process.env, db),
   ]);
   const subcontaPronta = Boolean(remetenteEmpresa);
   const rota = rotaWhatsapp({
@@ -214,7 +216,7 @@ export async function enfileirarWhatsappDoPasso(
   chaveSufixo?: string,
 ): Promise<ResultadoFila> {
   if (!passo.enviarWhatsapp || fatura.excluida) return "nao_aplica";
-  const resolvido = await tipoWhatsappDoPasso(fatura.empresaId, passo, fatura, agora);
+  const resolvido = await tipoWhatsappDoPasso(fatura.empresaId, passo, fatura, agora, process.env, db);
   if (!resolvido) return "nao_aplica";
   if (!modoTeste && remetenteOficialLigado() && !faturaLiberadaOficial(fatura.criadoEm)) return "nao_aplica";
   const dados = await montar(db, fatura, resolvido.tipo, passo.id, resolvido.dias, modoTeste, agora);

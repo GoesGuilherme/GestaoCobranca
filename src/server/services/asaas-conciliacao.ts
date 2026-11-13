@@ -14,6 +14,7 @@ import { exigirAtualizarVisualizacoes } from "@/server/auth/papeis";
 import { prisma } from "@/server/db";
 import { ErroAplicacao } from "@/server/erros";
 import { aplicarPagamentoAsaas } from "./asaas-webhook-service";
+import { enfileirarPagoDoPagamento } from "./whatsapp-pago";
 import { conciliarPromessas } from "./promessa-service";
 import { sincronizarVisualizacoesEmpresa } from "./visualizacao-fatura-service";
 
@@ -279,7 +280,7 @@ async function consultarPorId(
   }
 }
 
-async function aplicarMapa(empresaId: string, mapa: Map<string, CobrancaAsaas>, andamento: Andamento) {
+async function aplicarMapa(empresaId: string, mapa: Map<string, CobrancaAsaas>, andamento: Andamento, agora: Date) {
   const ids = [...mapa.keys()];
   const locais = new Map<string, LocalFatura>();
   if (ids.length > 0) {
@@ -298,9 +299,10 @@ async function aplicarMapa(empresaId: string, mapa: Map<string, CobrancaAsaas>, 
     const local = locais.get(cobranca.id);
     if (!precisaAplicar(local, cobranca)) continue;
     try {
-      const efeito = await prisma.$transaction((tx) =>
-        aplicarPagamentoAsaas(tx, empresaId, pagamentoDaCobranca(cobranca), tipoDaCobranca(cobranca)),
-      );
+      const pagamento = pagamentoDaCobranca(cobranca);
+      const tipo = tipoDaCobranca(cobranca);
+      const efeito = await prisma.$transaction((tx) => aplicarPagamentoAsaas(tx, empresaId, pagamento, tipo));
+      await enfileirarPagoDoPagamento(empresaId, pagamento, tipo, agora);
       if (efeito === "criada") andamento.criadas += 1;
       else if (efeito === "atualizada") andamento.atualizadas += 1;
       else andamento.ignoradas += 1;
@@ -404,7 +406,7 @@ export async function conciliarAsaasEmpresa(
     await consultarPorId(http, [...fatiaAbertas, ...idsPagas], mapa, andamento, prazo);
   }
 
-  await aplicarMapa(empresaId, mapa, andamento);
+  await aplicarMapa(empresaId, mapa, andamento, agora);
 
   const restantesAbertas = idsAbertas.filter((id) => !mapa.has(id)).length;
   return {
