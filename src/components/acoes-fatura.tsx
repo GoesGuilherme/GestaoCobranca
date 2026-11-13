@@ -6,12 +6,14 @@ import { documentoDaFatura } from "@/lib/baixar-fatura";
 import { PREFERENCIAS_COBRANCA_PADRAO } from "@/lib/cobranca";
 import { formatarDiaMes } from "@/lib/formatacao";
 import { faturaAceitaPromessa } from "@/lib/promessa";
+import { provedorCodigo, statusEh } from "@/lib/status-pagamento";
 import type { OpcaoPassoRegua } from "@/lib/regua";
 import type { ClienteServicoDTO, FaturaDTO, PreferenciasCobrancaDTO } from "@/lib/tipos";
 import { AcoesCompartilhar } from "./acoes-compartilhar";
 import { AcoesLembrete } from "./acoes-lembrete";
 import { BotaoCancelarFatura } from "./botao-cancelar-fatura";
 import { DialogoAlterarFatura } from "./dialogo-alterar-fatura";
+import { DialogoBaixaPix } from "./dialogo-baixa-pix";
 import { DialogoPromessa } from "./dialogo-promessa";
 import { classeBotaoSecundario } from "./estilos";
 
@@ -47,6 +49,7 @@ export function AcoesFatura({
   const [codigos, setCodigos] = useState(false);
   const [promessaAberta, setPromessaAberta] = useState(false);
   const [alterarAberta, setAlterarAberta] = useState(false);
+  const [baixaAberta, setBaixaAberta] = useState(false);
   if (fatura.excluida) {
     return <p className="text-sm text-muted">Cancelada em {formatarDiaMes(fatura.atualizadoEm)}</p>;
   }
@@ -56,6 +59,8 @@ export function AcoesFatura({
   const recorrencia = recorrenciaAtivaDaFatura(fatura, vinculos);
   const podePrometer = podeCancelar && faturaAceitaPromessa(fatura.status, fatura.excluida);
   const podeAlterar = podeCancelar && faturaPodeSerAlterada(fatura);
+  const aberta = statusEh(fatura.status, "REGUA_ABERTA", provedorCodigo(fatura.provedor));
+  const pixDireto = fatura.provedor === "PIX_DIRETO";
 
   return (
     <details className="relative">
@@ -68,7 +73,7 @@ export function AcoesFatura({
       <div className="mt-2 grid gap-3 rounded-2xl border border-line bg-paper p-3">
         {via ? (
           <a href={via} target="_blank" rel="noreferrer" className="text-sm font-medium text-canopy hover:underline">
-            {fatura.formaCobranca === "CREDIT_CARD" ? "Página do cartão" : "Segunda via"}
+            {pixDireto ? "Página de pagamento" : fatura.formaCobranca === "CREDIT_CARD" ? "Página do cartão" : "Segunda via"}
           </a>
         ) : (
           <p className="text-sm text-muted">Sem link</p>
@@ -108,7 +113,7 @@ export function AcoesFatura({
           faturaId={fatura.id}
           lembretes={fatura.lembretes ?? []}
           passos={passosRegua}
-          podeEnviar={podeEnviarRegua && (fatura.status === "PENDING" || fatura.status === "OVERDUE")}
+          podeEnviar={podeEnviarRegua && aberta}
           modoTeste={modoTeste}
           emailCliente={fatura.email}
           emailLogado={emailLogado}
@@ -118,11 +123,17 @@ export function AcoesFatura({
             Alterar
           </button>
         ) : null}
+        {pixDireto && aberta && podeCancelar ? (
+          <button type="button" className="text-left text-sm font-medium text-canopy hover:underline" onClick={() => setBaixaAberta(true)}>
+            Marcar como pago
+          </button>
+        ) : null}
         {podeCancelar ? <BotaoCancelarFatura id={fatura.id} recorrencia={recorrencia} /> : null}
       </div>
       {alterarAberta ? (
         <DialogoAlterarFatura fatura={fatura} aberto onFechar={() => setAlterarAberta(false)} />
       ) : null}
+      {baixaAberta ? <DialogoBaixaPix fatura={fatura} aberto onFechar={() => setBaixaAberta(false)} /> : null}
       {podePrometer ? (
         <DialogoPromessa
           aberto={promessaAberta}

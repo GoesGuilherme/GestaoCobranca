@@ -1,10 +1,11 @@
 import { dataHojeIso, isoDeData } from "@/lib/data";
+import { absolutizarLinkCobranca } from "@/lib/pix-link";
 import { formatarReais } from "@/lib/dinheiro";
 import { formatarDataIso } from "@/lib/formatacao";
 import {
   digitosWhatsapp,
-  ROTULO_WHATSAPP_LINK_CARTAO,
   rotuloTemplateWhatsapp,
+  rotuloWhatsappNaEmissao,
   variaveisCompativeisComTemplate,
   variaveisDoTemplate,
   whatsappE164,
@@ -183,7 +184,7 @@ async function montar(
     nome: fatura.cliente.nomeFantasia,
     valor: formatarReais(fatura.valor.toFixed(2)),
     vencimento: formatarDataIso(isoDeData(fatura.vencimento)),
-    link: fatura.boletoUrl ?? fatura.faturaUrl ?? "",
+    link: absolutizarLinkCobranca(fatura.boletoUrl ?? fatura.faturaUrl ?? ""),
     dias: String(Math.abs(dias ?? 0)),
   });
   if (regra.motivo) {
@@ -222,7 +223,8 @@ export async function enfileirarWhatsappDoPasso(
   const dados = await montar(db, fatura, resolvido.tipo, passo.id, resolvido.dias, modoTeste, agora);
   const sufixo = chaveSufixo?.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40) ?? "";
   if (sufixo) dados.chaveIdempotencia = `${dados.chaveIdempotencia}:${sufixo}`;
-  if (passo.naEmissao && resolvido.tipo !== "BOLETO_GERADO") dados.rotulo = ROTULO_WHATSAPP_LINK_CARTAO;
+  const rotuloEmissao = passo.naEmissao ? rotuloWhatsappNaEmissao(fatura.formaCobranca, resolvido.tipo) : null;
+  if (rotuloEmissao) dados.rotulo = rotuloEmissao;
   return gravar(db, dados);
 }
 

@@ -1,5 +1,12 @@
 import { ErroAplicacao } from "@/server/erros";
 
+export type AnexoEmail = {
+  nome: string;
+  conteudoBase64: string;
+  tipo: string;
+  contentId: string;
+};
+
 export type EmailResend = {
   de: string;
   para: string;
@@ -7,6 +14,7 @@ export type EmailResend = {
   texto: string;
   html: string | null;
   replyTo: string | null;
+  anexos?: AnexoEmail[];
 };
 
 export type ClienteResend = {
@@ -28,6 +36,7 @@ export function clienteResendMemoria(caixa: EmailResend[] = []): ClienteResend &
         texto: dados.texto,
         html: dados.html,
         replyTo: dados.replyTo,
+        ...(dados.anexos?.length ? { anexos: dados.anexos } : {}),
       });
     },
   };
@@ -51,6 +60,16 @@ export function clienteResendHttp(): ClienteResend {
             text: dados.texto,
             html: dados.html ?? undefined,
             reply_to: dados.replyTo ?? undefined,
+            ...(dados.anexos?.length
+              ? {
+                  attachments: dados.anexos.map((anexo) => ({
+                    filename: anexo.nome,
+                    content: anexo.conteudoBase64,
+                    content_type: anexo.tipo,
+                    content_id: anexo.contentId,
+                  })),
+                }
+              : {}),
           }),
         });
       } catch (erro) {

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { enviarJson } from "@/lib/api-cliente";
 import {
   AVISO_ALTERACAO_CORA,
+  AVISO_ALTERACAO_PIX,
   salvarAlteracaoHabilitado,
   textoToastAlteracao,
 } from "@/lib/alteracao-fatura";
@@ -32,6 +33,7 @@ export function DialogoAlterarFatura({
   const atual = { valor: fatura.valor, vencimento: fatura.vencimento, descricao: fatura.descricao };
   const podeSalvar = salvarAlteracaoHabilitado({ valor, vencimento, descricao }, atual);
   const cora = fatura.provedor === "CORA";
+  const pix = fatura.provedor === "PIX_DIRETO";
 
   if (!aberto) return null;
 
@@ -54,7 +56,7 @@ export function DialogoAlterarFatura({
       return;
     }
     onFechar();
-    avisarSucesso(textoToastAlteracao(resposta.dados.reenvio, resposta.dados.reemitido));
+    avisarSucesso(textoToastAlteracao(resposta.dados.reenvio, resposta.dados.reemitido, fatura.provedor));
     router.refresh();
   }
 
@@ -76,6 +78,11 @@ export function DialogoAlterarFatura({
         {cora ? (
           <p className="mt-3 rounded-2xl bg-gold-soft px-3 py-2 text-sm leading-6 text-gold-ink" role="note">
             {AVISO_ALTERACAO_CORA}
+          </p>
+        ) : null}
+        {pix ? (
+          <p className="mt-3 rounded-2xl bg-gold-soft px-3 py-2 text-sm leading-6 text-gold-ink" role="note">
+            {AVISO_ALTERACAO_PIX}
           </p>
         ) : null}
         <div className="mt-4 grid gap-4 sm:grid-cols-2">

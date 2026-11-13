@@ -14,7 +14,7 @@ export const STATUS_NORMALIZADO = {
 
 export type StatusNormalizado = (typeof STATUS_NORMALIZADO)[keyof typeof STATUS_NORMALIZADO];
 
-export const PROVEDORES_PAGAMENTO = ["ASAAS", "CORA", "INTER", "EFI", "SICOOB", "SICREDI"] as const;
+export const PROVEDORES_PAGAMENTO = ["ASAAS", "CORA", "INTER", "EFI", "SICOOB", "SICREDI", "PIX_DIRETO"] as const;
 
 export type ProvedorCodigo = (typeof PROVEDORES_PAGAMENTO)[number];
 
@@ -67,6 +67,17 @@ const MAPA_CORA: readonly RegistroStatus[] = [
   { bruto: "ERRO_EMISSAO", normalizado: "FALHA", regua: false, recorrencia: false },
 ];
 
+// Pix por chave própria. PAGA é o texto gravado na baixa manual.
+// RECEIVED entra como alias e também normaliza para PAGO, o grupo do Taguaro.
+const MAPA_PIX_DIRETO: readonly RegistroStatus[] = [
+  { bruto: "CRIANDO", normalizado: "CRIANDO", regua: false, recorrencia: false },
+  { bruto: "EM_ABERTO", normalizado: "PENDENTE", regua: true, recorrencia: true },
+  { bruto: "VENCIDA", normalizado: "VENCIDO", regua: true, recorrencia: true },
+  { bruto: "PAGA", normalizado: "PAGO", regua: false, recorrencia: false },
+  { bruto: "RECEIVED", normalizado: "PAGO", regua: false, recorrencia: false },
+  { bruto: "CANCELADA", normalizado: "CANCELADO", regua: false, recorrencia: false },
+];
+
 const MAPA_INTER: readonly RegistroStatus[] = [
   { bruto: "EM_PROCESSAMENTO", normalizado: "CRIANDO", regua: false, recorrencia: false },
   { bruto: "CRIANDO", normalizado: "CRIANDO", regua: false, recorrencia: false },
@@ -88,6 +99,7 @@ const MAPAS: Record<ProvedorCodigo, readonly RegistroStatus[]> = {
   EFI: [],
   SICOOB: [],
   SICREDI: [],
+  PIX_DIRETO: MAPA_PIX_DIRETO,
 };
 
 function registros(provedor: ProvedorCodigo): readonly RegistroStatus[] {

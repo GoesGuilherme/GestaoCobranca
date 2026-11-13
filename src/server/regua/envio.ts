@@ -88,6 +88,7 @@ type PedidoLembrete = {
   assunto: string;
   texto: string;
   html: string | null;
+  anexos?: import("./resend").AnexoEmail[];
   de: string;
   replyTo: string | null;
   chave: string;
@@ -110,6 +111,7 @@ async function registrarEnvio(
       texto: dados.texto,
       html: dados.html,
       replyTo: dados.replyTo,
+      anexos: dados.anexos,
     });
   } catch (erro) {
     const motivo = textoErroEnvio(erro);

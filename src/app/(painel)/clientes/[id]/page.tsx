@@ -21,6 +21,7 @@ import { formatarData, formatarDataIso } from "@/lib/formatacao";
 import { podeAlterarServicos, podeEmitirCobranca, podeVerCustoServico, podeVerFaturas, podeVerRegua } from "@/lib/permissoes";
 import { opcoesDaReguaAplicavel, passosDaAtribuicao } from "@/lib/regua";
 import type { ClienteDetalhe, ClienteServicoDTO, FaturaDTO, ServicoDTO } from "@/lib/tipos";
+import { prisma } from "@/server/db";
 import { acessoDaPagina } from "@/server/auth/pagina";
 import { ErroAplicacao } from "@/server/erros";
 import { classificarPagadoresDaEmpresa } from "@/server/services/classificacao-pagador-service";
@@ -81,6 +82,10 @@ export default async function PaginaCliente({ params }: { params: Promise<{ id: 
     if (erro instanceof ErroAplicacao && erro.status === 404) notFound();
     throw erro;
   }
+  const empresa = await prisma.empresa.findUnique({
+    where: { id: acesso.empresaId },
+    select: { provedorPagamento: true },
+  });
 
   const [preferencias, regua, enviosRegua] = await Promise.all([
     podeCobrar ? obterPreferenciasCobranca(acesso.empresaId) : Promise.resolve(undefined),
@@ -184,6 +189,7 @@ export default async function PaginaCliente({ params }: { params: Promise<{ id: 
           enviosRegua={enviosRegua}
           modoTeste={Boolean(regua?.config.gravada && regua.config.modoTeste)}
           emailLogado={acesso.email}
+          provedor={empresa?.provedorPagamento ?? "ASAAS"}
         />
       ) : null}
 

@@ -59,7 +59,9 @@ export async function middleware(request: NextRequest) {
     pathname === "/api/cron/visualizacoes" ||
     pathname === "/api/cron/recorrencias" ||
     pathname === "/api/cron/conciliacao" ||
-    pathname.startsWith("/api/publico/logos/");
+    pathname.startsWith("/api/publico/logos/") ||
+    pathname.startsWith("/api/publico/pix/") ||
+    pathname.startsWith("/pagar/");
 
   if (rotaPublica) {
     const empresaSuspensa = request.nextUrl.searchParams.get("motivo") === "suspensa";

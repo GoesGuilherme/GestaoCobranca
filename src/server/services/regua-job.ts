@@ -3,7 +3,8 @@ import { statusBrutos, PROVEDORES_PAGAMENTO } from "@/lib/status-pagamento";
 import { isoDeData } from "@/lib/data";
 import { formatarReais } from "@/lib/dinheiro";
 import { formatarDataIso } from "@/lib/formatacao";
-import { montarEmailAviso } from "@/lib/email-aviso";
+import { absolutizarLinkCobranca } from "@/lib/pix-link";
+import { cartaComPix } from "@/server/services/pix-email";
 import { rotuloStatusFatura } from "@/lib/rotulos";
 import { emailDeCobranca } from "@/lib/remetentes";
 import {
@@ -245,25 +246,28 @@ export async function executarRegua(
             servico: fatura.clienteServico?.servico.nome ?? fatura.descricao ?? "cobrança",
             valor: formatarReais(fatura.valor.toFixed(2)),
             vencimento: formatarDataIso(vencimento),
-            link: fatura.boletoUrl ?? fatura.faturaUrl ?? "",
+            link: absolutizarLinkCobranca(fatura.boletoUrl ?? fatura.faturaUrl ?? ""),
             diasAtraso: String(diasAtraso(hoje, vencimento)),
             empresa: nomeEmpresa,
           };
           const corpo = textoRegua(passo.corpo, campos);
-          const carta = montarEmailAviso({
-            empresa: nomeEmpresa,
-            cliente: campos.cliente,
-            servico: campos.servico,
-            valor: campos.valor,
-            vencimento: campos.vencimento,
-            status: rotuloStatusFatura(fatura.status, fatura.excluida),
-            link: campos.link,
-            linhaDigitavel: fatura.linhaDigitavel,
-            pixCopiaCola: fatura.pixCopiaCola,
-            logoUrl,
-            mensagem: corpo,
-            modoTeste: config.modoTeste,
-          });
+          const carta = await cartaComPix(
+            {
+              empresa: nomeEmpresa,
+              cliente: campos.cliente,
+              servico: campos.servico,
+              valor: campos.valor,
+              vencimento: campos.vencimento,
+              status: rotuloStatusFatura(fatura.status, fatura.excluida),
+              link: campos.link,
+              linhaDigitavel: fatura.linhaDigitavel,
+              pixCopiaCola: fatura.pixCopiaCola,
+              logoUrl,
+              mensagem: corpo,
+              modoTeste: config.modoTeste,
+            },
+            fatura,
+          );
           const envio = await dispararLembrete({
             empresaId: config.empresaId,
             faturaId: fatura.id,
@@ -276,6 +280,7 @@ export async function executarRegua(
             assunto: assuntoRegua(textoRegua(passo.assunto, campos), config.modoTeste),
             texto: carta.texto,
             html: carta.html,
+            anexos: carta.anexos,
             de: remetenteResend(config.remetenteNome ?? "", remetente),
             replyTo: config.replyTo,
             chave: segredo.chave,

@@ -7,7 +7,11 @@ const ABERTAS: Partial<Record<ProvedorCodigo, readonly string[]>> = {
   ASAAS: ["PENDING", "OVERDUE"],
   CORA: ["OPEN", "LATE"],
   INTER: ["A_RECEBER", "ATRASADO"],
+  PIX_DIRETO: ["EM_ABERTO", "VENCIDA"],
 };
+
+export const AVISO_ALTERACAO_PIX =
+  "Ao salvar, o QR Code e o Pix copia e cola são gerados de novo com o valor novo. O link da página de pagamento continua o mesmo.";
 
 export const AVISO_ALTERACAO_CORA =
   "Ao salvar, a Cora cancela o boleto atual e emite outro. O código de barras e a linha digitável mudam. O vínculo com a recorrência permanece.";
@@ -80,7 +84,12 @@ export function salvarAlteracaoHabilitado(
 export function textoToastAlteracao(
   reenvio: Pick<ResultadoReenvioBoletos, "email" | "whatsapp" | "modoTeste">,
   reemitido: boolean,
+  provedor?: string | null,
 ): string {
-  const cabeca = reemitido ? "Boleto cancelado na Cora e um novo foi emitido." : "Boleto alterado.";
+  const cabeca = reemitido
+    ? "Boleto cancelado na Cora e um novo foi emitido."
+    : provedor === "PIX_DIRETO"
+      ? "Pix alterado."
+      : "Boleto alterado.";
   return [cabeca, ...textoResumoReenvio(reenvio)].join(" ");
 }

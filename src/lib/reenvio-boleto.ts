@@ -21,6 +21,7 @@ export type ReguaEmissao = {
 export type FaturaParaReenvio = {
   formaCobranca: string | null;
   boletoUrl: string | null;
+  faturaUrl?: string | null;
   excluida: boolean;
   status: string;
   provedor?: string | null;
@@ -51,8 +52,11 @@ export function motivoForaDoReenvio(
   fatura: FaturaParaReenvio,
   opcoes: { modoTeste?: boolean; reguas?: ReguaEmissao[] } = {},
 ): string | null {
-  if (!formaUsaTemplateBoleto(fatura.formaCobranca)) return "Sem boleto.";
-  if (!fatura.boletoUrl?.trim()) return "Sem link do boleto.";
+  if (fatura.provedor === "PIX_DIRETO") {
+    if ((fatura.formaCobranca ?? "").trim().toUpperCase() !== "PIX") return "Sem Pix.";
+    if (!fatura.faturaUrl?.trim() && !fatura.boletoUrl?.trim()) return "Sem link do Pix.";
+  } else if (!formaUsaTemplateBoleto(fatura.formaCobranca)) return "Sem boleto.";
+  else if (!fatura.boletoUrl?.trim()) return "Sem link do boleto.";
   if (fatura.excluida || !statusEh(fatura.status, "REGUA_ABERTA", provedorCodigo(fatura.provedor))) {
     return "Cobrança não está em aberto.";
   }

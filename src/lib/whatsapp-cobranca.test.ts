@@ -76,7 +76,8 @@ describe("templates de cobrança", () => {
     expect(tipoTemplateDoPasso({ naEmissao: false, dias: 0 })).toBe("VENCE_EM_DIAS");
     expect(tipoTemplateDoPasso({ naEmissao: false, dias: 3 })).toBe("VENCEU");
     expect(tipoWhatsappDaEmissao("BOLETO", "2026-11-15", "2026-11-11")).toBe("BOLETO_GERADO");
-    expect(tipoWhatsappDaEmissao("PIX", "2026-11-15", "2026-11-11")).toBeNull();
+    expect(tipoWhatsappDaEmissao("PIX", "2026-11-15", "2026-11-11")).toBe("VENCE_EM_DIAS");
+    expect(tipoWhatsappDaEmissao("PIX", "2026-11-10", "2026-11-11")).toBe("VENCEU");
     expect(tipoWhatsappDaEmissao("UNDEFINED", "2026-11-15", "2026-11-11")).toBeNull();
     expect(tipoWhatsappDaEmissao("CREDIT_CARD", "2026-11-15", "2026-11-11")).toBe("VENCE_EM_DIAS");
     expect(tipoWhatsappDaEmissao("CREDIT_CARD", "2026-11-11", "2026-11-11")).toBe("VENCE_EM_DIAS");
