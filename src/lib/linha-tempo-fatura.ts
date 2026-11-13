@@ -8,11 +8,17 @@ import type { ModoReguaCliente } from "./tipos";
 import {
   marcadoresDaLinhaTempo,
   nomeAcaoLinhaTempo,
+  nomeCanalMarcador,
   textoQuandoMarcador,
   type CanalMarcador,
   type FaseLinhaTempo,
   type PassoLinhaTempo,
 } from "./linha-tempo-regua";
+
+export type EnvioDoMarco = {
+  canal: CanalMarcador;
+  quando: string | null;
+};
 
 export type MarcoFatura = {
   chave: string;
@@ -23,6 +29,7 @@ export type MarcoFatura = {
   dica: string;
   titulo: string;
   detalhe: string | null;
+  envios: EnvioDoMarco[];
 };
 
 export type LinhaDoTempoFatura = {
@@ -106,13 +113,17 @@ function horaDoEnvio(iso: string): string | null {
   return formatarData(iso);
 }
 
-function detalheDoEnvio(envios: EnvioEfetivo[]): string | null {
+function enviosVisiveis(envios: EnvioEfetivo[]): EnvioDoMarco[] {
+  return envios.map((envio) => ({
+    canal: envio.canal,
+    quando: envio.enviadoEm ? horaDoEnvio(envio.enviadoEm) : null,
+  }));
+}
+
+function detalheDoEnvio(envios: EnvioDoMarco[]): string | null {
   if (envios.length === 0) return null;
   return envios
-    .map((envio) => {
-      const hora = envio.enviadoEm ? horaDoEnvio(envio.enviadoEm) : null;
-      return hora ? `${nomeCanal(envio.canal)} · ${hora}` : nomeCanal(envio.canal);
-    })
+    .map((envio) => (envio.quando ? `${nomeCanalMarcador(envio.canal)} · ${envio.quando}` : nomeCanalMarcador(envio.canal)))
     .join(" · ");
 }
 
@@ -145,12 +156,8 @@ function diaChegou(fase: FaseLinhaTempo, dias: number | null, vencimento: string
   return somarDias(vencimento, dias) <= hoje;
 }
 
-function nomeCanal(canal: CanalMarcador): string {
-  return canal === "email" ? "E-mail" : "WhatsApp";
-}
-
 function textoCanais(canais: CanalMarcador[]): string {
-  const nomes = canais.map(nomeCanal);
+  const nomes = canais.map(nomeCanalMarcador);
   if (nomes.length === 0) return "";
   if (nomes.length === 1) return nomes[0] ?? "";
   return `${nomes[0]} e ${nomes[1]}`;
@@ -216,16 +223,18 @@ export function linhaDoTempoDaFatura(entrada: EntradaLinhaFatura): LinhaDoTempoF
         dica: `Pago · ${status}`,
         titulo: "Pago",
         detalhe: neutra ? "Encerrada" : null,
+        envios: [],
       };
     }
     const ocorrido = diaChegou(marco.fase, marco.dias, entrada.vencimento, entrada.hoje);
     const efetivos = marco.chave ? enviados.get(marco.chave) ?? [] : [];
     const enviado = efetivos.length > 0;
+    const visiveis = enviosVisiveis(efetivos);
     const aceso = !neutra && (ocorrido || enviado);
     const previsto = !neutra && !ocorrido && !enviado;
     const titulo = tituloDaAcao(marco.fase, enviado, previsto);
     let detalhe: string | null = null;
-    if (enviado) detalhe = detalheDoEnvio(efetivos);
+    if (enviado) detalhe = detalheDoEnvio(visiveis);
     else if (neutra) detalhe = "Encerrada";
     else if (previsto) detalhe = dataPrevista(marco.dias, entrada.vencimento);
     else detalhe = "Não enviado";
@@ -238,6 +247,7 @@ export function linhaDoTempoDaFatura(entrada: EntradaLinhaFatura): LinhaDoTempoF
       dica: dicaDoPasso(marco.fase, marco.dias, marco.canais, statusDoPasso(ocorrido, enviado, neutra)),
       titulo,
       detalhe,
+      envios: visiveis,
     };
   });
 

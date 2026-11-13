@@ -243,6 +243,8 @@ describe("linha do tempo da fatura", () => {
       "27/11/2026",
       null,
     ]);
+    expect(futura.marcadores[0]?.envios).toEqual([{ canal: "email", quando: "01/11/2026, 09:14" }]);
+    expect(futura.marcadores[1]?.envios).toEqual([]);
     expect(futura.marcadores[1]?.aceso).toBe(false);
     expect(futura.marcadores[1]?.detalhe).not.toContain("WhatsApp");
     expect(futura.marcadores[1]?.detalhe).not.toContain("09:20");
@@ -261,9 +263,15 @@ describe("linha do tempo da fatura", () => {
     });
     expect(enviado.marcadores[1]?.titulo).toBe("Lembrete enviado");
     expect(enviado.marcadores[1]?.detalhe).toBe("E-mail · 30/10/2026, 12:00 · WhatsApp · 30/10/2026, 15:30");
+    expect(enviado.marcadores[1]?.envios).toEqual([
+      { canal: "email", quando: "30/10/2026, 12:00" },
+      { canal: "whatsapp", quando: "30/10/2026, 15:30" },
+    ]);
     expect(enviado.marcadores[1]?.aceso).toBe(true);
+    expect(ariaLinhaDoTempoFatura(enviado)).toContain("E-mail · 30/10/2026, 12:00 · WhatsApp · 30/10/2026, 15:30");
     expect(enviado.marcadores[3]?.titulo).toBe("Cobrança enviada");
     expect(enviado.marcadores[3]?.detalhe).toBe("E-mail");
+    expect(enviado.marcadores[3]?.envios).toEqual([{ canal: "email", quando: null }]);
     expect(enviado.marcadores[3]?.detalhe).not.toMatch(/\d{2}\/\d{2}\/\d{4}/);
 
     const paga = linha({

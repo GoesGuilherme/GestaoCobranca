@@ -103,8 +103,12 @@ export function textoQuandoMarcador(fase: FaseLinhaTempo, dias: number | null): 
   return `${quantidade} ${unidade} depois do vencimento`;
 }
 
+export function nomeCanalMarcador(canal: CanalMarcador): string {
+  return canal === "email" ? "E-mail" : "WhatsApp";
+}
+
 function textoCanais(canais: CanalMarcador[]): string {
-  const nomes = canais.map((canal) => (canal === "email" ? "E-mail" : "WhatsApp"));
+  const nomes = canais.map(nomeCanalMarcador);
   if (nomes.length === 0) return "";
   if (nomes.length === 1) return nomes[0] ?? "";
   return `${nomes[0]} e ${nomes[1]}`;
