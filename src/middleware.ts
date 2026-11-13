@@ -195,6 +195,10 @@ export async function middleware(request: NextRequest) {
     );
   }
 
+  if (pathname === "/asaas" || pathname.startsWith("/asaas/")) {
+    return NextResponse.redirect(new URL("/banco#asaas", request.url));
+  }
+
   const rotaTelefones =
     pathname === "/telefones" ||
     pathname.startsWith("/telefones/") ||
