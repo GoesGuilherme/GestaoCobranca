@@ -1,6 +1,7 @@
 import { Check } from "lucide-react";
-import { ariaLinhaDoTempoFatura, type LinhaDoTempoFatura, type MarcoFatura } from "@/lib/linha-tempo-fatura";
-import { COR_FASE_LINHA_TEMPO, type FaseLinhaTempo } from "@/lib/linha-tempo-regua";
+import { ariaLinhaDoTempoFatura, type EnvioDoMarco, type LinhaDoTempoFatura, type MarcoFatura } from "@/lib/linha-tempo-fatura";
+import { COR_FASE_LINHA_TEMPO, nomeCanalMarcador, type FaseLinhaTempo } from "@/lib/linha-tempo-regua";
+import { IconeCanal } from "./icone-canal";
 
 const CINZA = "#D5DEE8";
 const CINZA_TEXTO = "#5A6B80";
@@ -23,18 +24,50 @@ function degrade(atual: FaseLinhaTempo, proxima: FaseLinhaTempo, aceso: boolean,
   return `linear-gradient(90deg, ${da}, ${ate})`;
 }
 
+function Horario({ quando }: { quando: string }) {
+  const separador = quando.indexOf(", ");
+  if (separador === -1) return <span className="tabular-nums">{quando}</span>;
+  return (
+    <span className="min-w-0 text-center tabular-nums leading-tight">
+      <span className="whitespace-nowrap">{quando.slice(0, separador)},</span>{" "}
+      <span className="whitespace-nowrap">{quando.slice(separador + 2)}</span>
+    </span>
+  );
+}
+
+function EnviosDoMarco({ envios, cor }: { envios: EnvioDoMarco[]; cor: string }) {
+  return (
+    <div className="mt-0.5 flex flex-col items-center gap-0.5 px-0.5">
+      {envios.map((envio) => {
+        const nome = nomeCanalMarcador(envio.canal);
+        return (
+          <span
+            key={envio.canal}
+            title={nome}
+            className="inline-flex max-w-full items-center justify-center gap-1 text-center text-[11px] leading-tight"
+            style={{ color: cor }}
+          >
+            <IconeCanal canal={envio.canal} className="size-3.5" />
+            {envio.quando ? <Horario quando={envio.quando} /> : null}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 export function LinhaDoTempoFatura({ linha }: { linha: LinhaDoTempoFatura }) {
   return (
-    <div className="max-w-full overflow-x-auto overscroll-x-contain pb-1 lg:overflow-visible lg:pb-0">
-      <div role="group" aria-label={ariaLinhaDoTempoFatura(linha)} className="flex w-max items-start lg:w-full lg:min-w-0">
+    <div className="max-w-full overflow-x-auto overscroll-x-contain pb-1">
+      <div role="group" aria-label={ariaLinhaDoTempoFatura(linha)} className="flex w-max items-start lg:w-full">
         {linha.semRegua ? <span className="mr-2 mt-1 shrink-0 text-xs text-muted">Sem régua</span> : null}
-        <ol className="flex w-max items-start lg:w-full lg:min-w-0">
+        <ol className="flex w-max items-start lg:w-full">
           {linha.marcadores.map((marco, posicao) => {
             const proximo = linha.marcadores[posicao + 1];
             const rotulo = corRotulo(marco);
             const dica = marco.detalhe ? `${marco.dica}. ${marco.detalhe}` : marco.dica;
             return (
-              <li key={`${marco.chave}-${posicao}`} className="w-[5.75rem] shrink-0 lg:w-auto lg:min-w-0 lg:flex-1">
+              <li key={`${marco.chave}-${posicao}`} className="w-[6.75rem] shrink-0 lg:w-auto lg:min-w-[6.75rem] lg:flex-1">
                 <div className="relative flex h-8 w-full items-center justify-center">
                   {proximo ? (
                     <span
@@ -54,7 +87,9 @@ export function LinhaDoTempoFatura({ linha }: { linha: LinhaDoTempoFatura }) {
                 <p className="mt-1.5 line-clamp-2 px-0.5 text-center text-[13px] font-semibold leading-tight" style={{ color: rotulo }}>
                   {marco.titulo}
                 </p>
-                {marco.detalhe ? (
+                {marco.envios.length > 0 ? (
+                  <EnviosDoMarco envios={marco.envios} cor={rotulo} />
+                ) : marco.detalhe ? (
                   <p className="mt-0.5 line-clamp-2 px-0.5 text-center text-[11px] leading-tight" style={{ color: rotulo }}>
                     {marco.detalhe}
                   </p>
