@@ -27,6 +27,14 @@ export function espelhoFaturaCora(dados: { status?: string; idExterno?: string |
   };
 }
 
+export function espelhoFaturaPix(dados: { status?: string; idExterno?: string | null }) {
+  return {
+    provedor: "PIX_DIRETO" as const,
+    ...(dados.status !== undefined ? { statusNormalizado: statusNormalizado(dados.status, "PIX_DIRETO") } : {}),
+    ...(dados.idExterno !== undefined ? { idExterno: dados.idExterno } : {}),
+  };
+}
+
 export function espelhoFaturaInter(dados: { status?: string; idExterno?: string | null }) {
   return {
     provedor: "INTER" as const,

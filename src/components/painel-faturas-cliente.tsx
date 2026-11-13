@@ -79,6 +79,7 @@ export function PainelFaturasCliente({
   enviosRegua = [],
   modoTeste = false,
   emailLogado = "",
+  provedor = "ASAAS",
 }: {
   clienteId: string;
   vinculos: ClienteServicoDTO[];
@@ -93,6 +94,7 @@ export function PainelFaturasCliente({
   enviosRegua?: EnvioReguaLista[];
   modoTeste?: boolean;
   emailLogado?: string;
+  provedor?: string;
 }) {
   const [emitida, setEmitida] = useState<FaturaDTO | null>(null);
   const [emitindo, setEmitindo] = useState(false);
@@ -163,6 +165,7 @@ export function PainelFaturasCliente({
             clienteId={clienteId}
             vinculos={vinculos}
             preferencias={preferencias}
+            provedor={provedor}
             onEmitida={(fatura) => {
               setEmitida(fatura);
               setSituacao("em_aberto");

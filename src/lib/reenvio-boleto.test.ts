@@ -34,6 +34,18 @@ describe("reenvio de boleto", () => {
     expect(motivoForaDoReenvio(boleto, opcoes)).toBeNull();
     expect(motivoForaDoReenvio({ ...boleto, formaCobranca: "BOLETO_PIX" }, opcoes)).toBeNull();
     expect(motivoForaDoReenvio({ ...boleto, formaCobranca: "PIX" }, opcoes)).toBe("Sem boleto.");
+    expect(
+      motivoForaDoReenvio(
+        { ...boleto, provedor: "PIX_DIRETO", formaCobranca: "PIX", boletoUrl: null, faturaUrl: "/pagar/token", status: "EM_ABERTO" },
+        opcoes,
+      ),
+    ).toBeNull();
+    expect(
+      motivoForaDoReenvio(
+        { ...boleto, provedor: "PIX_DIRETO", formaCobranca: "PIX", boletoUrl: null, faturaUrl: "  ", status: "EM_ABERTO" },
+        opcoes,
+      ),
+    ).toBe("Sem link do Pix.");
     expect(motivoForaDoReenvio({ ...boleto, formaCobranca: "CREDIT_CARD" }, opcoes)).toBe("Sem boleto.");
     expect(motivoForaDoReenvio({ ...boleto, formaCobranca: "UNDEFINED" }, opcoes)).toBe("Sem boleto.");
     expect(motivoForaDoReenvio({ ...boleto, boletoUrl: "  " }, opcoes)).toBe("Sem link do boleto.");

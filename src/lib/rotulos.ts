@@ -133,6 +133,10 @@ const STATUS_ASAAS_E_INTER: Record<string, string> = {
   EM_PROCESSAMENTO: "Em emissão",
   FALHA_EMISSAO: "Falha na emissão",
   PROTESTO: "Em protesto",
+  EM_ABERTO: "Em aberto",
+  VENCIDA: "Vencida",
+  PAGA: "Paga",
+  CANCELADA: "Cancelada",
 };
 
 const STATUS_INTERNO: Record<string, string> = {

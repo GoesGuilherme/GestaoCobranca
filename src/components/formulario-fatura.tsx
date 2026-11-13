@@ -22,16 +22,19 @@ export function FormularioFatura({
   vinculos,
   onEmitida,
   preferencias = PREFERENCIAS_COBRANCA_PADRAO,
+  provedor = "ASAAS",
 }: {
   clienteId: string;
   vinculos: ClienteServicoDTO[];
   onEmitida?: (fatura: FaturaDTO) => void;
   preferencias?: PreferenciasCobrancaDTO;
+  provedor?: string;
 }) {
   const router = useRouter();
   const [valor, setValor] = useState("");
   const [vencimento, setVencimento] = useState(dataHojeIso());
-  const [formaCobranca, setFormaCobranca] = useState<string>(preferencias.formaCobranca);
+  const pixDireto = provedor === "PIX_DIRETO";
+  const [formaCobranca, setFormaCobranca] = useState<string>(pixDireto ? "PIX" : preferencias.formaCobranca);
   const [descricao, setDescricao] = useState("");
   const [clienteServicoId, setClienteServicoId] = useState("");
   const [campos, setCampos] = useState<Record<string, string>>({});
@@ -106,7 +109,11 @@ export function FormularioFatura({
       <DialogoConfirmacao
         aberto={confirmar}
         titulo="Emitir esta cobrança?"
-        descricao="O Asaas gera a cobrança para o cliente. Confira valor, vencimento e forma antes de continuar."
+        descricao={
+          pixDireto
+            ? "O Taguaro gera o Pix copia e cola e o QR Code com a chave da empresa. Confira valor e vencimento antes de continuar."
+            : "O Asaas gera a cobrança para o cliente. Confira valor, vencimento e forma antes de continuar."
+        }
         confirmarRotulo="Emitir cobrança"
         enviando={enviando}
         onCancelar={() => setConfirmar(false)}
@@ -119,7 +126,9 @@ export function FormularioFatura({
       </DialogoConfirmacao>
       <h3 className="font-display text-2xl">Emitir cobrança avulsa</h3>
       <p className="text-sm text-muted">
-        O cliente é criado no Asaas na primeira cobrança, ou reaproveitado se o CPF/CNPJ já existir lá. Multa, juros e desconto seguem as preferências desta empresa.
+        {pixDireto
+          ? "A cobrança usa a chave Pix cadastrada em Banco. O cliente recebe o QR Code, o copia e cola e o link da página de pagamento."
+          : "O cliente é criado no Asaas na primeira cobrança, ou reaproveitado se o CPF/CNPJ já existir lá. Multa, juros e desconto seguem as preferências desta empresa."}
       </p>
       <div className="grid gap-4 sm:grid-cols-2">
         <Campo label="Valor" htmlFor="valor-fatura" erro={campos.valor}>
@@ -129,13 +138,17 @@ export function FormularioFatura({
           <input id="vencimento-fatura" type="date" className={classeCampo} value={vencimento} onChange={(evento) => setVencimento(evento.target.value)} />
         </Campo>
         <Campo label="Forma" htmlFor="forma-fatura" erro={campos.formaCobranca}>
-          <select id="forma-fatura" className={classeCampo} value={formaCobranca} onChange={(evento) => setFormaCobranca(evento.target.value)}>
-            {FORMAS_COBRANCA.map((forma) => (
-              <option key={forma.valor} value={forma.valor}>
-                {forma.rotulo}
-              </option>
-            ))}
-          </select>
+          {pixDireto ? (
+            <input id="forma-fatura" className={classeCampo} value="Pix" readOnly />
+          ) : (
+            <select id="forma-fatura" className={classeCampo} value={formaCobranca} onChange={(evento) => setFormaCobranca(evento.target.value)}>
+              {FORMAS_COBRANCA.map((forma) => (
+                <option key={forma.valor} value={forma.valor}>
+                  {forma.rotulo}
+                </option>
+              ))}
+            </select>
+          )}
         </Campo>
         <Campo label="Serviço vendido" htmlFor="vinculo-fatura" dica="Opcional. A cobrança avulsa não cria assinatura.">
           <select id="vinculo-fatura" className={classeCampo} value={clienteServicoId} onChange={(evento) => setClienteServicoId(evento.target.value)}>

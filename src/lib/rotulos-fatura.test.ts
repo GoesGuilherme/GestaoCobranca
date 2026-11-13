@@ -22,6 +22,7 @@ const ROTULOS_DO_MAPA = new Set([
   "Em emissão",
   "Falha na emissão",
   "Em protesto",
+  "Paga",
 ]);
 
 const GRUPOS: StatusNormalizado[] = [

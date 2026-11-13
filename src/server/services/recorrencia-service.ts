@@ -43,6 +43,14 @@ import {
   pausarRecorrenciaInter,
   retomarRecorrenciaInter,
 } from "./inter-recorrencia";
+import {
+  ativarRecorrenciaPix,
+  cancelarRecorrenciaPix,
+  editarRecorrenciaPix,
+  empresaUsaPix,
+  pausarRecorrenciaPix,
+  retomarRecorrenciaPix,
+} from "./pix-recorrencia";
 import { executarRegua } from "./regua-job";
 
 type OpcoesEnvioCartao = {
@@ -249,6 +257,15 @@ export async function ativarRecorrencia(
       descricao,
     });
   }
+  if (await empresaUsaPix(autor.empresaId)) {
+    return ativarRecorrenciaPix(autor, clienteServicoId, {
+      diaVencimento: dia,
+      proximoVencimento: vencimento,
+      valor,
+      formaCobranca: forma,
+      descricao,
+    });
+  }
 
   try {
     const http = await clienteAsaasDaEmpresa(autor.empresaId, clienteHttp);
@@ -403,6 +420,24 @@ export async function editarRecorrencia(
       descricao: descricaoCora,
     });
   }
+  if (await empresaUsaPix(autor.empresaId)) {
+    const hojePix = dataHojeIso();
+    const prefsPix = await obterPreferenciasCobranca(autor.empresaId);
+    const vencimentoPix = resolverVencimento(dados.diaVencimento, dados.proximoVencimento, hojePix);
+    const descricaoPix = (
+      dados.descricao?.trim() ||
+      vinculo.descricaoRecorrente ||
+      textoDaCobranca(prefsPix.modeloDescricao, vinculo, vencimentoPix)
+    ).slice(0, 500);
+    const formaPix = formaCobrancaDe(dados.formaCobranca ?? vinculo.formaCobrancaRecorrente ?? "PIX");
+    return editarRecorrenciaPix(autor, clienteServicoId, {
+      diaVencimento: dados.diaVencimento,
+      proximoVencimento: vencimentoPix,
+      valor: dados.valor,
+      formaCobranca: formaPix,
+      descricao: descricaoPix,
+    });
+  }
   if (!vinculo.asaasSubscriptionId || (vinculo.asaasAssinaturaStatus !== "ACTIVE" && vinculo.asaasAssinaturaStatus !== "INACTIVE")) {
     throw new ErroAplicacao("Esta venda não tem cobrança recorrente para editar.", 409, "assinatura_ausente");
   }
@@ -482,6 +517,7 @@ export async function pausarRecorrencia(
   const vinculo = await buscarVinculo(autor.empresaId, clienteServicoId);
   if (await empresaUsaInter(autor.empresaId)) return pausarRecorrenciaInter(autor, clienteServicoId);
   if (await empresaUsaCora(autor.empresaId)) return pausarRecorrenciaCora(autor, clienteServicoId);
+  if (await empresaUsaPix(autor.empresaId)) return pausarRecorrenciaPix(autor, clienteServicoId);
   if (!vinculo.asaasSubscriptionId || vinculo.asaasAssinaturaStatus !== "ACTIVE") {
     throw new ErroAplicacao("Só uma recorrência ativa pode ser pausada.", 409, "assinatura_ausente");
   }
@@ -522,6 +558,12 @@ export async function retomarRecorrencia(
     if (!diaCora) throw new ErroAplicacao("Informe o dia de vencimento entre 1 e 31.", 400, "dia_invalido");
     const vencimentoCora = resolverVencimento(diaCora, dados.proximoVencimento, dataHojeIso());
     return retomarRecorrenciaCora(autor, clienteServicoId, { diaVencimento: diaCora, proximoVencimento: vencimentoCora });
+  }
+  if (await empresaUsaPix(autor.empresaId)) {
+    const diaPix = dados.diaVencimento ?? vinculo.diaVencimento;
+    if (!diaPix) throw new ErroAplicacao("Informe o dia de vencimento entre 1 e 31.", 400, "dia_invalido");
+    const vencimentoPix = resolverVencimento(diaPix, dados.proximoVencimento, dataHojeIso());
+    return retomarRecorrenciaPix(autor, clienteServicoId, { diaVencimento: diaPix, proximoVencimento: vencimentoPix });
   }
   if (!vinculo.asaasSubscriptionId || vinculo.asaasAssinaturaStatus !== "INACTIVE") {
     throw new ErroAplicacao("Só uma recorrência pausada pode ser retomada.", 409, "assinatura_ausente");
@@ -571,6 +613,7 @@ export async function cancelarRecorrencia(
   const vinculo = await buscarVinculo(autor.empresaId, clienteServicoId);
   if (await empresaUsaInter(autor.empresaId)) return cancelarRecorrenciaInter(autor, clienteServicoId);
   if (await empresaUsaCora(autor.empresaId)) return cancelarRecorrenciaCora(autor, clienteServicoId);
+  if (await empresaUsaPix(autor.empresaId)) return cancelarRecorrenciaPix(autor, clienteServicoId);
   if (!vinculo.asaasSubscriptionId || vinculo.asaasAssinaturaStatus === "CANCELADA") {
     throw new ErroAplicacao("Esta venda não tem cobrança recorrente para cancelar.", 409, "assinatura_ausente");
   }

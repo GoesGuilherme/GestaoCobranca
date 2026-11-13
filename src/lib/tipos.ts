@@ -1,3 +1,5 @@
+import type { ProvedorCodigo } from "./status-pagamento";
+
 export type Segmento = "RESTAURANTE" | "MERCADO_AUTONOMO" | "OUTRO";
 export type StatusCliente = "ATIVO" | "INATIVO" | "EM_IMPLANTACAO" | "BLOQUEADO";
 export type StatusFilial = "ATIVA" | "INATIVA" | "EM_IMPLANTACAO";
@@ -435,7 +437,7 @@ export type AtribuicaoReguaDTO = {
 };
 
 export type ConfiguracaoCoraDTO = {
-  provedorAtual: "ASAAS" | "CORA" | "INTER" | "EFI" | "SICOOB" | "SICREDI";
+  provedorAtual: ProvedorCodigo;
   conectada: boolean;
   precisaReconectar: boolean;
   ambiente: "STAGE" | "PRODUCAO";
@@ -447,7 +449,7 @@ export type ConfiguracaoCoraDTO = {
 };
 
 export type ConfiguracaoInterDTO = {
-  provedorAtual: "ASAAS" | "CORA" | "INTER" | "EFI" | "SICOOB" | "SICREDI";
+  provedorAtual: ProvedorCodigo;
   configurado: boolean;
   ambiente: "SANDBOX" | "PRODUCAO" | null;
   clientIdMascarado: string | null;

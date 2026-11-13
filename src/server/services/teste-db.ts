@@ -28,7 +28,9 @@ export function usarBancoDeTeste() {
     await prisma.configuracaoRegua.deleteMany();
     await prisma.eventoAsaas.deleteMany();
     await prisma.eventoPagamento.deleteMany();
+    await prisma.conciliacaoPagamento.deleteMany();
     await prisma.fatura.deleteMany();
+    await prisma.configuracaoPixProprio.deleteMany();
     await prisma.configuracaoAsaas.deleteMany();
     await prisma.configuracaoPagamento.deleteMany();
     await prisma.preferenciaCobranca.deleteMany();
