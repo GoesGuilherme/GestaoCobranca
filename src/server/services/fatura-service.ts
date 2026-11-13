@@ -20,6 +20,7 @@ import { conciliarPromessas, promessasPendentesDasFaturas } from "./promessa-ser
 import { encargosDaPreferencia, obterPreferenciasCobranca } from "./preferencia-cobranca-service";
 import { cancelarFaturaCora, emitirFaturaCora } from "./cora-cobranca";
 import { cancelarFaturaInter, emitirFaturaInter } from "./inter-cobranca";
+import { cancelarFaturaPix, emitirFaturaPix, sincronizarVencidasPix } from "./pix-cobranca";
 
 type FaturaComNomes = {
   id: string;
@@ -194,6 +195,7 @@ export async function listarFaturas(
 ): Promise<FaturaDTO[]> {
   exigirVerFaturas(autor);
   const busca = filtro.busca?.trim() ?? "";
+  await sincronizarVencidasPix(autor.empresaId);
   await conciliarPromessas(autor.empresaId);
   const faturas = await prisma.fatura.findMany({
     where: {
@@ -439,6 +441,9 @@ export async function emitirFatura(
   if (empresa?.provedorPagamento === "CORA") {
     return emitirFaturaCora(autor, clienteId, entrada);
   }
+  if (empresa?.provedorPagamento === "PIX_DIRETO") {
+    return emitirFaturaPix(autor, clienteId, entrada);
+  }
   exigirCobranca(autor);
   const dados = lerEsquema(esquemaFatura, entrada);
   const cliente = await prisma.cliente.findFirst({
@@ -626,6 +631,7 @@ export async function cancelarFatura(
   if (!atual) throw new ErroAplicacao("Fatura não encontrada.", 404, "nao_encontrado");
   if (atual.provedor === "INTER") return cancelarFaturaInter(autor, atual.id);
   if (atual.provedor === "CORA") return cancelarFaturaCora(autor, atual.id);
+  if (atual.provedor === "PIX_DIRETO") return cancelarFaturaPix(autor, atual.id);
   if (atual.excluida) return paraFatura(atual);
   if (!atual.asaasPaymentId) {
     const fatura = await prisma.fatura.update({

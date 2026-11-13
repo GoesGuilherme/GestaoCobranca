@@ -50,9 +50,6 @@ afterEach(() => {
 
 function autor(): AutorEmpresa {
   return {
-    usuarioId: "usuario-webhook",
-    nome: "Dono",
-    email: "dono.webhook@exemplo.test",
     empresaId,
     papel: "DONO",
   };

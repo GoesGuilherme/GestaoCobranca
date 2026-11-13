@@ -112,16 +112,35 @@ export function tipoTemplateDoPasso(passo: { naEmissao: boolean; dias: number | 
 
 export const ROTULO_WHATSAPP_LINK_CARTAO = "WhatsApp · link do cartão";
 
-// O template "boleto gerado" diz "Seu boleto". Cartão usa um texto já aprovado
-// que também leva o link do Asaas: cobrança a vencer, ou em atraso se o
-// vencimento já passou. Pix e "cliente escolhe" continuam de fora.
+export const ROTULO_WHATSAPP_PIX = "WhatsApp · Pix";
+
+// Modelo sugerido para uma aprovação futura na Meta. Não entra na publicação
+// automática: o corpo novo precisa de revisão. Enquanto isso, o Pix usa os
+// templates já aprovados de cobrança (VENCE_EM_DIAS, VENCE_HOJE, VENCEU e PAGO).
+// Eles aceitam qualquer URL no lugar do "link do Asaas". O texto ainda cita o Asaas.
+export const MODELO_PIX_SUGERIDO: TemplateCobrancaWhatsapp = {
+  tipo: "BOLETO_GERADO",
+  nome: "taguaro_pix_gerado",
+  corpo: `Olá, {{1}}. Seu Pix de {{2}}, com vencimento em {{3}}, foi gerado. Acesse o link de pagamento: {{4}}. ${FECHO_TEMPLATE}`,
+  variaveisExemplo: {
+    "1": "Maria Exemplo",
+    "2": "R$ 150,00",
+    "3": "30/10/2026",
+    "4": "https://app.exemplo.test/pagar/exemplo",
+  },
+};
+
+// O template "boleto gerado" diz "Seu boleto". Cartão e Pix usam um texto já
+// aprovado que também leva um link: cobrança a vencer, ou em atraso se o
+// vencimento já passou. "Cliente escolhe" continua de fora.
 export function tipoWhatsappDaEmissao(
   forma: string | null | undefined,
   vencimentoIso: string,
   hojeIso: string,
 ): Exclude<TipoTemplateWhatsapp, "PAGO"> | null {
   if (formaUsaTemplateBoleto(forma)) return "BOLETO_GERADO";
-  if ((forma ?? "").trim().toUpperCase() !== "CREDIT_CARD") return null;
+  const texto = (forma ?? "").trim().toUpperCase();
+  if (texto !== "CREDIT_CARD" && texto !== "PIX") return null;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(vencimentoIso) || !/^\d{4}-\d{2}-\d{2}$/.test(hojeIso)) return null;
   return diferencaDias(vencimentoIso, hojeIso) > 0 ? "VENCEU" : "VENCE_EM_DIAS";
 }
@@ -150,6 +169,14 @@ export function resolverWhatsappDoPasso(
   if (!tipo) return null;
   if (tipo === "BOLETO_GERADO") return { tipo, dias: passo.dias };
   return { tipo, dias: diasDoTemplateEmissao(vencimento, hoje) };
+}
+
+export function rotuloWhatsappNaEmissao(forma: string | null | undefined, tipo: TipoTemplateWhatsapp): string | null {
+  if (tipo === "BOLETO_GERADO") return null;
+  const texto = (forma ?? "").trim().toUpperCase();
+  if (texto === "PIX") return ROTULO_WHATSAPP_PIX;
+  if (texto === "CREDIT_CARD") return ROTULO_WHATSAPP_LINK_CARTAO;
+  return null;
 }
 
 export function rotuloTemplateWhatsapp(tipo: TipoTemplateWhatsapp, dias: number | null = null): string {

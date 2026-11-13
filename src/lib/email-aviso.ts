@@ -15,6 +15,9 @@ export type DadosEmailAviso = {
   logoUrl: string | null;
   mensagem: string;
   modoTeste: boolean;
+  qrSrc?: string | null;
+  qrLink?: string | null;
+  rotuloBotao?: string | null;
 };
 
 export type IdTipoAviso = "emissao" | "antes" | "vencimento" | "atraso";
@@ -51,6 +54,8 @@ export function montarEmailAviso(dados: DadosEmailAviso): { texto: string; html:
   const linha = textoOpcional(dados.linhaDigitavel);
   const pix = textoOpcional(dados.pixCopiaCola);
   const logo = logoPermitida(dados.logoUrl);
+  const qr = qrPermitido(dados.qrSrc);
+  const qrLink = hrefSeguro(dados.qrLink ?? "");
   const mensagem = corpoDepoisDaSaudacao(cliente, dados.mensagem);
 
   return {
@@ -63,6 +68,7 @@ export function montarEmailAviso(dados: DadosEmailAviso): { texto: string; html:
       link,
       linha,
       pix,
+      qrLink,
     }),
     html: htmlDoAviso({
       empresa,
@@ -74,6 +80,9 @@ export function montarEmailAviso(dados: DadosEmailAviso): { texto: string; html:
       linha,
       pix,
       logo,
+      qr,
+      qrLink,
+      rotuloBotao: dados.rotuloBotao?.trim() || null,
       mensagem,
       modoTeste: dados.modoTeste,
     }),
@@ -116,6 +125,7 @@ function textoPlano(dados: {
   link: string | null;
   linha: string | null;
   pix: string | null;
+  qrLink: string | null;
 }): string {
   const cabeca = dados.modoTeste
     ? `Modo teste: este e-mail foi enviado para você, não para o cliente.\n\n${dados.mensagem}`
@@ -124,6 +134,7 @@ function textoPlano(dados: {
   if (dados.link) linhas.push(`Fatura: ${dados.link}`);
   if (dados.linha) linhas.push(`Linha digitável: ${dados.linha}`);
   if (dados.pix) linhas.push(`Pix copia e cola: ${dados.pix}`);
+  if (dados.qrLink) linhas.push(`QR Code: ${dados.qrLink}`);
   return linhas.join("\n");
 }
 
@@ -137,6 +148,9 @@ function htmlDoAviso(dados: {
   linha: string | null;
   pix: string | null;
   logo: string | null;
+  qr: string | null;
+  qrLink: string | null;
+  rotuloBotao: string | null;
   mensagem: string;
   modoTeste: boolean;
 }): string {
@@ -152,9 +166,11 @@ function htmlDoAviso(dados: {
   const paragrafo = dados.mensagem
     ? `<p style="margin:16px 0 0;font-size:16px;line-height:1.6;color:${TINTA};">${quebrarLinhas(dados.mensagem)}</p>`
     : "";
+  const rotuloBotao = dados.rotuloBotao || "Baixar fatura";
   const botao = dados.link
-    ? `<tr><td style="padding:8px 32px 8px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="${AZUL}" style="border-radius:8px;background:${AZUL};"><a href="${escaparAtributo(dados.link)}" style="display:inline-block;padding:12px 22px;color:${FUNDO};font-size:15px;line-height:1.2;font-weight:600;text-decoration:none;">Baixar fatura</a></td></tr></table></td></tr>`
+    ? `<tr><td style="padding:8px 32px 8px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="${AZUL}" style="border-radius:8px;background:${AZUL};"><a href="${escaparAtributo(dados.link)}" style="display:inline-block;padding:12px 22px;color:${FUNDO};font-size:15px;line-height:1.2;font-weight:600;text-decoration:none;">${escaparTexto(rotuloBotao)}</a></td></tr></table></td></tr>`
     : "";
+  const qr = dados.qr ? blocoQr(dados.qr, dados.qrLink) : "";
   const codigos = [
     dados.linha ? blocoCodigo("Linha digitável", dados.linha) : "",
     dados.pix ? blocoCodigo("Pix copia e cola", dados.pix) : "",
@@ -197,6 +213,7 @@ function htmlDoAviso(dados: {
             </table>
           </td>
         </tr>
+        ${qr}
         ${botao}
         ${codigos}
         <tr>
@@ -218,6 +235,16 @@ function linhaDetalhe(rotulo: string, valor: string): string {
     <td width="140" valign="top" style="padding:8px 12px 8px 0;width:140px;font-size:14px;line-height:1.4;color:${APOIO};">${escaparTexto(rotulo)}</td>
     <td valign="top" style="padding:8px 0;font-size:14px;line-height:1.4;font-weight:600;color:${TINTA};">${escaparTexto(valor)}</td>
   </tr>`;
+}
+
+function blocoQr(src: string, link: string | null): string {
+  const fallback = link
+    ? `<p style="margin:10px 0 0;font-size:13px;line-height:1.5;"><a href="${escaparAtributo(link)}" style="color:${AZUL};">Se a imagem não aparecer, abra o QR Code</a></p>`
+    : "";
+  return `<tr><td align="center" style="padding:8px 32px 12px;">
+    <img src="${escaparAtributo(src)}" alt="QR Code Pix" width="220" height="220" style="display:block;border:0;outline:none;text-decoration:none;width:220px;height:220px;">
+    ${fallback}
+  </td></tr>`;
 }
 
 function blocoCodigo(titulo: string, valor: string): string {
@@ -261,6 +288,12 @@ function hrefSeguro(valor: string): string | null {
   } catch {
     return null;
   }
+}
+
+function qrPermitido(valor: string | null | undefined): string | null {
+  const limpo = valor?.trim() ?? "";
+  if (limpo === "cid:pix-qr") return limpo;
+  return hrefSeguro(limpo);
 }
 
 function logoPermitida(valor: string | null | undefined): string | null {

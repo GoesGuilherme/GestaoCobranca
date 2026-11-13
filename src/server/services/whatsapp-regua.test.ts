@@ -1067,7 +1067,7 @@ describe("WhatsApp na régua via Twilio", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("na emissão o WhatsApp de boleto não sai para Pix nem forma indefinida, e o cartão leva o link sem dizer boleto", async () => {
+  it("na emissão o Pix e o cartão usam o template de cobrança com o link, e a forma indefinida fica de fora", async () => {
     process.env.TWILIO_WHATSAPP_SANDBOX = "true";
     process.env.TWILIO_WHATSAPP_SENDER_OFICIAL = "true";
     process.env.TWILIO_WHATSAPP_OFICIAL_DESDE = "2026-10-01T00:00:00.000Z";
@@ -1147,13 +1147,17 @@ describe("WhatsApp na régua via Twilio", () => {
     expect(caixa.caixa.every((item) => item.assunto === "Cobrança emitida")).toBe(true);
     expect(caixa.caixa.every((item) => item.texto.includes("A cobrança está em"))).toBe(true);
     expect(caixa.caixa.every((item) => !item.texto.includes("Seu boleto"))).toBe(true);
-    expect(twilio.enviados).toHaveLength(2);
+    expect(twilio.enviados).toHaveLength(3);
     expect(twilio.enviados.find((item) => item.contentSid === SIDS_APROVADOS.BOLETO_GERADO)?.variaveis["4"]).toContain("asaas.com");
-    expect(twilio.enviados.find((item) => item.contentSid === SIDS_APROVADOS.VENCE_EM_DIAS)).toMatchObject({
+    expect(twilio.enviados.find((item) => item.variaveis["5"] === "https://www.asaas.com/i/cartao")).toMatchObject({
       variaveis: expect.objectContaining({
         "3": "12",
         "5": "https://www.asaas.com/i/cartao",
       }),
+    });
+    expect(twilio.enviados.find((item) => item.variaveis["5"] === "https://www.asaas.com/i/pix")).toMatchObject({
+      contentSid: SIDS_APROVADOS.VENCE_EM_DIAS,
+      variaveis: expect.objectContaining({ "5": "https://www.asaas.com/i/pix" }),
     });
     expect(twilio.enviados.every((item) => !JSON.stringify(item.variaveis).includes("Seu boleto"))).toBe(true);
     expect(await prisma.filaWhatsapp.count({ where: { faturaId: boleto.id, tipo: "BOLETO_GERADO" } })).toBe(1);
@@ -1162,9 +1166,14 @@ describe("WhatsApp na régua via Twilio", () => {
       status: "ENVIADO",
       rotulo: "WhatsApp · link do cartão",
     });
-    expect(await prisma.filaWhatsapp.count({ where: { faturaId: { in: [pix.id, indefinida.id] } } })).toBe(0);
+    expect(await prisma.filaWhatsapp.findFirst({ where: { faturaId: pix.id } })).toMatchObject({
+      tipo: "VENCE_EM_DIAS",
+      status: "ENVIADO",
+      rotulo: "WhatsApp · Pix",
+    });
+    expect(await prisma.filaWhatsapp.count({ where: { faturaId: indefinida.id } })).toBe(0);
     await executarRegua({ agora: AGORA, empresaId, twilio, resend: caixa });
-    expect(twilio.enviados).toHaveLength(2);
+    expect(twilio.enviados).toHaveLength(3);
     expect(caixa.caixa).toHaveLength(4);
     delete process.env.TWILIO_WHATSAPP_OFICIAL_DESDE;
     expect(fetchSpy).not.toHaveBeenCalled();

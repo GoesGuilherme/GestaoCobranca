@@ -3,7 +3,8 @@ import { isoDeData } from "@/lib/data";
 import { provedorCodigo, statusEh } from "@/lib/status-pagamento";
 import { formatarReais } from "@/lib/dinheiro";
 import { formatarDataIso } from "@/lib/formatacao";
-import { montarEmailAviso } from "@/lib/email-aviso";
+import { absolutizarLinkCobranca } from "@/lib/pix-link";
+import { cartaComPix } from "./pix-email";
 import { rotuloStatusFatura } from "@/lib/rotulos";
 import { emailDeCobranca } from "@/lib/remetentes";
 import {
@@ -474,25 +475,28 @@ export async function enviarLembreteAgora(
     servico: fatura.clienteServico?.servico.nome ?? fatura.descricao ?? "cobrança",
     valor: formatarReais(valor),
     vencimento: formatarDataIso(vencimento),
-    link: fatura.boletoUrl ?? fatura.faturaUrl ?? "",
+    link: absolutizarLinkCobranca(fatura.boletoUrl ?? fatura.faturaUrl ?? ""),
     diasAtraso: String(diasAtraso(dataSaoPaulo(agora), vencimento)),
     empresa: empresa?.nomeFantasia ?? autor.nomeEmpresa,
   };
   const corpo = textoRegua(passo.corpo, campos);
-  const carta = montarEmailAviso({
-    empresa: empresa?.nomeFantasia ?? autor.nomeEmpresa,
-    cliente: campos.cliente,
-    servico: campos.servico,
-    valor: campos.valor,
-    vencimento: campos.vencimento,
-    status: rotuloStatusFatura(fatura.status, fatura.excluida),
-    link: campos.link,
-    linhaDigitavel: fatura.linhaDigitavel,
-    pixCopiaCola: fatura.pixCopiaCola,
-    logoUrl,
-    mensagem: corpo,
-    modoTeste,
-  });
+  const carta = await cartaComPix(
+    {
+      empresa: empresa?.nomeFantasia ?? autor.nomeEmpresa,
+      cliente: campos.cliente,
+      servico: campos.servico,
+      valor: campos.valor,
+      vencimento: campos.vencimento,
+      status: rotuloStatusFatura(fatura.status, fatura.excluida),
+      link: campos.link,
+      linhaDigitavel: fatura.linhaDigitavel,
+      pixCopiaCola: fatura.pixCopiaCola,
+      logoUrl,
+      mensagem: corpo,
+      modoTeste,
+    },
+    fatura,
+  );
 
   const resultado = await dispararLembrete({
     empresaId: autor.empresaId,
@@ -506,6 +510,7 @@ export async function enviarLembreteAgora(
     assunto: assuntoRegua(textoRegua(passo.assunto, campos), modoTeste),
     texto: carta.texto,
     html: carta.html,
+    anexos: carta.anexos,
     de: remetenteResend(config.remetenteNome ?? "", emailDeCobranca(config.remetenteEmail)),
     replyTo: config.replyTo,
     chave: abrirChaveResend(config.chaveResendCifrada),

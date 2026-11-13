@@ -3,6 +3,8 @@ import { MODELO_ASSUNTO_PADRAO, MODELO_MENSAGEM_PADRAO } from "./cobranca";
 import { LIMITE_REENVIO_BOLETOS } from "./reenvio-boleto";
 import { dataHojeIso, dataIsoValida } from "./data";
 import { normalizarAliquota, normalizarDinheiro } from "./dinheiro";
+import { textoEmv } from "./pix-brcode";
+import { normalizarChavePix } from "./pix-chave";
 import { cnpjValido, identificarDocumento, somenteDigitos, whatsappValido } from "./documento";
 import { ufValida } from "./ufs";
 
@@ -421,6 +423,52 @@ export const esquemaConfiguracaoAsaas = z.object({
   ),
 });
 
+export const esquemaConfiguracaoPix = z
+  .object({
+    tipoChave: z.enum(["CPF", "CNPJ", "EMAIL", "TELEFONE", "EVP"], "Escolha o tipo da chave Pix."),
+    chavePix: z.string().trim().min(1, "Informe a chave Pix.").max(120, "A chave Pix está longa demais."),
+    nomeRecebedor: z
+      .string()
+      .trim()
+      .min(2, "Informe o nome de quem recebe.")
+      .max(80, "O nome pode ter no máximo 80 caracteres."),
+    cidadeRecebedor: z
+      .string()
+      .trim()
+      .min(2, "Informe a cidade do recebedor.")
+      .max(40, "A cidade pode ter no máximo 40 caracteres."),
+    usarNasCobrancas: z.boolean("Informe se o Pix direto vale para as cobranças novas."),
+  })
+  .superRefine((dados, ctx) => {
+    const chave = normalizarChavePix(dados.tipoChave, dados.chavePix);
+    if (!chave.ok) ctx.addIssue({ code: "custom", path: ["chavePix"], message: chave.erro });
+    if (!textoEmv(dados.nomeRecebedor, 25)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["nomeRecebedor"],
+        message: "O nome precisa ter letras ou números para o QR Code.",
+      });
+    }
+    if (!textoEmv(dados.cidadeRecebedor, 15)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["cidadeRecebedor"],
+        message: "A cidade precisa ter letras ou números para o QR Code.",
+      });
+    }
+  });
+
+export const esquemaBaixaManual = z.object({
+  pagoEm: z
+    .string()
+    .trim()
+    .refine((valor) => dataIsoValida(valor), "Informe a data do pagamento."),
+  nota: z.string().trim().max(500, "A observação pode ter no máximo 500 caracteres.").optional(),
+  confirmar: z
+    .boolean("Confirme que o Pix foi recebido.")
+    .refine((valor) => valor, "Confirme que o Pix foi recebido."),
+});
+
 export const esquemaAlteracaoFatura = z.object({
   valor: esquemaValorPositivo,
   vencimento: z
@@ -802,6 +850,8 @@ export const esquemaRespostaWhatsapp = z.object({
 
 export type EntradaFatura = z.infer<typeof esquemaFatura>;
 export type EntradaAlteracaoFatura = z.infer<typeof esquemaAlteracaoFatura>;
+export type EntradaConfiguracaoPix = z.infer<typeof esquemaConfiguracaoPix>;
+export type EntradaBaixaManual = z.infer<typeof esquemaBaixaManual>;
 export type EntradaAtivarRecorrencia = z.infer<typeof esquemaAtivarRecorrencia>;
 export type EntradaEditarRecorrencia = z.infer<typeof esquemaEditarRecorrencia>;
 export type EntradaRetomarRecorrencia = z.infer<typeof esquemaRetomarRecorrencia>;

@@ -33,6 +33,7 @@ import type { ClienteResend } from "@/server/regua/resend";
 import type { ClienteTwilio } from "@/server/twilio/contrato";
 import { lerEsquema } from "@/server/validar";
 import { gravarCobrancaCora } from "./cora-cobranca";
+import { regerarBrCodePix } from "./pix-cobranca";
 import { obterFatura } from "./fatura-service";
 import { gravarCobrancaInter } from "./inter-cobranca";
 import { encargosDaPreferencia, obterPreferenciasCobranca } from "./preferencia-cobranca-service";
@@ -337,7 +338,7 @@ export async function alterarFatura(
     where: { id: faturaId, empresaId: autor.empresaId },
   });
   if (!atual) throw new ErroAplicacao("Fatura não encontrada.", 404, "nao_encontrado");
-  if (atual.provedor !== "ASAAS" && atual.provedor !== "CORA" && atual.provedor !== "INTER") {
+  if (atual.provedor !== "ASAAS" && atual.provedor !== "CORA" && atual.provedor !== "INTER" && atual.provedor !== "PIX_DIRETO") {
     throw new ErroAplicacao(motivoFaturaNaoAlteravel(atual), 422, "provedor_sem_alteracao");
   }
 
@@ -358,6 +359,8 @@ export async function alterarFatura(
     reemitido = true;
   } else if (atual.provedor === "INTER") {
     await alterarInter(autor, atual, atualCampos, nova, opcoes.inter);
+  } else if (atual.provedor === "PIX_DIRETO") {
+    await regerarBrCodePix(autor.empresaId, atual.id, nova);
   } else {
     throw new ErroAplicacao(motivoFaturaNaoAlteravel(atual), 422, "provedor_sem_alteracao");
   }

@@ -2,9 +2,10 @@
 // Servico é o catálogo da empresa (o que ela vende aos clientes dela).
 // ClienteServico guarda o valor combinado daquele cliente. O plano da Empresa
 // (string `plano`) é a assinatura dela na plataforma e não se mistura com este catálogo.
-// A cobrança nasce no provedor da empresa. Asaas, Inter e Cora (Stage) estão disponíveis.
+// A cobrança nasce no provedor da empresa. Asaas, Inter, Cora (Stage) e Pix
+// por chave própria estão disponíveis.
 // Colunas asaas_* permanecem. provedor, id externo e status normalizado
-// são o caminho comum para Cora, Inter, Efí, Sicoob e Sicredi.
+// são o caminho comum para Cora, Inter, Efí, Sicoob, Sicredi e Pix direto.
 
 generator client {
   provider = "prisma-client"
@@ -94,8 +95,28 @@ enum ProvedorPagamento {
   EFI
   SICOOB
   SICREDI
+  PIX_DIRETO
 
   @@map("provedor_pagamento")
+}
+
+enum TipoChavePix {
+  CPF
+  CNPJ
+  EMAIL
+  TELEFONE
+  EVP
+
+  @@map("tipo_chave_pix")
+}
+
+// MANUAL é a baixa feita no painel. OPEN_FINANCE fica reservado para uma
+// conciliação futura (Pluggy ou similar) sem misturar com o status do provedor.
+enum OrigemConciliacao {
+  MANUAL
+  OPEN_FINANCE
+
+  @@map("origem_conciliacao")
 }
 
 enum CanalPromessa {
@@ -170,6 +191,8 @@ model Empresa {
   promessas            PromessaPagamento[]
   estadosOauth         EstadoOauth[]
   logo                 LogoEmpresa?
+  configuracaoPix      ConfiguracaoPixProprio?
+  conciliacoes         ConciliacaoPagamento[]
 
   @@map("empresas")
 }
@@ -468,6 +491,8 @@ model Fatura {
   linhaDigitavel    String?   @map("linha_digitavel") @db.Text
   pixCopiaCola      String?   @map("pix_copia_cola") @db.Text
   faturaUrl         String?   @map("fatura_url") @db.Text
+  // Token opaco da página pública /pagar/[token]. Não carrega empresa nem cliente.
+  tokenPublico      String?   @unique @map("token_publico")
   descricao         String?   @db.Text
   erroEmissao       String?   @map("erro_emissao") @db.Text
   excluida          Boolean   @default(false)
@@ -484,6 +509,7 @@ model Fatura {
   lembretes        LembreteRegua[]
   filaWhatsapp     FilaWhatsapp[]
   promessas        PromessaPagamento[]
+  conciliacoes     ConciliacaoPagamento[]
 
   @@unique([empresaId, asaasPaymentId])
   @@unique([empresaId, chaveIdempotencia])
@@ -532,6 +558,43 @@ model ConfiguracaoPagamento {
   @@unique([empresaId, provedor])
   @@index([empresaId])
   @@map("configuracoes_pagamento")
+}
+
+// Chave Pix da própria empresa. Não é segredo de API: o BR Code a publica.
+// O titular e a cidade entram no payload EMV (nome ≤ 25, cidade ≤ 15, ASCII).
+model ConfiguracaoPixProprio {
+  id              String       @id @default(cuid())
+  empresaId       String       @unique @map("empresa_id")
+  tipoChave       TipoChavePix @map("tipo_chave")
+  chavePix        String       @map("chave_pix")
+  nomeRecebedor   String       @map("nome_recebedor")
+  cidadeRecebedor String       @map("cidade_recebedor")
+  ativo           Boolean      @default(true)
+  criadoEm        DateTime     @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm    DateTime     @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  empresa         Empresa      @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+
+  @@map("configuracoes_pix_proprio")
+}
+
+// Registro de quem marcou a fatura como paga, ou de uma conciliação futura.
+// A fatura continua com status PAGA e status normalizado PAGO.
+model ConciliacaoPagamento {
+  id                 String             @id @default(cuid())
+  empresaId          String             @map("empresa_id")
+  faturaId           String             @map("fatura_id")
+  origem             OrigemConciliacao
+  pagoEm             DateTime           @map("pago_em") @db.Date
+  nota               String?            @db.Text
+  usuarioId          String?            @map("usuario_id")
+  referenciaExterna  String?            @map("referencia_externa")
+  criadoEm           DateTime           @default(now()) @map("criado_em") @db.Timestamptz(3)
+  empresa            Empresa            @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  fatura             Fatura             @relation(fields: [faturaId], references: [id], onDelete: Cascade)
+
+  @@index([empresaId, faturaId])
+  @@index([empresaId, referenciaExterna])
+  @@map("conciliacoes_pagamento")
 }
 
 // Evento já traduzido para o status do Taguaro. eventos_asaas continua

@@ -3,6 +3,7 @@ import { cronAutorizado } from "@/server/cron/segredo";
 import { jsonErro } from "@/server/http";
 import { executarRecorrenciasCora } from "@/server/services/cora-recorrencia";
 import { executarRecorrenciasInter } from "@/server/services/inter-recorrencia";
+import { executarRecorrenciasPix } from "@/server/services/pix-recorrencia";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,7 +15,8 @@ async function executar(request: Request) {
   try {
     const inter = await executarRecorrenciasInter();
     const cora = await executarRecorrenciasCora();
-    return NextResponse.json({ ok: true, ...inter, cora });
+    const pix = await executarRecorrenciasPix();
+    return NextResponse.json({ ok: true, ...inter, cora, pix });
   } catch (erro) {
     return jsonErro(erro);
   }

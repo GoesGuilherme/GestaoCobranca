@@ -139,6 +139,7 @@ export async function reenviarBoletos(
       {
         formaCobranca: fatura.formaCobranca,
         boletoUrl: fatura.boletoUrl,
+        faturaUrl: fatura.faturaUrl,
         excluida: fatura.excluida,
         status: fatura.status,
         provedor: fatura.provedor,
