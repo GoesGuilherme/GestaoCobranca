@@ -106,12 +106,20 @@ export type NovaCobrancaAsaas = {
   encargos?: EncargosAsaas;
 };
 
+// PUT /v3/payments/{id}. Só os campos enviados mudam. Descrição nula limpa o texto.
+export type AtualizacaoCobrancaAsaas = {
+  valor?: string;
+  vencimento?: string;
+  descricao?: string | null;
+};
+
 export interface ClienteHttpAsaas {
   testarConexao(): Promise<{ nome: string }>;
   buscarClientePorDocumento(cpfCnpj: string): Promise<ClienteAsaas | null>;
   obterCliente(id: string): Promise<ClienteAsaas | null>;
   criarCliente(dados: NovoClienteAsaas): Promise<ClienteAsaas>;
   criarCobranca(dados: NovaCobrancaAsaas): Promise<CobrancaAsaas>;
+  atualizarCobranca(id: string, dados: AtualizacaoCobrancaAsaas): Promise<CobrancaAsaas>;
   buscarCobrancaPorReferencia(referencia: string): Promise<CobrancaAsaas | null>;
   cancelarCobranca(id: string): Promise<void>;
   obterCobranca(id: string): Promise<CobrancaAsaas>;

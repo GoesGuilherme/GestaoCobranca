@@ -322,6 +322,39 @@ describe("cliente HTTP do Asaas", () => {
     expect(pagina.temMais).toBe(false);
   });
 
+  it("atualiza a cobrança com PUT e o valor em número", async () => {
+    const pedidos: { url: string; method: string; body: string }[] = [];
+    const fetchImpl: typeof fetch = async (entrada, init) => {
+      pedidos.push({ url: String(entrada), method: init?.method ?? "GET", body: String(init?.body ?? "") });
+      return resposta(200, {
+        id: "pay_9",
+        customer: "cus_1",
+        value: 210,
+        dueDate: "2026-12-20",
+        status: "PENDING",
+        billingType: "BOLETO",
+        description: "Mensalidade revista",
+        bankSlipUrl: "https://sandbox.asaas.com/b/pdf/pay_9",
+        invoiceUrl: "https://sandbox.asaas.com/i/pay_9",
+      });
+    };
+    const cliente = criarClienteHttpAsaas({ baseUrl: URL_ASAAS.SANDBOX, apiKey: CHAVE, fetchImpl });
+    const cobranca = await cliente.atualizarCobranca("pay_9", {
+      valor: "210.00",
+      vencimento: "2026-12-20",
+      descricao: "Mensalidade revista",
+    });
+    expect(pedidos[0]?.method).toBe("PUT");
+    expect(pedidos[0]?.url).toBe("https://api-sandbox.asaas.com/v3/payments/pay_9");
+    expect(pedidos[0]?.body).toContain('"dueDate":"2026-12-20"');
+    expect(pedidos[0]?.body).toContain('"description":"Mensalidade revista"');
+    expect(pedidos[0]?.body).toContain('"value":210.00');
+    expect(pedidos[0]?.body).not.toContain(CHAVE);
+    expect(cobranca.valor).toBe("210.00");
+    expect(cobranca.vencimento).toBe("2026-12-20");
+    expect(cobranca.descricao).toBe("Mensalidade revista");
+  });
+
   it("recusa o modo simulado em produção", () => {
     expect(mockAsaasLigado({ ASAAS_MOCK: "true", NODE_ENV: "production" })).toBe(false);
     expect(mockAsaasLigado({ ASAAS_MOCK: "true", NODE_ENV: "development" })).toBe(true);

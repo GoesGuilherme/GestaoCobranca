@@ -7,6 +7,7 @@ export class CoraMemoria implements ClienteHttpCora {
   consultas = 0;
   falharConsulta = false;
   falharCriacao = false;
+  falharCancelamento = false;
   sequencia = 0;
 
   async testarConexao() {
@@ -31,10 +32,10 @@ export class CoraMemoria implements ClienteHttpCora {
       vencimento: dados.vencimento,
       pagoEm: null,
       codigo: dados.codigo,
-      linhaDigitavel: "23793381286008301352856000063307789840000010000",
-      codigoBarras: "23797898400000100003381260083013525600006330",
-      boletoUrl: "https://api.stage.cora.com.br/boletos/exemplo.pdf",
-      pixCopiaCola: "00020126580014br.gov.bcb.pix",
+      linhaDigitavel: `2379338128600830135285600006330778984${String(this.sequencia).padStart(8, "0")}`,
+      codigoBarras: `2379789840000010000338126008301352${String(this.sequencia).padStart(8, "0")}`,
+      boletoUrl: `https://api.stage.cora.com.br/boletos/exemplo-${this.sequencia}.pdf`,
+      pixCopiaCola: `00020126580014br.gov.bcb.pix${this.sequencia}`,
       descricao: dados.descricao ?? null,
       metodo: null,
     };
@@ -52,6 +53,7 @@ export class CoraMemoria implements ClienteHttpCora {
   }
 
   async cancelarFatura(id: string) {
+    if (this.falharCancelamento) throw new ErroAplicacao("Não foi possível falar com a Cora.", 504, "cora_timeout");
     const achada = await this.consultarFatura(id);
     if (achada.status === "PAID") {
       throw new ErroAplicacao("A Cora recusou a chamada (422). O boleto já foi pago.", 422, "cora_recusou");

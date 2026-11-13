@@ -69,8 +69,14 @@ export class InterMemoria implements ClienteHttpInter {
 
   async editarCobranca(codigoSolicitacao: string, dados: { valor?: string; vencimento?: string }) {
     const achada = await this.consultarCobranca(codigoSolicitacao);
+    if (achada.situacao === "CANCELADO" || achada.situacao === "RECEBIDO" || achada.situacao === "PROTESTO") {
+      throw new ErroAplicacao("O Inter só altera cobrança em aberto ou atrasada.", 422, "inter_recusou");
+    }
     if (dados.valor) achada.valorNominal = Number(dados.valor).toFixed(2);
     if (dados.vencimento) achada.dataVencimento = dados.vencimento;
+    const centavos = achada.valorNominal.replace(/\D/g, "");
+    achada.linhaDigitavel = `34191.79001 01043.510047 91020.150008 1 ${centavos.padStart(14, "0")}`;
+    achada.pixCopiaCola = `00020126580014BR.GOV.BCB.PIX0136${achada.codigoSolicitacao}${centavos}`;
   }
 
   async obterPdf(codigoSolicitacao: string) {

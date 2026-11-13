@@ -68,23 +68,26 @@ function canalDaLinha(status: string, motivo: string | null, jaAceito: boolean):
 async function lerLinha(empresaId: string, faturaId: string, passoId: string, tipo: string) {
   return prisma.filaWhatsapp.findFirst({
     where: { empresaId, faturaId, passoId, tipo },
+    orderBy: { criadoEm: "desc" },
     select: { status: true, motivo: true },
   });
 }
 
-// Enfileira pelo mesmo caminho da régua. Não cria outro template nem outra chave.
-// Se o passo já foi aceito, não manda de novo.
+// Enfileira pelo mesmo caminho da régua. Sem sufixo, a chave do passo não muda:
+// um envio já aceito não sai de novo. O sufixo existe para o boleto alterado,
+// que precisa de uma chave nova sem esbarrar no índice único da fila.
 export async function prepararWhatsappDoPasso(
   fatura: FaturaWhatsappPasso,
   passo: PassoWhatsapp,
   modoTeste: boolean,
   agora = new Date(),
+  chaveSufixo?: string,
 ): Promise<{ processar: boolean; canal: ResultadoCanalReenvio | null }> {
   const naoAplica = motivoWhatsappNaoAplica(fatura, passo, modoTeste, agora);
   if (naoAplica) return { processar: false, canal: canal("ignorado", naoAplica) };
   const tipo = (await tipoWhatsappDoPasso(fatura.empresaId, passo, fatura, agora))?.tipo;
   if (!tipo) return { processar: false, canal: canal("ignorado", "WhatsApp não se aplica a esta cobrança.") };
-  const fila = await enfileirarWhatsappDoPasso(fatura, passo, modoTeste, agora);
+  const fila = await enfileirarWhatsappDoPasso(fatura, passo, modoTeste, agora, undefined, chaveSufixo);
   const linha = await lerLinha(fatura.empresaId, fatura.id, passo.id, tipo);
   if (!linha) return { processar: false, canal: canal("ignorado", "WhatsApp não se aplica a esta cobrança.") };
   if (fila === "existente" && (linha.status === "ENVIADO" || linha.status === "IGNORADO" || linha.status === "FALHOU")) {
@@ -100,6 +103,7 @@ export async function concluirWhatsappDoPasso(
   passos: PassoWhatsapp[],
   twilio: ClienteTwilio,
   agora = new Date(),
+  limite?: number,
 ): Promise<void> {
   if (faturaIds.length === 0) return;
   const tipos = new Set<TipoTemplateWhatsapp>();
@@ -124,7 +128,7 @@ export async function concluirWhatsappDoPasso(
     twilio,
     tipos: [...tipos],
     faturaIds,
-    limite: faturaIds.length,
+    limite: limite ?? faturaIds.length,
     conciliar: false,
   });
 }
