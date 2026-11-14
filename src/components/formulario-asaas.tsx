@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { asaasAposSalvar } from "@/lib/apos-salvar";
+import { salvarAsaasHabilitado } from "@/lib/asaas-formulario";
 import { enviarJson } from "@/lib/api-cliente";
 import { AMBIENTES_ASAAS } from "@/lib/rotulos";
 import type { ConfiguracaoAsaasDTO } from "@/lib/tipos";
@@ -20,9 +21,14 @@ export function FormularioAsaas({ inicial }: { inicial: ConfiguracaoAsaasDTO }) 
   const [enviando, setEnviando] = useState(false);
   const [testando, setTestando] = useState(false);
   const [copiado, setCopiado] = useState(false);
+  const podeSalvar = salvarAsaasHabilitado(
+    { ambiente, chaveApi },
+    { ambiente: configuracao.ambiente ?? "SANDBOX", configurado: configuracao.configurado },
+  );
 
   async function salvar(evento: React.FormEvent) {
     evento.preventDefault();
+    if (enviando || !podeSalvar) return;
     if (!configuracao.configurado && !chaveApi.trim()) {
       setCampos({ chaveApi: "Informe a chave da API." });
       avisarCamposObrigatorios();
@@ -51,10 +57,10 @@ export function FormularioAsaas({ inicial }: { inicial: ConfiguracaoAsaasDTO }) 
       setCampos(resposta.campos ?? {});
       return;
     }
-    const gravado = asaasAposSalvar(ambiente);
+    const limpo = asaasAposSalvar(resposta.dados.configuracao.ambiente ?? ambiente);
     setConfiguracao(resposta.dados.configuracao);
-    setAmbiente(gravado.ambiente as "SANDBOX" | "PRODUCAO");
-    setChaveApi(gravado.chaveApi);
+    setAmbiente(limpo.ambiente as "SANDBOX" | "PRODUCAO");
+    setChaveApi(limpo.chaveApi);
     avisarSucesso("Configurações salvas");
     router.refresh();
   }
@@ -92,13 +98,19 @@ export function FormularioAsaas({ inicial }: { inicial: ConfiguracaoAsaasDTO }) 
   }
 
   return (
-    <div className="grid gap-6">
+    <div id="asaas" className="grid scroll-mt-40 gap-6 md:scroll-mt-6">
       {configuracao.simulado ? (
         <p className="rounded-2xl border border-gold/40 bg-gold/15 px-4 py-3 text-sm">
           Modo simulado neste computador. Nenhuma chamada sai para o Asaas. Não ligue isso em produção.
         </p>
       ) : null}
       <form onSubmit={salvar} className="grid gap-4 rounded-3xl border border-line bg-card p-6">
+        <div>
+          <h2 className="font-display text-2xl">Asaas</h2>
+          <p className="mt-2 text-sm leading-6 text-muted">
+            Cada empresa usa a própria conta e as próprias preferências de cobrança. A chave da API fica cifrada no banco com a ASAAS_ENCRYPTION_KEY do servidor. A tela mostra só os quatro últimos caracteres.
+          </p>
+        </div>
         <Campo label="Ambiente" htmlFor="ambiente-asaas" erro={campos.ambiente} dica="A chave de sandbox não funciona em produção, e o contrário também.">
           <select id="ambiente-asaas" className={classeCampo} value={ambiente} onChange={(evento) => setAmbiente(evento.target.value as "SANDBOX" | "PRODUCAO")}>
             {AMBIENTES_ASAAS.map((item) => (
@@ -126,7 +138,7 @@ export function FormularioAsaas({ inicial }: { inicial: ConfiguracaoAsaasDTO }) 
         </Campo>
         {configuracao.aviso ? <p className="text-sm text-clay">{configuracao.aviso}</p> : null}
         <div className="flex flex-wrap gap-3">
-          <button type="submit" className={classeBotaoPrimario} disabled={enviando}>
+          <button type="submit" className={classeBotaoPrimario} disabled={enviando || !podeSalvar}>
             {enviando ? "Salvando..." : "Salvar"}
           </button>
           <button type="button" className={classeBotaoSecundario} onClick={testar} disabled={testando || !configuracao.configurado}>
