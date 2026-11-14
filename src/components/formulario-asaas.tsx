@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { asaasAposSalvar } from "@/lib/apos-salvar";
+import { salvarAsaasHabilitado } from "@/lib/asaas-formulario";
 import { enviarJson } from "@/lib/api-cliente";
 import { AMBIENTES_ASAAS } from "@/lib/rotulos";
 import type { ConfiguracaoAsaasDTO } from "@/lib/tipos";
@@ -20,9 +21,14 @@ export function FormularioAsaas({ inicial }: { inicial: ConfiguracaoAsaasDTO }) 
   const [enviando, setEnviando] = useState(false);
   const [testando, setTestando] = useState(false);
   const [copiado, setCopiado] = useState(false);
+  const podeSalvar = salvarAsaasHabilitado(
+    { ambiente, chaveApi },
+    { ambiente: configuracao.ambiente ?? "SANDBOX", configurado: configuracao.configurado },
+  );
 
   async function salvar(evento: React.FormEvent) {
     evento.preventDefault();
+    if (enviando || !podeSalvar) return;
     if (!configuracao.configurado && !chaveApi.trim()) {
       setCampos({ chaveApi: "Informe a chave da API." });
       avisarCamposObrigatorios();
@@ -51,10 +57,10 @@ export function FormularioAsaas({ inicial }: { inicial: ConfiguracaoAsaasDTO }) 
       setCampos(resposta.campos ?? {});
       return;
     }
-    const gravado = asaasAposSalvar(ambiente);
+    const limpo = asaasAposSalvar(resposta.dados.configuracao.ambiente ?? ambiente);
     setConfiguracao(resposta.dados.configuracao);
-    setAmbiente(gravado.ambiente as "SANDBOX" | "PRODUCAO");
-    setChaveApi(gravado.chaveApi);
+    setAmbiente(limpo.ambiente as "SANDBOX" | "PRODUCAO");
+    setChaveApi(limpo.chaveApi);
     avisarSucesso("Configurações salvas");
     router.refresh();
   }
@@ -132,7 +138,7 @@ export function FormularioAsaas({ inicial }: { inicial: ConfiguracaoAsaasDTO }) 
         </Campo>
         {configuracao.aviso ? <p className="text-sm text-clay">{configuracao.aviso}</p> : null}
         <div className="flex flex-wrap gap-3">
-          <button type="submit" className={classeBotaoPrimario} disabled={enviando}>
+          <button type="submit" className={classeBotaoPrimario} disabled={enviando || !podeSalvar}>
             {enviando ? "Salvando..." : "Salvar"}
           </button>
           <button type="button" className={classeBotaoSecundario} onClick={testar} disabled={testando || !configuracao.configurado}>
