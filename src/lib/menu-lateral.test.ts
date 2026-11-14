@@ -42,6 +42,17 @@ describe("menu lateral", () => {
       { href: "/dashboards/painel", rotulo: "Dashboards" },
     ]);
     expect(grupos.find((grupo) => grupo.id === "cobranca")?.itens).toContainEqual({
+      href: "/conciliacao",
+      rotulo: "Conciliação OFX",
+    });
+    expect(montarGruposMenu(financeiro).find((grupo) => grupo.id === "cobranca")?.itens).toContainEqual({
+      href: "/conciliacao",
+      rotulo: "Conciliação OFX",
+    });
+    expect(montarGruposMenu(suporte).flatMap((grupo) => grupo.itens).map((item) => item.rotulo)).not.toContain(
+      "Conciliação OFX",
+    );
+    expect(grupos.find((grupo) => grupo.id === "cobranca")?.itens).toContainEqual({
       href: "/mensagens",
       rotulo: "Mensagens",
     });
@@ -78,6 +89,9 @@ describe("menu lateral", () => {
     expect(idGrupoAtual("/dashboards/resultado", "", grupos)).toBe("visao");
     expect(idGrupoAtual("/dashboards/metricas", "", grupos)).toBe("visao");
     expect(idGrupoAtual("/faturas", "", grupos)).toBe("cobranca");
+    expect(idGrupoAtual("/conciliacao", "", grupos)).toBe("cobranca");
+    expect(itemAtivo("/conciliacao", "", "/conciliacao")).toBe(true);
+    expect(itemAtivo("/conciliacao", "", "/faturas")).toBe(false);
     expect(itemAtivo("/dashboards/financeiro", "", "/dashboards/painel")).toBe(true);
     expect(itemAtivo("/faturas", "", "/dashboards/painel")).toBe(false);
   });

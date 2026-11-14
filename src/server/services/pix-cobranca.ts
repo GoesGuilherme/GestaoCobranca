@@ -9,9 +9,11 @@ import type { AutorEmpresa } from "@/server/auth/papeis";
 import { exigirCobranca } from "@/server/auth/papeis";
 import { prisma } from "@/server/db";
 import { ErroAplicacao } from "@/server/erros";
+import { Prisma } from "@/generated/prisma/client";
 import { espelhoFaturaPix } from "@/server/pagamentos/gravacao";
 import { lerEsquema } from "@/server/validar";
 import { enfileirarPagoWhatsapp } from "./whatsapp-fila";
+import { pagamentoDentroDaJanelaWhatsapp } from "./whatsapp-pago";
 
 const ABERTAS = ["EM_ABERTO", "VENCIDA"] as const;
 
@@ -185,22 +187,26 @@ export async function regerarBrCodePix(
   }
 }
 
-export async function marcarFaturaPixPaga(
+// A transação só usa `tx`. WhatsApp e leitura seguinte ficam fora, com o prisma global.
+export async function liquidarFaturaPix(
   autor: AutorEmpresa & { usuarioId?: string },
   faturaId: string,
-  entrada: unknown,
+  dados: {
+    pagoEm: string;
+    nota: string | null;
+    origem: "MANUAL" | "OFX";
+    referenciaExterna?: string | null;
+  },
   agora = new Date(),
-): Promise<FaturaDTO> {
+  gravarExtra?: (tx: Prisma.TransactionClient) => Promise<void>,
+): Promise<boolean> {
   exigirCobranca(autor);
-  const dados = lerEsquema(esquemaBaixaManual, entrada);
   const hoje = dataHojeIso(agora);
   if (dados.pagoEm > hoje) {
     throw new ErroAplicacao("A data do pagamento não pode ser futura.", 400, "data_futura");
   }
-  const nota = dados.nota?.trim() ? dados.nota.trim() : null;
   const pagoEm = new Date(`${dados.pagoEm}T00:00:00.000Z`);
-
-  await prisma.$transaction(async (tx) => {
+  const baixou = await prisma.$transaction(async (tx) => {
     const marcado = await tx.fatura.updateMany({
       where: {
         id: faturaId,
@@ -215,20 +221,26 @@ export async function marcarFaturaPixPaga(
         ...espelhoFaturaPix({ status: "PAGA" }),
       },
     });
-    if (marcado.count !== 1) {
-      throw new ErroAplicacao("Só dá para marcar como pago uma cobrança Pix em aberto ou vencida.", 409, "fatura_fechada");
-    }
+    if (marcado.count !== 1) return false;
     await tx.conciliacaoPagamento.create({
       data: {
         empresaId: autor.empresaId,
         faturaId,
-        origem: "MANUAL",
+        origem: dados.origem,
         pagoEm,
-        nota,
+        nota: dados.nota,
         usuarioId: autor.usuarioId ?? null,
+        referenciaExterna: dados.referenciaExterna ?? null,
       },
     });
+    if (gravarExtra) await gravarExtra(tx);
+    return true;
   });
+  if (!baixou) return false;
+
+  const avisa =
+    dados.origem === "MANUAL" || pagamentoDentroDaJanelaWhatsapp({ clientPaymentDate: dados.pagoEm }, agora);
+  if (!avisa) return true;
 
   const fatura = await prisma.fatura.findFirst({
     where: { id: faturaId, empresaId: autor.empresaId },
@@ -248,6 +260,27 @@ export async function marcarFaturaPixPaga(
   if (fatura) {
     const regua = await prisma.configuracaoRegua.findUnique({ where: { empresaId: autor.empresaId } });
     await enfileirarPagoWhatsapp(prisma, fatura, regua?.modoTeste ?? true, agora);
+  }
+  return true;
+}
+
+export async function marcarFaturaPixPaga(
+  autor: AutorEmpresa & { usuarioId?: string },
+  faturaId: string,
+  entrada: unknown,
+  agora = new Date(),
+): Promise<FaturaDTO> {
+  exigirCobranca(autor);
+  const dados = lerEsquema(esquemaBaixaManual, entrada);
+  const nota = dados.nota?.trim() ? dados.nota.trim() : null;
+  const baixou = await liquidarFaturaPix(
+    autor,
+    faturaId,
+    { pagoEm: dados.pagoEm, nota, origem: "MANUAL" },
+    agora,
+  );
+  if (!baixou) {
+    throw new ErroAplicacao("Só dá para marcar como pago uma cobrança Pix em aberto ou vencida.", 409, "fatura_fechada");
   }
   return faturaPronta(autor, faturaId);
 }

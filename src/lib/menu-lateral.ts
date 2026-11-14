@@ -45,6 +45,7 @@ export function montarGruposMenu(opcoes: OpcoesMenu): GrupoMenu[] {
       titulo: "Cobrança",
       itens: [
         ...(mostrarFaturas ? [{ href: "/faturas", rotulo: "Faturas" }] : []),
+        ...(mostrarFaturas ? [{ href: "/conciliacao", rotulo: "Conciliação OFX" }] : []),
         ...(mostrarFaturas ? [{ href: "/promessas", rotulo: "Promessas" }] : []),
         ...(mostrarRegua ? [{ href: "/regua", rotulo: "Régua de cobrança" }] : []),
         ...(mostrarRegua ? [{ href: "/mensagens", rotulo: "Mensagens" }] : []),
