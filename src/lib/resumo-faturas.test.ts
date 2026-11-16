@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { somarDinheiro } from "./dinheiro";
 import {
+  resumoDeContagens,
   resumoFaturasFiltradas,
   textoQuantidadeFaturas,
   textoTotalFiltrado,
+  tomDoGrupoNormalizado,
   type FaturaParaResumo,
 } from "./resumo-faturas";
 
@@ -62,10 +64,27 @@ describe("resumo das faturas filtradas", () => {
     expect(textoTotalFiltrado(0)).toBe("Nenhuma fatura com estes filtros.");
   });
 
-  it("conta no singular e avisa que a soma atravessa as páginas", () => {
+  it("conta no singular e diz que a soma é do filtro inteiro", () => {
     expect(textoQuantidadeFaturas(1)).toBe("1 fatura");
     expect(textoQuantidadeFaturas(12)).toBe("12 faturas");
-    expect(textoTotalFiltrado(1)).toBe("1 fatura · soma de todas as páginas.");
-    expect(textoTotalFiltrado(12)).toBe("12 faturas · soma de todas as páginas.");
+    expect(textoTotalFiltrado(1)).toBe("1 fatura · soma de todo o filtro.");
+    expect(textoTotalFiltrado(12)).toBe("12 faturas · soma de todo o filtro.");
+  });
+
+  it("junta contagens do mesmo grupo e passa de 200", () => {
+    const resumo = resumoDeContagens([
+      { tom: tomDoGrupoNormalizado("PENDENTE", false), quantidade: 150, total: "150.00" },
+      { tom: tomDoGrupoNormalizado("PENDENTE", true), quantidade: 1, total: "9.00" },
+      { tom: tomDoGrupoNormalizado(null, false), quantidade: 51, total: "51.00" },
+      { tom: tomDoGrupoNormalizado("VENCIDO", false), quantidade: 2, total: "20.50" },
+    ]);
+
+    expect(resumo.quantidade).toBe(204);
+    expect(resumo.total).toBe("230.50");
+    expect(resumo.grupos).toEqual([
+      { tom: "aberto", rotulo: "Em aberto", quantidade: 201, total: "201.00" },
+      { tom: "vencida", rotulo: "Vencidas", quantidade: 2, total: "20.50" },
+      { tom: "cancelada", rotulo: "Canceladas", quantidade: 1, total: "9.00" },
+    ]);
   });
 });

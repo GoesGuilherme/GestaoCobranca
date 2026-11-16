@@ -1,6 +1,7 @@
 import { formaCobrancaDe } from "@/lib/cobranca";
 import { dataIsoValida, isoDeData } from "@/lib/data";
 import type { ConsultaPeriodoFatura } from "@/lib/periodo-faturas";
+import { resumoDeContagens, tomDoGrupoNormalizado, type ResumoFaturasFiltradas } from "@/lib/resumo-faturas";
 import { STATUS_NORMALIZADO, statusBrutos } from "@/lib/status-pagamento";
 import { somenteDocumento } from "@/lib/documento";
 import type { FaturaDTO, FiltroVisualizacao, LembreteReguaDTO, ModoReguaCliente, PromessaPendenteDTO, SituacaoFatura, StatusLembrete } from "@/lib/tipos";
@@ -12,6 +13,7 @@ import { clienteAsaasDaEmpresa } from "@/server/pagamentos/fabrica";
 import { espelhoClienteAsaas, espelhoFaturaAsaas } from "@/server/pagamentos/gravacao";
 import type { AutorEmpresa } from "@/server/auth/papeis";
 import { exigirCobranca, exigirVerFaturas } from "@/server/auth/papeis";
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db";
 import { ErroAplicacao } from "@/server/erros";
 import { lerEsquema } from "@/server/validar";
@@ -182,37 +184,42 @@ function filtroSituacao(situacao: SituacaoFatura) {
   };
 }
 
-export async function listarFaturas(
-  autor: AutorEmpresa,
-  filtro: {
-    situacao?: SituacaoFatura;
-    vista?: FiltroVisualizacao;
-    busca?: string;
-    clienteId?: string;
-    ordem?: "asc" | "desc";
-    periodo?: ConsultaPeriodoFatura;
-  } = {},
-): Promise<FaturaDTO[]> {
-  exigirVerFaturas(autor);
+type FiltroListaFatura = {
+  situacao?: SituacaoFatura;
+  vista?: FiltroVisualizacao;
+  busca?: string;
+  clienteId?: string;
+  ordem?: "asc" | "desc";
+  periodo?: ConsultaPeriodoFatura;
+};
+
+function whereDaLista(empresaId: string, filtro: FiltroListaFatura): Prisma.FaturaWhereInput {
   const busca = filtro.busca?.trim() ?? "";
-  await sincronizarVencidasPix(autor.empresaId);
-  await conciliarPromessas(autor.empresaId);
+  return {
+    empresaId,
+    ...filtroSituacao(filtro.situacao ?? "em_aberto"),
+    ...filtroVisualizada(filtro.vista),
+    ...filtroPeriodo(filtro.periodo),
+    ...(filtro.clienteId ? { clienteId: filtro.clienteId } : {}),
+    ...(busca
+      ? {
+          OR: [
+            { cliente: { nomeFantasia: { contains: busca, mode: "insensitive" } } },
+            { cliente: { razaoSocial: { contains: busca, mode: "insensitive" } } },
+          ],
+        }
+      : {}),
+  };
+}
+
+async function sincronizarLista(empresaId: string) {
+  await sincronizarVencidasPix(empresaId);
+  await conciliarPromessas(empresaId);
+}
+
+async function buscarFaturas(autor: AutorEmpresa, filtro: FiltroListaFatura, where: Prisma.FaturaWhereInput) {
   const faturas = await prisma.fatura.findMany({
-    where: {
-      empresaId: autor.empresaId,
-      ...filtroSituacao(filtro.situacao ?? "em_aberto"),
-      ...filtroVisualizada(filtro.vista),
-      ...filtroPeriodo(filtro.periodo),
-      ...(filtro.clienteId ? { clienteId: filtro.clienteId } : {}),
-      ...(busca
-        ? {
-            OR: [
-              { cliente: { nomeFantasia: { contains: busca, mode: "insensitive" } } },
-              { cliente: { razaoSocial: { contains: busca, mode: "insensitive" } } },
-            ],
-          }
-        : {}),
-    },
+    where,
     include: includeNomes,
     orderBy: [{ vencimento: filtro.ordem ?? "asc" }, { criadoEm: "desc" }],
     take: 200,
@@ -222,6 +229,40 @@ export async function listarFaturas(
     faturas.map((fatura) => fatura.id),
   );
   return faturas.map((fatura) => paraFatura(fatura, promessas.get(fatura.id) ?? null));
+}
+
+async function agregarFaturas(where: Prisma.FaturaWhereInput): Promise<ResumoFaturasFiltradas> {
+  const grupos = await prisma.fatura.groupBy({
+    by: ["statusNormalizado", "excluida"],
+    where,
+    _sum: { valor: true },
+    _count: { _all: true },
+  });
+  return resumoDeContagens(
+    grupos.map((grupo) => ({
+      tom: tomDoGrupoNormalizado(grupo.statusNormalizado, grupo.excluida),
+      quantidade: grupo._count._all,
+      total: grupo._sum.valor ? grupo._sum.valor.toFixed(2) : "0.00",
+    })),
+  );
+}
+
+export async function listarFaturas(autor: AutorEmpresa, filtro: FiltroListaFatura = {}): Promise<FaturaDTO[]> {
+  exigirVerFaturas(autor);
+  await sincronizarLista(autor.empresaId);
+  return buscarFaturas(autor, filtro, whereDaLista(autor.empresaId, filtro));
+}
+
+export async function listarFaturasDaTela(
+  autor: AutorEmpresa,
+  filtro: FiltroListaFatura = {},
+): Promise<{ faturas: FaturaDTO[]; resumo: ResumoFaturasFiltradas }> {
+  exigirVerFaturas(autor);
+  await sincronizarLista(autor.empresaId);
+  const where = whereDaLista(autor.empresaId, filtro);
+  const resumo = await agregarFaturas(where);
+  const faturas = await buscarFaturas(autor, filtro, where);
+  return { faturas, resumo };
 }
 
 export async function obterFatura(autor: AutorEmpresa, id: string): Promise<FaturaDTO> {

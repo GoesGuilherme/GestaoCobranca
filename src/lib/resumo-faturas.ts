@@ -1,12 +1,17 @@
 import { somarDinheiro } from "./dinheiro";
 import { tomFatura, type TomFatura } from "./fatura-situacao";
+import { STATUS_NORMALIZADO } from "./status-pagamento";
 
-// A tela pagina de 20 em 20 no cliente. Quem chama esta função passa a lista
-// filtrada inteira, a mesma que a tabela reparte em páginas.
 export type FaturaParaResumo = {
   valor: string;
   status: string;
   excluida: boolean;
+};
+
+export type ContagemResumoFatura = {
+  tom: TomFatura;
+  quantidade: number;
+  total: string;
 };
 
 export type GrupoResumoFatura = {
@@ -59,6 +64,49 @@ export function resumoFaturasFiltradas(faturas: FaturaParaResumo[]): ResumoFatur
   };
 }
 
+export function tomDoGrupoNormalizado(status: string | null, excluida: boolean): TomFatura {
+  if (excluida) return "cancelada";
+  if (status === STATUS_NORMALIZADO.CANCELADO) return "cancelada";
+  if (status === STATUS_NORMALIZADO.VENCIDO) return "vencida";
+  if (status === STATUS_NORMALIZADO.PAGO) return "paga";
+  if (status === STATUS_NORMALIZADO.ESTORNADO) return "estorno";
+  return "aberto";
+}
+
+export function resumoDeContagens(linhas: ContagemResumoFatura[]): ResumoFaturasFiltradas {
+  const porTom = new Map<TomFatura, { quantidade: number; totais: string[] }>();
+  for (const linha of linhas) {
+    if (linha.quantidade <= 0) continue;
+    const atual = porTom.get(linha.tom);
+    if (atual) {
+      atual.quantidade += linha.quantidade;
+      atual.totais.push(linha.total);
+    } else {
+      porTom.set(linha.tom, { quantidade: linha.quantidade, totais: [linha.total] });
+    }
+  }
+
+  const grupos = GRUPOS.flatMap((grupo) => {
+    const item = porTom.get(grupo.tom);
+    if (!item) return [];
+    return [
+      {
+        tom: grupo.tom,
+        rotulo: grupo.rotulo,
+        quantidade: item.quantidade,
+        total: somarDinheiro(item.totais),
+      },
+    ];
+  });
+
+  const quantidade = grupos.reduce((soma, grupo) => soma + grupo.quantidade, 0);
+  return {
+    quantidade,
+    total: quantidade === 0 ? "0.00" : somarDinheiro(grupos.map((grupo) => grupo.total)),
+    grupos,
+  };
+}
+
 export function textoQuantidadeFaturas(quantidade: number): string {
   if (quantidade === 1) return "1 fatura";
   return `${quantidade} faturas`;
@@ -66,5 +114,5 @@ export function textoQuantidadeFaturas(quantidade: number): string {
 
 export function textoTotalFiltrado(quantidade: number): string {
   if (quantidade === 0) return "Nenhuma fatura com estes filtros.";
-  return `${textoQuantidadeFaturas(quantidade)} · soma de todas as páginas.`;
+  return `${textoQuantidadeFaturas(quantidade)} · soma de todo o filtro.`;
 }
