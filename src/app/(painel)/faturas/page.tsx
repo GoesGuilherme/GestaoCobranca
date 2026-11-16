@@ -9,6 +9,7 @@ import { AvisoModoTeste } from "@/components/aviso-modo-teste";
 import { FaturasComControles } from "@/components/faturas-com-controles";
 import { FiltroPeriodoFaturas } from "@/components/filtro-periodo-faturas";
 import { LegendaFaturas } from "@/components/legenda-faturas";
+import { ResumoFaturas } from "@/components/resumo-faturas";
 import { EstadoVazio } from "@/components/estado-vazio";
 import { dataHojeIso } from "@/lib/data";
 import { consultaPeriodo, faixaDoPeriodo, lerFiltroPeriodo, rotuloFaixaPeriodo, textoListaFaturas } from "@/lib/periodo-faturas";
@@ -113,6 +114,7 @@ export default async function PaginaFaturas({ searchParams }: { searchParams: Pr
         </button>
       </form>
       {faixa ? <p className="mb-3 text-sm text-muted">{rotuloFaixaPeriodo(filtroPeriodo.campo, faixa)}</p> : null}
+      <ResumoFaturas faturas={faturas} />
       {faturas.length === 0 ? (
         <>
           <p className="mb-3 text-sm text-muted">{textoListaFaturas(0)}</p>
