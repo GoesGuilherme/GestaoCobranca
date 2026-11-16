@@ -9,6 +9,7 @@ import { AvisoModoTeste } from "@/components/aviso-modo-teste";
 import { FaturasComControles } from "@/components/faturas-com-controles";
 import { FiltroPeriodoFaturas } from "@/components/filtro-periodo-faturas";
 import { LegendaFaturas } from "@/components/legenda-faturas";
+import { ResumoFaturas } from "@/components/resumo-faturas";
 import { EstadoVazio } from "@/components/estado-vazio";
 import { dataHojeIso } from "@/lib/data";
 import { consultaPeriodo, faixaDoPeriodo, lerFiltroPeriodo, rotuloFaixaPeriodo, textoListaFaturas } from "@/lib/periodo-faturas";
@@ -16,7 +17,7 @@ import { podeAtualizarVisualizacoes, podeEmitirCobranca, podeVerFaturas } from "
 import { FILTROS_VISUALIZACAO, SITUACOES_FATURA, filtroVisualizacao, situacaoFatura } from "@/lib/rotulos";
 import { acessoDaPagina } from "@/server/auth/pagina";
 import { classificarPagadoresDaEmpresa } from "@/server/services/classificacao-pagador-service";
-import { listarFaturas } from "@/server/services/fatura-service";
+import { listarFaturasDaTela } from "@/server/services/fatura-service";
 import { obterPreferenciasCobranca } from "@/server/services/preferencia-cobranca-service";
 import { listarEnviosRegua } from "@/server/services/regua-envios";
 import { obterPainelRegua } from "@/server/services/regua-service";
@@ -51,11 +52,13 @@ export default async function PaginaFaturas({ searchParams }: { searchParams: Pr
   const filtroPeriodo = lerFiltroPeriodo(params);
   const hoje = dataHojeIso();
   const faixa = faixaDoPeriodo(filtroPeriodo, hoje);
-  const [faturas, preferencias, regua] = await Promise.all([
-    listarFaturas(acesso, { situacao, vista, busca, periodo: consultaPeriodo(filtroPeriodo, hoje) }),
+  const filtroLista = { situacao, vista, busca, periodo: consultaPeriodo(filtroPeriodo, hoje) };
+  const [painel, preferencias, regua] = await Promise.all([
+    listarFaturasDaTela(acesso, filtroLista),
     podeEmitirCobranca(acesso.papel) ? obterPreferenciasCobranca(acesso.empresaId) : Promise.resolve(undefined),
     obterPainelRegua(acesso),
   ]);
+  const { faturas, resumo } = painel;
   const [enviosRegua, selos] = await Promise.all([
     listarEnviosRegua(
       acesso.empresaId,
@@ -113,6 +116,10 @@ export default async function PaginaFaturas({ searchParams }: { searchParams: Pr
         </button>
       </form>
       {faixa ? <p className="mb-3 text-sm text-muted">{rotuloFaixaPeriodo(filtroPeriodo.campo, faixa)}</p> : null}
+      <ResumoFaturas
+        resumo={resumo}
+        filtros={{ situacao, vista, busca, campo: filtroPeriodo.campo, faixa }}
+      />
       {faturas.length === 0 ? (
         <>
           <p className="mb-3 text-sm text-muted">{textoListaFaturas(0)}</p>
