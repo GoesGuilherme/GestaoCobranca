@@ -69,15 +69,25 @@ describe("menu lateral", () => {
     expect(configuracoes.filter((item) => item.href === "/banco")).toEqual([{ href: "/banco", rotulo: "Banco" }]);
     expect(grupos.find((grupo) => grupo.id === "configuracoes")?.itens).toContainEqual({
       href: "/emails",
-      rotulo: "E-mails",
+      rotulo: "Configurações de e-mail",
     });
     expect(grupos.find((grupo) => grupo.id === "configuracoes")?.itens).toContainEqual({
-      href: "/telefones",
-      rotulo: "Telefones",
+      href: "/whatsapp",
+      rotulo: "WhatsApp",
     });
+    expect(configuracoes.map((item) => item.rotulo)).not.toContain("Telefones");
+    expect(configuracoes.map((item) => item.href)).not.toContain("/telefones");
+    expect(configuracoes.map((item) => item.href)).not.toContain("/regua#whatsapp");
     expect(montarGruposMenu(suporte).flatMap((grupo) => grupo.itens).map((item) => item.rotulo)).not.toContain("Banco");
-    expect(montarGruposMenu(financeiro).flatMap((grupo) => grupo.itens).map((item) => item.rotulo)).not.toContain("E-mails");
-    expect(montarGruposMenu(financeiro).flatMap((grupo) => grupo.itens).map((item) => item.rotulo)).not.toContain("Telefones");
+    expect(montarGruposMenu(financeiro).flatMap((grupo) => grupo.itens).map((item) => item.rotulo)).not.toContain(
+      "Configurações de e-mail",
+    );
+    expect(montarGruposMenu(financeiro).flatMap((grupo) => grupo.itens).map((item) => item.rotulo)).not.toContain(
+      "WhatsApp",
+    );
+    expect(montarGruposMenu(financeiro).flatMap((grupo) => grupo.itens).map((item) => item.rotulo)).not.toContain(
+      "Telefones",
+    );
   });
 
   it("mantém Visão geral com um item para o menu fechado destacar a aba atual", () => {
@@ -99,13 +109,14 @@ describe("menu lateral", () => {
     expect(itemAtivo("/faturas", "", "/dashboards/painel")).toBe(false);
   });
 
-  it("esconde grupos vazios e separa WhatsApp da régua pelo hash", () => {
+  it("esconde grupos vazios e deixa a régua ativa mesmo com a âncora antiga", () => {
     const grupos = montarGruposMenu(suporte);
     expect(grupos.map((grupo) => grupo.id)).toEqual(["visao", "cadastros"]);
     expect(itemAtivo("/regua", "", "/regua")).toBe(true);
-    expect(itemAtivo("/regua", "#whatsapp", "/regua")).toBe(false);
-    expect(itemAtivo("/regua", "#whatsapp", "/regua#whatsapp")).toBe(true);
-    expect(itemAtivo("/regua", "", "/regua#whatsapp")).toBe(false);
+    expect(itemAtivo("/regua", "#whatsapp", "/regua")).toBe(true);
+    expect(itemAtivo("/whatsapp", "", "/whatsapp")).toBe(true);
+    expect(itemAtivo("/whatsapp", "", "/regua")).toBe(false);
+    expect(itemAtivo("/regua", "", "/whatsapp")).toBe(false);
   });
 
   it("reserva o destaque da plataforma para /admin", () => {
@@ -114,9 +125,9 @@ describe("menu lateral", () => {
     expect(idGrupoAtual("/admin/empresas", "", grupos)).toBe("plataforma");
     expect(idGrupoAtual("/empresa", "", grupos)).toBe("configuracoes");
     expect(idGrupoAtual("/emails", "", grupos)).toBe("configuracoes");
-    expect(idGrupoAtual("/telefones", "", grupos)).toBe("configuracoes");
+    expect(idGrupoAtual("/whatsapp", "", grupos)).toBe("configuracoes");
     expect(itemAtivo("/emails", "", "/emails")).toBe(true);
-    expect(itemAtivo("/telefones", "", "/telefones")).toBe(true);
+    expect(itemAtivo("/whatsapp", "", "/whatsapp")).toBe(true);
     expect(itemAtivo("/empresa", "", "/emails")).toBe(false);
   });
 

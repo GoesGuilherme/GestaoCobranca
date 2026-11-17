@@ -159,10 +159,10 @@ export function FormularioPreferenciasCobranca({ inicial }: { inicial: Preferenc
         </p>
       ) : null}
       <Campo
-        label="Mensagem para o cliente"
+        label="Mensagem ao compartilhar a fatura"
         htmlFor="pref-mensagem"
         erro={campos.modeloMensagem}
-        dica="Marcadores: {cliente}, {servico}, {valor}, {vencimento} e {link}. Vale para WhatsApp e e-mail."
+        dica="Só entra quando alguém compartilha a fatura na hora. Marcadores: {cliente}, {servico}, {valor}, {vencimento} e {link}."
       >
         <textarea
           id="pref-mensagem"
@@ -173,7 +173,12 @@ export function FormularioPreferenciasCobranca({ inicial }: { inicial: Preferenc
           onChange={(evento) => setModeloMensagem(evento.target.value)}
         />
       </Campo>
-      <Campo label="Assunto do e-mail" htmlFor="pref-assunto" erro={campos.modeloAssunto} dica="Usa os mesmos marcadores da mensagem.">
+      <Campo
+        label="Assunto do e-mail ao compartilhar"
+        htmlFor="pref-assunto"
+        erro={campos.modeloAssunto}
+        dica="Assunto do e-mail enviado ao compartilhar a fatura. Usa os mesmos marcadores da mensagem."
+      >
         <input
           id="pref-assunto"
           className={classeCampo}
