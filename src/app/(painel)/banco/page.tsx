@@ -2,6 +2,7 @@ import { CabecalhoPagina } from "@/components/cabecalho";
 import { FormularioAsaas } from "@/components/formulario-asaas";
 import { FormularioCora } from "@/components/formulario-cora";
 import { FormularioInter } from "@/components/formulario-inter";
+import { FormularioFormaPadrao } from "@/components/formulario-forma-padrao";
 import { FormularioPixProprio } from "@/components/formulario-pix-proprio";
 import { FormularioPreferenciasCobranca } from "@/components/formulario-preferencias-cobranca";
 import { podeConfigurarAsaas, podeEmitirCobranca } from "@/lib/permissoes";
@@ -9,6 +10,7 @@ import { acessoDaPagina } from "@/server/auth/pagina";
 import { obterConfiguracaoAsaas } from "@/server/services/asaas-config-service";
 import { obterConfiguracaoCora } from "@/server/services/cora-config-service";
 import { obterConfiguracaoInter } from "@/server/services/inter-config-service";
+import { painelFormasCobranca } from "@/server/services/formas-cobranca-service";
 import { obterConfiguracaoPix } from "@/server/services/pix-config-service";
 import { obterPreferenciasCobranca } from "@/server/services/preferencia-cobranca-service";
 
@@ -27,12 +29,13 @@ export default async function PaginaBanco({ searchParams }: { searchParams: Prom
     );
   }
   const params = await searchParams;
-  const [asaas, cora, configuracao, preferencias, pix] = await Promise.all([
+  const [asaas, cora, configuracao, preferencias, pix, formas] = await Promise.all([
     dono ? obterConfiguracaoAsaas(acesso) : Promise.resolve(null),
     dono ? obterConfiguracaoCora(acesso) : Promise.resolve(null),
     dono ? obterConfiguracaoInter(acesso) : Promise.resolve(null),
     dono ? obterPreferenciasCobranca(acesso.empresaId) : Promise.resolve(null),
     obterConfiguracaoPix(acesso),
+    painelFormasCobranca(acesso.empresaId),
   ]);
 
   return (
@@ -40,7 +43,7 @@ export default async function PaginaBanco({ searchParams }: { searchParams: Prom
       <CabecalhoPagina
         olho={acesso.nomeEmpresa}
         titulo="Banco"
-        descricao="O Asaas, a Cora em testes (Stage) e o Inter emitem boleto com Pix. O Pix da empresa gera o QR na chave própria, sem banco intermediário. Cada empresa escolhe o provedor das cobranças novas. A chave do Asaas, os tokens da Cora e o certificado do Inter ficam cifrados e não voltam para esta tela."
+        descricao="O Asaas, a Cora e o Inter emitem as formas que cada um já sabe gerar. O PIX direto (da empresa) usa a chave própria, sem banco intermediário. A forma padrão só sugere a cobrança nova. Cada cobrança avulsa e cada recorrência escolhe a sua. A chave do Asaas, os tokens da Cora e o certificado do Inter ficam cifrados e não voltam para esta tela."
       />
       {asaas ? <FormularioAsaas inicial={asaas} /> : null}
       {cora ? (
@@ -53,6 +56,9 @@ export default async function PaginaBanco({ searchParams }: { searchParams: Prom
           <FormularioInter inicial={configuracao} />
         </div>
       ) : null}
+      <div className="mt-8">
+        <FormularioFormaPadrao inicial={formas} />
+      </div>
       <div className="mt-8">
         <FormularioPixProprio inicial={pix} />
       </div>

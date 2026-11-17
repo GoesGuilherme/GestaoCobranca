@@ -1,10 +1,11 @@
 import { dataIsoValida } from "@/lib/data";
-import { statusBrutos, statusNormalizado, STATUS_NORMALIZADO } from "@/lib/status-pagamento";
+import { statusBrutos, statusNormalizado, STATUS_NORMALIZADO, type ProvedorCodigo } from "@/lib/status-pagamento";
 import { dataRecebimento } from "@/lib/data-recebimento";
 import { compararDinheiro, normalizarDinheiro, somarDinheiro } from "@/lib/dinheiro";
 import { metricasPromessaVazias, type MetricasPromessas } from "@/lib/promessa";
 import { diferencaDias } from "@/lib/regua";
-import { FORMAS_COBRANCA, STATUS_CLIENTE } from "@/lib/rotulos";
+import { lerFiltroForma } from "@/lib/formas-cobranca";
+import { STATUS_CLIENTE } from "@/lib/rotulos";
 import type { FormaCobranca, StatusCliente } from "@/lib/tipos";
 
 export const STATUS_RECEBIDO = statusBrutos("PAGO");
@@ -25,6 +26,7 @@ export type ClasseFinanceira = "recebido" | "atraso" | "a_receber" | "fora";
 export type FiltrosPainel = {
   periodo: PeriodoPainel;
   forma: FormaCobranca | null;
+  provedor: ProvedorCodigo | null;
   statusCliente: StatusCliente | null;
 };
 
@@ -38,6 +40,7 @@ export type FaturaPainel = {
   // Dia de atualizado_em em São Paulo. Só entra no recebido se pagoEm for nulo.
   atualizadoEm: string;
   formaCobranca: string;
+  provedor?: string;
   clienteServicoId: string | null;
   clienteId: string;
   clienteNome: string;
@@ -73,7 +76,7 @@ export type PainelFinanceiro = {
   promessas: MetricasPromessas;
   meses: MesFinanceiro[];
   topAtraso: { clienteId: string; nome: string; valor: string; dias: number }[];
-  proximos: { id: string; clienteId: string; nome: string; valor: string; vencimento: string; forma: string }[];
+  proximos: { id: string; clienteId: string; nome: string; valor: string; vencimento: string; forma: string; provedor: string }[];
 };
 
 const MESES_CURTO = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
@@ -197,11 +200,11 @@ export function lerFiltrosPainel(params: { periodo?: string; forma?: string; sta
   const periodo = PERIODOS_PAINEL.some((item) => item.valor === params.periodo)
     ? (params.periodo as PeriodoPainel)
     : "este_mes";
-  const forma = FORMAS_COBRANCA.some((item) => item.valor === params.forma) ? (params.forma as FormaCobranca) : null;
+  const lido = lerFiltroForma(params.forma);
   const statusCliente = STATUS_CLIENTE.some((item) => item.valor === params.status)
     ? (params.status as StatusCliente)
     : null;
-  return { periodo, forma, statusCliente };
+  return { periodo, forma: lido.forma, provedor: lido.provedor, statusCliente };
 }
 
 // O dia da assinatura naquele mês. Não inventa data se não houver dia nem próximo vencimento.
@@ -291,6 +294,7 @@ export function montarPainelFinanceiro(entrada: {
         valor: fatura.valor,
         vencimento: fatura.vencimento,
         forma: fatura.formaCobranca,
+        provedor: fatura.provedor ?? "",
       });
     }
   }

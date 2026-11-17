@@ -437,7 +437,8 @@ export const esquemaConfiguracaoPix = z
       .trim()
       .min(2, "Informe a cidade do recebedor.")
       .max(40, "A cidade pode ter no máximo 40 caracteres."),
-    usarNasCobrancas: z.boolean("Informe se o Pix direto vale para as cobranças novas."),
+    // Campo antigo do checkbox. A forma padrão é outra tela; gravar a chave não muda o provedor.
+    usarNasCobrancas: z.boolean().optional(),
   })
   .superRefine((dados, ctx) => {
     const chave = normalizarChavePix(dados.tipoChave, dados.chavePix);
@@ -490,12 +491,17 @@ export const esquemaAlteracaoFatura = z.object({
   ),
 });
 
+const esquemaProvedorOpcional = z
+  .enum(["ASAAS", "CORA", "INTER", "EFI", "SICOOB", "SICREDI", "PIX_DIRETO"], "Escolha o provedor da cobrança.")
+  .optional();
+
 export const esquemaFatura = z.object({
   valor: esquemaValorPositivo,
   vencimento: z
     .string()
     .trim()
     .refine((valor) => dataIsoValida(valor), "Informe o vencimento."),
+  provedor: esquemaProvedorOpcional,
   formaCobranca: z
     .enum(["BOLETO", "PIX", "UNDEFINED", "CREDIT_CARD"], "Escolha boleto, Pix, cartão ou deixar o cliente escolher.")
     .optional(),
@@ -602,7 +608,12 @@ const camposEncargos = {
   descontoDiasAntes: esquemaDiasDesconto.optional(),
 };
 
+export const esquemaFormaPadrao = z.object({
+  opcaoId: z.string().trim().min(1, "Escolha a forma padrão de cobrança.").max(40),
+});
+
 export const esquemaAtivarRecorrencia = z.object({
+  provedor: esquemaProvedorOpcional,
   formaCobranca: esquemaFormaCobranca.optional(),
   diaVencimento: esquemaDiaVencimento.optional(),
   proximoVencimento: z
@@ -617,6 +628,7 @@ export const esquemaAtivarRecorrencia = z.object({
 });
 
 export const esquemaEditarRecorrencia = z.object({
+  provedor: esquemaProvedorOpcional,
   formaCobranca: esquemaFormaCobranca.optional(),
   diaVencimento: esquemaDiaVencimento,
   proximoVencimento: z
@@ -642,6 +654,7 @@ export const esquemaRetomarRecorrencia = z.object({
 export const esquemaLoteRecorrencia = z
   .object({
     diaVencimento: esquemaDiaVencimento,
+    provedor: esquemaProvedorOpcional,
     formaCobranca: esquemaFormaCobranca.optional(),
     modeloDescricao: esquemaTextoCobranca.optional(),
     clienteId: z.string().trim().max(64).optional(),

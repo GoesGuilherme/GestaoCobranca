@@ -75,7 +75,7 @@ async function fatura(dados: {
 
 describe("painel financeiro", () => {
   it("soma só a empresa da sessão e separa atraso, recebido, a receber e previsão", async () => {
-    await expect(obterPainelFinanceiro(autor("SUPORTE"), { periodo: "este_mes", forma: null, statusCliente: null })).rejects.toMatchObject({
+    await expect(obterPainelFinanceiro(autor("SUPORTE"), { periodo: "este_mes", forma: null, provedor: null, statusCliente: null })).rejects.toMatchObject({
       status: 403,
       codigo: "sem_permissao",
     });
@@ -130,6 +130,7 @@ describe("painel financeiro", () => {
     const painel = await obterPainelFinanceiro(autor("FINANCEIRO"), {
       periodo: "este_mes",
       forma: null,
+      provedor: null,
       statusCliente: null,
     }, AGORA);
 
@@ -147,6 +148,7 @@ describe("painel financeiro", () => {
     const soAtivos = await obterPainelFinanceiro(autor("DONO"), {
       periodo: "este_mes",
       forma: null,
+      provedor: null,
       statusCliente: "ATIVO",
     }, AGORA);
     expect(soAtivos.emAtraso.valor).toBe("150.00");
@@ -155,6 +157,7 @@ describe("painel financeiro", () => {
     const soBoleto = await obterPainelFinanceiro(autor("DONO"), {
       periodo: "este_mes",
       forma: "BOLETO",
+      provedor: null,
       statusCliente: null,
     }, AGORA);
     expect(soBoleto.recebido.valor).toBe("0.00");
@@ -164,7 +167,7 @@ describe("painel financeiro", () => {
   it("não conta em novembro pagamento de outubro atualizado pelo backfill, e usa atualizado_em se pago_em for nulo", async () => {
     const ana = await criarCliente(empresaId, dadosCliente(completarCnpj("610000000021"), "Ana Caixa"));
     const agora = new Date("2026-11-02T15:00:00.000Z");
-    const filtros = { periodo: "este_mes" as const, forma: null, statusCliente: null };
+    const filtros = { periodo: "este_mes" as const, forma: null, provedor: null, statusCliente: null };
 
     const outubro = await fatura({
       clienteId: ana.id,
@@ -216,7 +219,7 @@ describe("painel financeiro", () => {
 
     const passado = await obterPainelFinanceiro(
       autor("DONO"),
-      { periodo: "mes_passado", forma: null, statusCliente: null },
+      { periodo: "mes_passado", forma: null, provedor: null, statusCliente: null },
       agora,
     );
     expect(passado.recebido.valor).toBe("1780.00");

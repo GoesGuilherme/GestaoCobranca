@@ -161,6 +161,7 @@ export function paraClienteServico(
           (vinculo.asaasAssinaturaStatus === "ACTIVE" || vinculo.asaasAssinaturaStatus === "INACTIVE")))
         ? {
             status: vinculo.asaasAssinaturaStatus ?? "ACTIVE",
+            provedor: vinculo.asaasSubscriptionId ? "ASAAS" : vinculo.provedorRecorrente,
             formaCobranca: vinculo.formaCobrancaRecorrente,
             diaVencimento: vinculo.diaVencimento,
             proximoVencimento: vinculo.proximoVencimento ? isoDeData(vinculo.proximoVencimento) : null,

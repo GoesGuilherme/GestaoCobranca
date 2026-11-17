@@ -38,8 +38,9 @@ async function preparar() {
     chavePix: completarCnpj("112223330001"),
     nomeRecebedor: "Padaria do Teste",
     cidadeRecebedor: "Santos",
-    usarNasCobrancas: true,
+    usarNasCobrancas: false,
   });
+  await prisma.empresa.update({ where: { id: empresa.id }, data: { provedorPagamento: "PIX_DIRETO" } });
   return { empresa, vizinha, cliente };
 }
 
@@ -87,8 +88,9 @@ describe("importação OFX", () => {
       chavePix: completarCnpj("112223330001"),
       nomeRecebedor: "Outra",
       cidadeRecebedor: "Santos",
-      usarNasCobrancas: true,
+      usarNasCobrancas: false,
     });
+    await prisma.empresa.update({ where: { id: vizinhaId }, data: { provedorPagamento: "PIX_DIRETO" } });
     const doVizinho = await emitirFatura(autor(vizinhaId), clienteVizinho.id, {
       valor: "150.00",
       vencimento: "2026-12-10",

@@ -22,6 +22,7 @@ type LinhaFatura = {
   pago_em: string | null;
   atualizado_em: string;
   forma_cobranca: string;
+  provedor: string;
   cliente_servico_id: string | null;
   cliente_id: string;
   nome_fantasia: string;
@@ -58,9 +59,13 @@ export async function obterPainelFinanceiro(
   const periodo = intervaloPeriodo(filtros.periodo, hoje);
   const inicioAtual = `${hoje.slice(0, 7)}-01`;
   const formaSql = filtros.forma ? Prisma.sql`AND f.forma_cobranca = ${filtros.forma}` : Prisma.empty;
+  const provedorSql = filtros.provedor ? Prisma.sql`AND f.provedor::text = ${filtros.provedor}` : Prisma.empty;
   const statusSql = filtros.statusCliente ? Prisma.sql`AND c.status::text = ${filtros.statusCliente}` : Prisma.empty;
   const formaAssinatura = filtros.forma
     ? Prisma.sql`AND cs.forma_cobranca_recorrente = ${filtros.forma}`
+    : Prisma.empty;
+  const provedorAssinatura = filtros.provedor
+    ? Prisma.sql`AND (cs.provedor_recorrente::text = ${filtros.provedor} OR (cs.provedor_recorrente IS NULL AND EXISTS (SELECT 1 FROM empresas e WHERE e.id = cs.empresa_id AND e.provedor_pagamento::text = ${filtros.provedor})))`
     : Prisma.empty;
 
   // Dia do recebimento: pago_em, o que o Taguaro gravou. Sem buscar histórico fora.
@@ -78,6 +83,7 @@ export async function obterPainelFinanceiro(
         to_char(f.pago_em, 'YYYY-MM-DD') AS pago_em,
         to_char(f.atualizado_em AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD') AS atualizado_em,
         f.forma_cobranca,
+        f.provedor::text AS provedor,
         f.cliente_servico_id,
         c.id AS cliente_id,
         c.nome_fantasia
@@ -88,6 +94,7 @@ export async function obterPainelFinanceiro(
         AND f.excluida = false
         AND f.status_normalizado IS DISTINCT FROM 'ESTORNADO'
         ${formaSql}
+        ${provedorSql}
         ${statusSql}
         AND (
           (f.vencimento >= ${inicioGrafico}::date AND f.vencimento <= ${fimGrafico}::date)
@@ -111,6 +118,7 @@ export async function obterPainelFinanceiro(
         AND cs.recorrencia = 'MENSAL'
         AND cs.asaas_assinatura_status = 'ACTIVE'
         ${formaAssinatura}
+        ${provedorAssinatura}
         ${statusSql}
     `),
     prisma.$queryRaw<LinhaMes[]>(Prisma.sql`
@@ -150,6 +158,7 @@ export async function obterPainelFinanceiro(
     pagoEm: texto(linha.pago_em) || null,
     atualizadoEm: texto(linha.atualizado_em),
     formaCobranca: texto(linha.forma_cobranca),
+    provedor: texto(linha.provedor),
     clienteServicoId: linha.cliente_servico_id ? texto(linha.cliente_servico_id) : null,
     clienteId: texto(linha.cliente_id),
     clienteNome: texto(linha.nome_fantasia),

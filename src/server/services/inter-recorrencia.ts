@@ -1,4 +1,5 @@
 import { formaCobrancaDe } from "@/lib/cobranca";
+import { whereRecorrenciaDoProvedor } from "@/lib/formas-cobranca";
 import { dataHojeIso, dataIsoValida, isoDeData } from "@/lib/data";
 import type { ClienteServicoDTO } from "@/lib/tipos";
 import type { AutorEmpresa } from "@/server/auth/papeis";
@@ -67,6 +68,7 @@ export async function ativarRecorrenciaInter(
       valor: entrada.valor,
       asaasAssinaturaStatus: ATIVA,
       formaCobrancaRecorrente: "BOLETO",
+      provedorRecorrente: "INTER",
       diaVencimento: entrada.diaVencimento,
       proximoVencimento: new Date(`${entrada.proximoVencimento}T00:00:00.000Z`),
       descricaoRecorrente: entrada.descricao,
@@ -117,6 +119,7 @@ export async function editarRecorrenciaInter(
     data: {
       valor: entrada.valor,
       formaCobrancaRecorrente: "BOLETO",
+      provedorRecorrente: "INTER",
       diaVencimento: entrada.diaVencimento,
       proximoVencimento: new Date(`${entrada.proximoVencimento}T00:00:00.000Z`),
       descricaoRecorrente: entrada.descricao,
@@ -222,26 +225,17 @@ export async function cancelarRecorrenciaInter(
 
 export async function executarRecorrenciasInter(opcoes: { agora?: Date; empresaId?: string; clienteHttp?: ClienteHttpInter } = {}) {
   const hoje = dataHojeIso(opcoes.agora ?? new Date());
-  const empresas = await prisma.empresa.findMany({
-    where: { provedorPagamento: "INTER", status: "ATIVA", ...(opcoes.empresaId ? { id: opcoes.empresaId } : {}) },
-    select: { id: true },
+  const vinculosTodos = await prisma.clienteServico.findMany({
+    where: whereRecorrenciaDoProvedor("INTER", opcoes.empresaId),
   });
+  const empresas = [...new Set(vinculosTodos.map((item) => item.empresaId))];
   let emitidas = 0;
   let falhas = 0;
-  for (const empresa of empresas) {
-    const prefs = await obterPreferenciasCobranca(empresa.id);
+  for (const empresaId of empresas) {
+    const prefs = await obterPreferenciasCobranca(empresaId);
     const antecedencia = prefs.diasAntesGerar ?? 0;
-    const vinculos = await prisma.clienteServico.findMany({
-      where: {
-        empresaId: empresa.id,
-        recorrencia: "MENSAL",
-        status: "ATIVO",
-        asaasSubscriptionId: null,
-        asaasAssinaturaStatus: ATIVA,
-        proximoVencimento: { not: null },
-      },
-    });
-    const autor: AutorEmpresa = { empresaId: empresa.id, papel: "DONO" };
+    const vinculos = vinculosTodos.filter((item) => item.empresaId === empresaId);
+    const autor: AutorEmpresa = { empresaId, papel: "DONO" };
     for (const vinculo of vinculos) {
       const vencimento = iso(vinculo.proximoVencimento);
       const dia = vinculo.diaVencimento;
@@ -263,14 +257,14 @@ export async function executarRecorrenciasInter(opcoes: { agora?: Date; empresaI
           opcoes.clienteHttp,
         );
         await prisma.clienteServico.updateMany({
-          where: { id: vinculo.id, empresaId: empresa.id, proximoVencimento: vinculo.proximoVencimento },
+          where: { id: vinculo.id, empresaId, proximoVencimento: vinculo.proximoVencimento },
           data: { proximoVencimento: new Date(`${avancarMes(vencimento, dia)}T00:00:00.000Z`) },
         });
         emitidas += 1;
       } catch (erro) {
         falhas += 1;
         logInterErro("falha na recorrência", {
-          empresaId: empresa.id,
+          empresaId,
           clienteServicoId: vinculo.id,
           codigo: erro instanceof ErroAplicacao ? erro.codigo : "erro",
         });

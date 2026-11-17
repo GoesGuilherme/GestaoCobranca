@@ -25,7 +25,7 @@ export default async function PaginaConciliacao() {
       <CabecalhoPagina
         olho={acesso.nomeEmpresa}
         titulo="Conciliação OFX"
-        descricao="Importe o extrato da conta e o Taguaro baixa as cobranças Pix da empresa que estiverem em aberto ou vencidas. Valor e identificação únicos liquidam na hora. Na dúvida, a sugestão espera um clique."
+        descricao="Importe o extrato da conta e o Taguaro baixa as cobranças de PIX direto (da empresa) que estiverem em aberto ou vencidas. Valor e identificação únicos liquidam na hora. Na dúvida, a sugestão espera um clique."
       />
       <PainelConciliacaoOfx painel={painel} />
     </>

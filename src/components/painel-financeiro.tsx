@@ -7,7 +7,8 @@ import {
   type FiltrosPainel,
   type PainelFinanceiro,
 } from "@/lib/painel-financeiro";
-import { FORMAS_COBRANCA, rotuloFormaCobranca, STATUS_CLIENTE } from "@/lib/rotulos";
+import { chaveFiltroForma, FILTROS_FORMA, rotuloCobranca } from "@/lib/formas-cobranca";
+import { STATUS_CLIENTE } from "@/lib/rotulos";
 import { CartoesPromessas } from "./cartoes-promessas";
 import { classeBotaoPrimario, classeCampo } from "./estilos";
 
@@ -72,9 +73,9 @@ export function FiltrosPainelFinanceiro({
       </label>
       <label className="grid gap-1 text-sm">
         <span className="font-medium">Forma</span>
-        <select name="forma" defaultValue={filtros.forma ?? ""} className={classeCampo}>
+        <select name="forma" defaultValue={chaveFiltroForma(filtros.forma, filtros.provedor)} className={classeCampo}>
           <option value="">Todas</option>
-          {FORMAS_COBRANCA.map((item) => (
+          {FILTROS_FORMA.map((item) => (
             <option key={item.valor} value={item.valor}>
               {item.rotulo}
             </option>
@@ -367,7 +368,7 @@ export function PainelFinanceiroView({ painel }: { painel: PainelFinanceiro }) {
                       {fatura.nome}
                     </Link>
                     <p className="text-sm text-muted">
-                      {formatarDataIso(fatura.vencimento)} · {rotuloFormaCobranca(fatura.forma)}
+                      {formatarDataIso(fatura.vencimento)} · {rotuloCobranca(fatura.provedor, fatura.forma)}
                     </p>
                   </div>
                   <p className="tabular-nums font-medium">{formatarReais(fatura.valor)}</p>

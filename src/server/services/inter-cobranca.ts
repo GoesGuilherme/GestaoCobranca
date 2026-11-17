@@ -13,7 +13,6 @@ import { prisma } from "@/server/db";
 import { ErroAplicacao } from "@/server/erros";
 import { espelhoFaturaInter } from "@/server/pagamentos/gravacao";
 import { criarAdaptadorInter } from "@/server/pagamentos/adaptador-inter";
-import { provedorDaEmpresa } from "@/server/pagamentos/fabrica";
 import type { CobrancaNormalizada } from "@/server/pagamentos/tipos";
 import { lerEsquema } from "@/server/validar";
 import { encargosDaPreferencia, obterPreferenciasCobranca } from "./preferencia-cobranca-service";
@@ -180,7 +179,7 @@ export async function emitirFaturaInter(
   }
 
   try {
-    const provedor = await provedorDaEmpresa(autor.empresaId, undefined, clienteHttp);
+    const provedor = criarAdaptadorInter(await abrirClienteInter(autor.empresaId, clienteHttp));
     const cobranca = await provedor.criarCobranca({
       idClienteExterno: cliente.id,
       formaCobranca: "BOLETO_PIX",

@@ -16,7 +16,6 @@ function foto(entrada: RascunhoPix): string | null {
     chavePix: chave.chave,
     nomeRecebedor: validado.data.nomeRecebedor.trim(),
     cidadeRecebedor: validado.data.cidadeRecebedor.trim(),
-    usarNasCobrancas: validado.data.usarNasCobrancas,
   });
 }
 

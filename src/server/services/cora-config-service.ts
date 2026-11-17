@@ -7,7 +7,8 @@ import { ErroAplicacao } from "@/server/erros";
 import { ambienteGravadoCora, parceiroCoraConfigurado, producaoCoraLigada, urlWebhookCora } from "@/server/cora/ambiente";
 import { apagarConexaoCora, conexaoCora } from "@/server/cora/conta";
 import type { ClienteHttpCora } from "@/server/cora/contrato";
-import { provedorDaEmpresa } from "@/server/pagamentos/fabrica";
+import { abrirClienteCora } from "@/server/cora/abrir";
+import { criarAdaptadorCora } from "@/server/pagamentos/adaptador-cora";
 
 export type ConfiguracaoCoraDTO = {
   provedorAtual: ProvedorCodigo;
@@ -89,10 +90,7 @@ export async function usarProvedorCora(acesso: Acesso, provedor: "CORA" | "ASAAS
 
 export async function testarConexaoCora(acesso: Acesso, clienteHttp?: ClienteHttpCora): Promise<{ conta: string }> {
   exigirBanco(acesso);
-  const provedor = await provedorDaEmpresa(acesso.empresaId, undefined, undefined, clienteHttp);
-  if (provedor.provedor !== "CORA") {
-    throw new ErroAplicacao("A empresa não está usando a Cora.", 422, "provedor_indisponivel");
-  }
+  const provedor = criarAdaptadorCora(clienteHttp ?? (await abrirClienteCora(acesso.empresaId)));
   const conta = await provedor.testarConexao();
   return { conta: conta.titular };
 }

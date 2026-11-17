@@ -71,11 +71,5 @@ export async function salvarConfiguracaoPix(autor: AutorEmpresa, entrada: unknow
     },
   });
 
-  if (dados.usarNasCobrancas) {
-    await prisma.empresa.update({ where: { id: autor.empresaId }, data: { provedorPagamento: "PIX_DIRETO" } });
-  } else if (empresa.provedorPagamento === "PIX_DIRETO") {
-    await prisma.empresa.update({ where: { id: autor.empresaId }, data: { provedorPagamento: "ASAAS" } });
-  }
-
   return obterConfiguracaoPix(autor);
 }

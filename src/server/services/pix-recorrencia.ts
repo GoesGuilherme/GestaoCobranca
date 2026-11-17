@@ -1,4 +1,5 @@
 import { formaCobrancaDe } from "@/lib/cobranca";
+import { whereRecorrenciaDoProvedor } from "@/lib/formas-cobranca";
 import { dataHojeIso, dataIsoValida, isoDeData } from "@/lib/data";
 import type { ClienteServicoDTO } from "@/lib/tipos";
 import type { AutorEmpresa } from "@/server/auth/papeis";
@@ -69,6 +70,7 @@ export async function ativarRecorrenciaPix(
       valor: entrada.valor,
       asaasAssinaturaStatus: ATIVA,
       formaCobrancaRecorrente: "PIX",
+      provedorRecorrente: "PIX_DIRETO",
       diaVencimento: entrada.diaVencimento,
       proximoVencimento: new Date(`${entrada.proximoVencimento}T00:00:00.000Z`),
       descricaoRecorrente: entrada.descricao,
@@ -111,6 +113,7 @@ export async function editarRecorrenciaPix(
     data: {
       valor: entrada.valor,
       formaCobrancaRecorrente: "PIX",
+      provedorRecorrente: "PIX_DIRETO",
       diaVencimento: entrada.diaVencimento,
       proximoVencimento: new Date(`${entrada.proximoVencimento}T00:00:00.000Z`),
       descricaoRecorrente: entrada.descricao,
@@ -179,60 +182,54 @@ export async function cancelarRecorrenciaPix(autor: AutorEmpresa, clienteServico
 
 export async function executarRecorrenciasPix(opcoes: { agora?: Date; empresaId?: string } = {}) {
   const hoje = dataHojeIso(opcoes.agora ?? new Date());
-  const empresas = await prisma.empresa.findMany({
-    where: { provedorPagamento: "PIX_DIRETO", status: "ATIVA", ...(opcoes.empresaId ? { id: opcoes.empresaId } : {}) },
-    select: { id: true },
+  const vinculos = await prisma.clienteServico.findMany({
+    where: whereRecorrenciaDoProvedor("PIX_DIRETO", opcoes.empresaId),
   });
+  const antecedenciaPorEmpresa = new Map<string, number>();
+  const empresas = new Set<string>();
   let emitidas = 0;
   let falhas = 0;
-  for (const empresa of empresas) {
-    const prefs = await obterPreferenciasCobranca(empresa.id);
-    const antecedencia = prefs.diasAntesGerar ?? 0;
-    const vinculos = await prisma.clienteServico.findMany({
-      where: {
-        empresaId: empresa.id,
-        recorrencia: "MENSAL",
-        status: "ATIVO",
-        asaasSubscriptionId: null,
-        asaasAssinaturaStatus: ATIVA,
-        proximoVencimento: { not: null },
-      },
-    });
-    const autor: AutorEmpresa = { empresaId: empresa.id, papel: "DONO" };
-    for (const vinculo of vinculos) {
-      const vencimento = iso(vinculo.proximoVencimento);
-      const dia = vinculo.diaVencimento;
-      if (!vencimento || !dia || !dataIsoValida(vencimento) || !deveEmitirRecorrencia(vencimento, hoje, antecedencia)) {
-        continue;
-      }
-      try {
-        await emitirFaturaPix(autor, vinculo.clienteId, {
-          valor: vinculo.valor.toFixed(2),
-          vencimento,
-          formaCobranca: "PIX",
-          descricao: vinculo.descricaoRecorrente ?? undefined,
+  for (const vinculo of vinculos) {
+    empresas.add(vinculo.empresaId);
+    let antecedencia = antecedenciaPorEmpresa.get(vinculo.empresaId);
+    if (antecedencia === undefined) {
+      const prefs = await obterPreferenciasCobranca(vinculo.empresaId);
+      antecedencia = prefs.diasAntesGerar ?? 0;
+      antecedenciaPorEmpresa.set(vinculo.empresaId, antecedencia);
+    }
+    const vencimento = iso(vinculo.proximoVencimento);
+    const dia = vinculo.diaVencimento;
+    if (!vencimento || !dia || !dataIsoValida(vencimento) || !deveEmitirRecorrencia(vencimento, hoje, antecedencia)) {
+      continue;
+    }
+    const autor: AutorEmpresa = { empresaId: vinculo.empresaId, papel: "DONO" };
+    try {
+      await emitirFaturaPix(autor, vinculo.clienteId, {
+        valor: vinculo.valor.toFixed(2),
+        vencimento,
+        formaCobranca: "PIX",
+        descricao: vinculo.descricaoRecorrente ?? undefined,
+        clienteServicoId: vinculo.id,
+        chaveIdempotencia: chaveRecorrencia(vinculo.id, vencimento),
+      });
+      await prisma.clienteServico.updateMany({
+        where: { id: vinculo.id, empresaId: vinculo.empresaId, proximoVencimento: vinculo.proximoVencimento },
+        data: { proximoVencimento: new Date(`${avancarMes(vencimento, dia)}T00:00:00.000Z`) },
+      });
+      emitidas += 1;
+    } catch (erro) {
+      falhas += 1;
+      console.info(
+        JSON.stringify({
+          evento: "pix_recorrencia_falha",
+          empresaId: vinculo.empresaId,
           clienteServicoId: vinculo.id,
-          chaveIdempotencia: chaveRecorrencia(vinculo.id, vencimento),
-        });
-        await prisma.clienteServico.updateMany({
-          where: { id: vinculo.id, empresaId: empresa.id, proximoVencimento: vinculo.proximoVencimento },
-          data: { proximoVencimento: new Date(`${avancarMes(vencimento, dia)}T00:00:00.000Z`) },
-        });
-        emitidas += 1;
-      } catch (erro) {
-        falhas += 1;
-        console.info(
-          JSON.stringify({
-            evento: "pix_recorrencia_falha",
-            empresaId: empresa.id,
-            clienteServicoId: vinculo.id,
-            codigo: erro instanceof ErroAplicacao ? erro.codigo : "erro",
-          }),
-        );
-      }
+          codigo: erro instanceof ErroAplicacao ? erro.codigo : "erro",
+        }),
+      );
     }
   }
-  return { empresas: empresas.length, emitidas, falhas };
+  return { empresas: empresas.size, emitidas, falhas };
 }
 
 export async function empresaUsaPix(empresaId: string): Promise<boolean> {

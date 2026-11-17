@@ -18,6 +18,7 @@ import { FILTROS_VISUALIZACAO, SITUACOES_FATURA, filtroVisualizacao, situacaoFat
 import { acessoDaPagina } from "@/server/auth/pagina";
 import { classificarPagadoresDaEmpresa } from "@/server/services/classificacao-pagador-service";
 import { listarFaturasDaTela } from "@/server/services/fatura-service";
+import { painelFormasCobranca } from "@/server/services/formas-cobranca-service";
 import { obterPreferenciasCobranca } from "@/server/services/preferencia-cobranca-service";
 import { listarEnviosRegua } from "@/server/services/regua-envios";
 import { obterPainelRegua } from "@/server/services/regua-service";
@@ -53,10 +54,11 @@ export default async function PaginaFaturas({ searchParams }: { searchParams: Pr
   const hoje = dataHojeIso();
   const faixa = faixaDoPeriodo(filtroPeriodo, hoje);
   const filtroLista = { situacao, vista, busca, periodo: consultaPeriodo(filtroPeriodo, hoje) };
-  const [painel, preferencias, regua] = await Promise.all([
+  const [painel, preferencias, regua, formas] = await Promise.all([
     listarFaturasDaTela(acesso, filtroLista),
     podeEmitirCobranca(acesso.papel) ? obterPreferenciasCobranca(acesso.empresaId) : Promise.resolve(undefined),
     obterPainelRegua(acesso),
+    podeEmitirCobranca(acesso.papel) ? painelFormasCobranca(acesso.empresaId) : Promise.resolve(undefined),
   ]);
   const { faturas, resumo } = painel;
   const [enviosRegua, selos] = await Promise.all([
@@ -83,7 +85,7 @@ export default async function PaginaFaturas({ searchParams }: { searchParams: Pr
         <BotaoImportarFaturas />
         {podeAtualizarVisualizacoes(acesso.papel) ? <BotaoAtualizarAsaas /> : null}
       </div>
-      <PainelRecorrenciaLote preferencias={preferencias} />
+      <PainelRecorrenciaLote preferencias={preferencias} formas={formas} />
       <LegendaFaturas />
       <form className="mb-6 flex flex-col gap-3 rounded-3xl border border-line bg-card p-4 sm:flex-row sm:flex-wrap sm:items-end" method="get">
         <label className="grid w-full gap-1 text-sm sm:w-auto">

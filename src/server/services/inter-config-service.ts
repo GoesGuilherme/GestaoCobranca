@@ -9,7 +9,8 @@ import { certificadoPertoDoVencimento, contaCorrenteInter, validarParCertificado
 import type { ClienteHttpInter } from "@/server/inter/contrato";
 import { logInter, logInterErro } from "@/server/inter/log";
 import { urlWebhookInter } from "@/server/inter/url-publica";
-import { provedorDaEmpresa } from "@/server/pagamentos/fabrica";
+import { abrirClienteInter } from "@/server/inter/abrir";
+import { criarAdaptadorInter } from "@/server/pagamentos/adaptador-inter";
 import { lerCredenciaisPagamento, salvarCredenciaisPagamento, type AmbientePagamento } from "@/server/pagamentos/credenciais";
 import { lerEsquema } from "@/server/validar";
 import { esquemaConfiguracaoInter } from "@/lib/validacao";
@@ -118,15 +119,13 @@ export async function salvarConfiguracaoInter(
     segredoWebhook: segredo,
     certificadoValidoAte: validade,
   });
-  await prisma.empresa.update({ where: { id: autor.empresaId }, data: { provedorPagamento: "INTER" } });
-
   let avisoRegistro: string | null = null;
   const url = urlWebhookInter(segredo, origem);
   if (!url) {
     avisoRegistro = "Credenciais guardadas. Defina PAGAMENTOS_PUBLIC_URL em HTTPS para registrar o webhook no Inter.";
   } else if (!clienteHttp) {
     try {
-      const provedor = await provedorDaEmpresa(autor.empresaId);
+      const provedor = criarAdaptadorInter(await abrirClienteInter(autor.empresaId));
       if (provedor.registrarWebhook) await provedor.registrarWebhook(url);
       logInter("webhook registrado", { empresaId: autor.empresaId, ambiente: dados.ambiente });
     } catch (erro) {
@@ -147,10 +146,7 @@ export async function salvarConfiguracaoInter(
 
 export async function testarConexaoInter(autor: AutorEmpresa, clienteHttp?: ClienteHttpInter): Promise<{ conta: string }> {
   exigirBanco(autor);
-  const provedor = await provedorDaEmpresa(autor.empresaId, undefined, clienteHttp);
-  if (provedor.provedor !== "INTER") {
-    throw new ErroAplicacao("A empresa não está usando o Banco Inter.", 422, "provedor_indisponivel");
-  }
+  const provedor = criarAdaptadorInter(clienteHttp ?? (await abrirClienteInter(autor.empresaId)));
   const conta = await provedor.testarConexao();
   return { conta: conta.titular };
 }

@@ -3,12 +3,13 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { enviarJson } from "@/lib/api-cliente";
+import { rotuloProvedor } from "@/lib/formas-cobranca";
 import type { ConfiguracaoCoraDTO } from "@/lib/tipos";
 import { classeBotaoPrimario, classeBotaoSecundario } from "./estilos";
 import { avisarErro, avisarSucesso } from "./notificador";
 
 const RETORNOS: Record<string, string> = {
-  conectado: "Conta Cora conectada. As cobranças novas saem pela Cora.",
+  conectado: "Conta Cora conectada. Boleto + Pix (Cora) ficou como forma padrão. Cada cobrança ainda pode escolher outra forma.",
   conectado_sem_webhook: "Conta conectada. O webhook ainda não foi cadastrado na Cora. Confira CORA_WEBHOOK_SEGREDO e conecte de novo.",
   recusado: "A autorização na Cora foi cancelada. Nada foi gravado.",
   erro: "Não foi possível concluir a conexão com a Cora. Tente de novo.",
@@ -64,15 +65,10 @@ export function FormularioCora({ inicial, retorno }: { inicial: ConfiguracaoCora
       {configuracao.aviso ? (
         <p className="rounded-2xl border border-line bg-sand px-4 py-3 text-sm leading-6">{configuracao.aviso}</p>
       ) : null}
-      {configuracao.provedorAtual === "CORA" ? (
-        <p className="rounded-2xl border border-line bg-card px-4 py-3 text-sm leading-6">
-          As cobranças novas desta empresa saem pela Cora. O que já foi emitido no Asaas ou no Inter continua no provedor de origem.
-        </p>
-      ) : (
-        <p className="rounded-2xl border border-line bg-card px-4 py-3 text-sm leading-6">
-          Conectar passa a usar a Cora nas cobranças novas. Asaas e Inter desta empresa não são apagados.
-        </p>
-      )}
+      <p className="rounded-2xl border border-line bg-card px-4 py-3 text-sm leading-6">
+        Forma padrão atual: {rotuloProvedor(configuracao.provedorAtual)}. Conectar a conta não apaga Asaas nem Inter. A forma
+        padrão é escolhida no card Forma padrão de cobrança. O que já foi emitido continua no provedor da fatura.
+      </p>
       <dl className="grid gap-2 text-sm leading-6 sm:grid-cols-2">
         <div>
           <dt className="text-muted">Ambiente</dt>
@@ -88,7 +84,7 @@ export function FormularioCora({ inicial, retorno }: { inicial: ConfiguracaoCora
         </div>
         <div>
           <dt className="text-muted">Provedor das cobranças novas</dt>
-          <dd>{configuracao.provedorAtual === "CORA" ? "Cora" : configuracao.provedorAtual === "INTER" ? "Inter" : "Asaas"}</dd>
+          <dd>{rotuloProvedor(configuracao.provedorAtual)}</dd>
         </div>
       </dl>
       <div className="flex flex-wrap gap-3">
@@ -104,9 +100,9 @@ export function FormularioCora({ inicial, retorno }: { inicial: ConfiguracaoCora
             type="button"
             className={classeBotaoSecundario}
             disabled={ocupado}
-            onClick={() => acao("/api/integracoes/cora/provedor", { provedor: "CORA" }, "Cobranças novas saem pela Cora")}
+            onClick={() => acao("/api/integracoes/cora/provedor", { provedor: "CORA" }, "Forma padrão: Boleto + Pix (Cora)")}
           >
-            Usar a Cora nas cobranças novas
+            Definir Boleto + Pix (Cora) como forma padrão
           </button>
         ) : null}
         {configuracao.conectada ? (
@@ -129,9 +125,9 @@ export function FormularioCora({ inicial, retorno }: { inicial: ConfiguracaoCora
           type="button"
           className={classeBotaoSecundario}
           disabled={ocupado}
-          onClick={() => acao("/api/integracoes/cora/provedor", { provedor: "ASAAS" }, "As cobranças novas voltam a sair pelo Asaas")}
+          onClick={() => acao("/api/integracoes/cora/provedor", { provedor: "ASAAS" }, "Forma padrão voltou para o Asaas")}
         >
-          Voltar a usar o Asaas nas cobranças novas
+          Definir o Asaas como forma padrão
         </button>
       ) : null}
       {configuracao.conectada ? (

@@ -13,7 +13,6 @@ import { prisma } from "@/server/db";
 import { ErroAplicacao } from "@/server/erros";
 import { espelhoFaturaCora } from "@/server/pagamentos/gravacao";
 import { criarAdaptadorCora } from "@/server/pagamentos/adaptador-cora";
-import { provedorDaEmpresa } from "@/server/pagamentos/fabrica";
 import type { CobrancaNormalizada, ProvedorPagamento } from "@/server/pagamentos/tipos";
 import { lerEsquema } from "@/server/validar";
 import { encargosDaPreferencia, obterPreferenciasCobranca } from "./preferencia-cobranca-service";
@@ -204,7 +203,7 @@ export async function emitirFaturaCora(
 
   const chave = await chaveCora(autor.empresaId, reservada.id);
   try {
-    const provedor = await provedorDaEmpresa(autor.empresaId, undefined, undefined, clienteHttp);
+    const provedor = criarAdaptadorCora(await abrirClienteCora(autor.empresaId, clienteHttp));
     const cobranca = await provedor.criarCobranca({
       idClienteExterno: cliente.id,
       formaCobranca: "BOLETO_PIX",
