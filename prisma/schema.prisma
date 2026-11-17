@@ -410,6 +410,9 @@ model ClienteServico {
   idAssinaturaExterna      String?              @unique @map("id_assinatura_externa")
   asaasAssinaturaStatus    String?              @map("asaas_assinatura_status")
   formaCobrancaRecorrente  String?              @map("forma_cobranca_recorrente")
+  // Provedor desta recorrência. Nulo só em linha antiga, antes da escolha por cobrança.
+  // A emissão seguinte usa este valor, não o provedor atual da empresa.
+  provedorRecorrente       ProvedorPagamento?   @map("provedor_recorrente")
   diaVencimento            Int?                 @map("dia_vencimento")
   proximoVencimento        DateTime?            @map("proximo_vencimento") @db.Date
   descricaoRecorrente      String?              @map("descricao_recorrente") @db.Text
@@ -428,6 +431,7 @@ model ClienteServico {
   @@index([clienteId])
   @@index([servicoId])
   @@index([empresaId, status, recorrencia])
+  @@index([empresaId, provedorRecorrente])
   @@map("clientes_servicos")
 }
 

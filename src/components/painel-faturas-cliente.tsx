@@ -8,6 +8,7 @@ import { faturasNaSituacao, faturaNaSituacao } from "@/lib/fatura-situacao";
 import { formatarDataIso } from "@/lib/formatacao";
 import { type OpcaoPassoRegua, type PassoParaRotulo } from "@/lib/regua";
 import type { EnvioReguaLista, ReguaParaProgresso } from "@/lib/regua-progresso";
+import { rotuloCobranca, type PainelFormasCobranca } from "@/lib/formas-cobranca";
 import type { ClienteServicoDTO, FaturaDTO, PreferenciasCobrancaDTO, SituacaoFatura } from "@/lib/tipos";
 import { AcoesCompartilhar } from "./acoes-compartilhar";
 import { FormularioFatura } from "./formulario-fatura";
@@ -37,11 +38,8 @@ const ABAS: { valor: SituacaoFatura; rotulo: string; legenda: string }[] = [
   },
 ];
 
-function tituloEmissao(forma: string) {
-  if (forma === "PIX") return "Pix emitido";
-  if (forma === "CREDIT_CARD") return "Cobrança no cartão emitida";
-  if (forma === "UNDEFINED") return "Cobrança emitida";
-  return "Boleto emitido";
+function tituloEmissao(provedor: string, forma: string) {
+  return `${rotuloCobranca(provedor, forma)} emitido`;
 }
 
 function textoDoLink(forma: string, boleto: boolean) {
@@ -79,7 +77,7 @@ export function PainelFaturasCliente({
   enviosRegua = [],
   modoTeste = false,
   emailLogado = "",
-  provedor = "ASAAS",
+  formas = { opcoes: [], padraoId: "", padraoDisponivel: false },
 }: {
   clienteId: string;
   vinculos: ClienteServicoDTO[];
@@ -94,7 +92,7 @@ export function PainelFaturasCliente({
   enviosRegua?: EnvioReguaLista[];
   modoTeste?: boolean;
   emailLogado?: string;
-  provedor?: string;
+  formas?: PainelFormasCobranca;
 }) {
   const [emitida, setEmitida] = useState<FaturaDTO | null>(null);
   const [emitindo, setEmitindo] = useState(false);
@@ -165,7 +163,7 @@ export function PainelFaturasCliente({
             clienteId={clienteId}
             vinculos={vinculos}
             preferencias={preferencias}
-            provedor={provedor}
+            formas={formas}
             onEmitida={(fatura) => {
               setEmitida(fatura);
               setSituacao("em_aberto");
@@ -176,7 +174,7 @@ export function PainelFaturasCliente({
       {emitida ? (
         <div role="status" className="mt-4 rounded-2xl border border-ok/30 bg-leaf px-4 py-3 text-sm text-ok">
           <div className="flex items-start justify-between gap-3">
-            <p className="font-medium">{tituloEmissao(emitida.formaCobranca)}</p>
+            <p className="font-medium">{tituloEmissao(emitida.provedor, emitida.formaCobranca)}</p>
             <button type="button" className="text-xs font-medium underline" aria-label="Fechar aviso da cobrança emitida" onClick={() => setEmitida(null)}>
               Fechar
             </button>

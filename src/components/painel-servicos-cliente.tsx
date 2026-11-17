@@ -6,6 +6,7 @@ import { formatarDataIso } from "@/lib/formatacao";
 import { formatarAliquota, formatarReais, formatarReaisAssinado, somarDinheiro } from "@/lib/dinheiro";
 import { rotuloRecorrencia } from "@/lib/rotulos";
 import { PREFERENCIAS_COBRANCA_PADRAO } from "@/lib/cobranca";
+import type { PainelFormasCobranca } from "@/lib/formas-cobranca";
 import type { ClienteServicoDTO, PreferenciasCobrancaDTO, ServicoDTO } from "@/lib/tipos";
 import { AcoesRecorrencia } from "./acoes-recorrencia";
 import { BotaoExcluir } from "./botao-excluir";
@@ -31,6 +32,7 @@ export function PainelServicosCliente({
   whatsapp = "",
   email = "",
   preferencias = PREFERENCIAS_COBRANCA_PADRAO,
+  formas = { opcoes: [], padraoId: "", padraoDisponivel: false },
 }: {
   clienteId: string;
   vinculos: ClienteServicoDTO[];
@@ -41,6 +43,7 @@ export function PainelServicosCliente({
   whatsapp?: string;
   email?: string;
   preferencias?: PreferenciasCobrancaDTO;
+  formas?: PainelFormasCobranca;
 }) {
   const [modo, setModo] = useState<"lista" | "novo" | string>("lista");
   const emEdicao = vinculos.find((item) => item.id === modo);
@@ -147,6 +150,7 @@ export function PainelServicosCliente({
                       whatsapp={whatsapp}
                       email={email}
                       preferencias={preferencias}
+                      formas={formas}
                     />
                   ) : null}
                 </div>

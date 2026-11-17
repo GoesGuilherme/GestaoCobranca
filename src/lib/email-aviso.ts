@@ -18,6 +18,7 @@ export type DadosEmailAviso = {
   qrSrc?: string | null;
   qrLink?: string | null;
   rotuloBotao?: string | null;
+  metodo?: string | null;
 };
 
 export type IdTipoAviso = "emissao" | "antes" | "vencimento" | "atraso";
@@ -57,6 +58,7 @@ export function montarEmailAviso(dados: DadosEmailAviso): { texto: string; html:
   const qr = qrPermitido(dados.qrSrc);
   const qrLink = hrefSeguro(dados.qrLink ?? "");
   const mensagem = corpoDepoisDaSaudacao(cliente, dados.mensagem);
+  const metodo = dados.metodo?.trim() || null;
 
   return {
     texto: textoPlano({
@@ -69,6 +71,7 @@ export function montarEmailAviso(dados: DadosEmailAviso): { texto: string; html:
       linha,
       pix,
       qrLink,
+      metodo,
     }),
     html: htmlDoAviso({
       empresa,
@@ -85,6 +88,7 @@ export function montarEmailAviso(dados: DadosEmailAviso): { texto: string; html:
       rotuloBotao: dados.rotuloBotao?.trim() || null,
       mensagem,
       modoTeste: dados.modoTeste,
+      metodo,
     }),
   };
 }
@@ -126,11 +130,13 @@ function textoPlano(dados: {
   linha: string | null;
   pix: string | null;
   qrLink: string | null;
+  metodo: string | null;
 }): string {
   const cabeca = dados.modoTeste
     ? `Modo teste: este e-mail foi enviado para você, não para o cliente.\n\n${dados.mensagem}`
     : dados.mensagem;
   const linhas = [cabeca, "", `Valor: ${dados.valor}`, `Vencimento: ${dados.vencimento}`, `Situação: ${dados.status}`];
+  if (dados.metodo) linhas.push(`Forma: ${dados.metodo}`);
   if (dados.link) linhas.push(`Fatura: ${dados.link}`);
   if (dados.linha) linhas.push(`Linha digitável: ${dados.linha}`);
   if (dados.pix) linhas.push(`Pix copia e cola: ${dados.pix}`);
@@ -153,6 +159,7 @@ function htmlDoAviso(dados: {
   rotuloBotao: string | null;
   mensagem: string;
   modoTeste: boolean;
+  metodo: string | null;
 }): string {
   const titulo = escaparTexto(`Cobrança de ${dados.empresa}`);
   const preheader = escaparTexto(`${dados.empresa}: cobrança de ${dados.valor}, vencimento ${dados.vencimento}.`);
@@ -210,6 +217,7 @@ function htmlDoAviso(dados: {
               ${linhaDetalhe("Valor", dados.valor)}
               ${linhaDetalhe("Vencimento", dados.vencimento)}
               ${linhaDetalhe("Situação", dados.status)}
+              ${dados.metodo ? linhaDetalhe("Forma", dados.metodo) : ""}
             </table>
           </td>
         </tr>

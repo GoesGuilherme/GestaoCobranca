@@ -1,5 +1,6 @@
 import { formatarDataIso } from "@/lib/formatacao";
 import { normalizarDinheiro } from "@/lib/dinheiro";
+import { chaveFiltroForma } from "@/lib/formas-cobranca";
 import {
   rotuloMesCurto,
   somarMeses,
@@ -63,7 +64,8 @@ export function lerHorizonteBoca(valor: string | undefined): HorizonteBoca {
 export function hrefBocaJacare(filtros: FiltrosPainel, horizonte: HorizonteBoca): string {
   const busca = new URLSearchParams();
   if (filtros.periodo !== "este_mes") busca.set("periodo", filtros.periodo);
-  if (filtros.forma) busca.set("forma", filtros.forma);
+  const forma = chaveFiltroForma(filtros.forma, filtros.provedor);
+  if (forma) busca.set("forma", forma);
   if (filtros.statusCliente) busca.set("status", filtros.statusCliente);
   busca.set("boca", String(horizonte));
   return `/dashboards/financeiro?${busca.toString()}`;

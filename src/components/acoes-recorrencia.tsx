@@ -9,11 +9,13 @@ import { dataHojeIso, proximoVencimentoIso } from "@/lib/data";
 import { formatarAliquotaCampo, formatarValorCampo } from "@/lib/dinheiro";
 import { mascararMoedaDigitando } from "@/lib/mascaras";
 import { formatarDataIso } from "@/lib/formatacao";
-import { FORMAS_COBRANCA, rotuloAssinatura, rotuloCartao } from "@/lib/rotulos";
+import { idDaOpcao, opcaoPorId, rotuloCobranca, type PainelFormasCobranca } from "@/lib/formas-cobranca";
+import { rotuloAssinatura, rotuloCartao } from "@/lib/rotulos";
 import type { ClienteServicoDTO, PreferenciasCobrancaDTO } from "@/lib/tipos";
 import { esquemaAtivarRecorrencia, esquemaEditarRecorrencia, esquemaRetomarRecorrencia, mensagensDoZod } from "@/lib/validacao";
 import { AcoesCompartilhar } from "./acoes-compartilhar";
 import { Campo, classeCampo } from "./campo";
+import { SeletorFormaCobranca } from "./seletor-forma-cobranca";
 import { classeBotaoPerigo, classeBotaoPrimario, classeBotaoSecundario } from "./estilos";
 import { avisarCamposObrigatorios, avisarErro, avisarSucesso } from "./notificador";
 
@@ -27,12 +29,14 @@ export function AcoesRecorrencia({
   whatsapp = "",
   email = "",
   preferencias = PREFERENCIAS_COBRANCA_PADRAO,
+  formas = { opcoes: [], padraoId: "", padraoDisponivel: false },
 }: {
   vinculo: ClienteServicoDTO;
   nomeCliente: string;
   whatsapp?: string;
   email?: string;
   preferencias?: PreferenciasCobrancaDTO;
+  formas?: PainelFormasCobranca;
 }) {
   const router = useRouter();
   const assinatura = vinculo.recorrenciaAsaas;
@@ -43,7 +47,16 @@ export function AcoesRecorrencia({
   const [modo, setModo] = useState<"ver" | "ativar" | "editar" | "pausar" | "cancelar" | "retomar">("ver");
   const [dia, setDia] = useState(String(emCurso ? (assinatura?.diaVencimento ?? preferencias.diaVencimento) : preferencias.diaVencimento));
   const [valor, setValor] = useState(formatarValorCampo(vinculo.valor));
-  const [forma, setForma] = useState(emCurso ? (assinatura?.formaCobranca ?? preferencias.formaCobranca) : preferencias.formaCobranca);
+  const opcoesForma = emCurso && assinatura?.provedor
+    ? formas.opcoes.filter((item) => item.provedor === assinatura.provedor)
+    : formas.opcoes;
+  const escolhaInicial = emCurso
+    ? idDaOpcao(assinatura?.provedor, assinatura?.formaCobranca) || opcoesForma[0]?.id || ""
+    : formas.padraoDisponivel
+      ? formas.padraoId
+      : opcoesForma[0]?.id || "";
+  const [escolha, setEscolha] = useState(escolhaInicial);
+  const opcao = opcaoPorId(escolha, opcoesForma.length > 0 ? opcoesForma : formas.opcoes);
   const [descricaoManual, setDescricaoManual] = useState<string | null>(emCurso ? (assinatura?.descricao ?? "") : null);
   const [multa, setMulta] = useState(percentualCampo(preferencias.multaPercentual));
   const [juros, setJuros] = useState(percentualCampo(preferencias.jurosPercentual));
@@ -61,6 +74,9 @@ export function AcoesRecorrencia({
     vencimento: vencimento ?? "",
   });
   const descricao = descricaoManual ?? descricaoCalculada;
+  const fotoEdicao = JSON.stringify({ escolha, dia, valor, descricao, multa, juros, desconto, diasDesconto, atualizarPendentes });
+  const [fotoGravada] = useState(fotoEdicao);
+  const podeSalvarEdicao = fotoEdicao !== fotoGravada && Boolean(opcao);
   const encargos = {
     multaPercentual: multa,
     jurosPercentual: juros,
@@ -95,7 +111,8 @@ export function AcoesRecorrencia({
   }
 
   const corpoRecorrencia = {
-    formaCobranca: forma,
+    provedor: opcao?.provedor,
+    formaCobranca: opcao?.forma,
     diaVencimento: diaNumero,
     ...(vencimento ? { proximoVencimento: vencimento } : {}),
     valor,
@@ -109,7 +126,8 @@ export function AcoesRecorrencia({
     if (recusar(esquemaAtivarRecorrencia, corpoRecorrencia)) return;
     setEnviando(true);
     const resposta = await enviarJson(`/api/servicos-cliente/${vinculo.id}/recorrencia`, "POST", {
-      formaCobranca: forma,
+      provedor: opcao?.provedor,
+      formaCobranca: opcao?.forma,
       diaVencimento: diaNumero,
       ...(vencimento ? { proximoVencimento: vencimento } : {}),
       valor,
@@ -121,10 +139,12 @@ export function AcoesRecorrencia({
 
   async function editar(evento: React.FormEvent) {
     evento.preventDefault();
+    if (!podeSalvarEdicao) return;
     if (recusar(esquemaEditarRecorrencia, { ...corpoRecorrencia, atualizarPendentes })) return;
     setEnviando(true);
     const resposta = await enviarJson(`/api/servicos-cliente/${vinculo.id}/recorrencia`, "PATCH", {
-      formaCobranca: forma,
+      provedor: opcao?.provedor,
+      formaCobranca: opcao?.forma,
       diaVencimento: diaNumero,
       ...(vencimento ? { proximoVencimento: vencimento } : {}),
       valor,
@@ -158,7 +178,7 @@ export function AcoesRecorrencia({
       diaVencimento: diaNumero,
       ...(vencimento ? { proximoVencimento: vencimento } : {}),
     });
-    await concluir(resposta, "Recorrência retomada. O Asaas volta a gerar as cobranças.");
+    await concluir(resposta, "Recorrência retomada. As cobranças novas voltam a sair nesta forma.");
   }
 
   const campos = (
@@ -170,12 +190,13 @@ export function AcoesRecorrencia({
         <Campo label="Dia de vencimento" htmlFor={`dia-recorrencia-${vinculo.id}`} erro={falhas.diaVencimento} dica={vencimento ? `Primeiro vencimento em ${formatarDataIso(vencimento)}.` : "Escolha um dia de 1 a 31."}>
           <input id={`dia-recorrencia-${vinculo.id}`} className={classeCampo} inputMode="numeric" min={1} max={31} value={dia} onChange={(evento) => setDia(evento.target.value)} />
         </Campo>
-        <Campo label="Forma" htmlFor={`forma-recorrencia-${vinculo.id}`}>
-          <select id={`forma-recorrencia-${vinculo.id}`} className={classeCampo} value={forma} onChange={(evento) => setForma(evento.target.value)}>
-            {FORMAS_COBRANCA.map((item) => (
-              <option key={item.valor} value={item.valor}>{item.rotulo}</option>
-            ))}
-          </select>
+        <Campo label="Forma de cobrança" htmlFor={`forma-recorrencia-${vinculo.id}`}>
+          <SeletorFormaCobranca
+            id={`forma-recorrencia-${vinculo.id}`}
+            valor={escolha}
+            opcoes={opcoesForma.length > 0 ? opcoesForma : formas.opcoes}
+            onChange={setEscolha}
+          />
         </Campo>
         <Campo label="Descrição" htmlFor={`descricao-recorrencia-${vinculo.id}`} dica="O modelo da empresa usa {servico}, {cliente} e {mes}.">
           <input
@@ -199,7 +220,7 @@ export function AcoesRecorrencia({
           <input id={`dias-desconto-recorrencia-${vinculo.id}`} className={classeCampo} inputMode="numeric" value={diasDesconto} onChange={(evento) => setDiasDesconto(evento.target.value)} placeholder="0" />
         </Campo>
       </div>
-      {forma === "CREDIT_CARD" ? (
+      {opcao?.forma === "CREDIT_CARD" ? (
         <p className="text-sm text-muted">
           O cliente cadastra o cartão na página do Asaas. Esta empresa não recebe o número nem o CVV.
         </p>
@@ -280,7 +301,13 @@ export function AcoesRecorrencia({
 
       {modo === "ativar" ? (
         <form onSubmit={ativar} className="mt-3 grid gap-4 rounded-2xl border border-line bg-paper p-4">
-          <p className="text-sm text-muted">O Asaas passa a gerar a mensalidade neste dia. A primeira cobrança aparece pelo webhook ou em Importar faturas.</p>
+          <p className="text-sm text-muted">
+            {opcao ? `${opcao.rotulo} passa a valer nesta recorrência.` : "Escolha a forma de cobrança."}{" "}
+            {opcao?.provedor === "ASAAS"
+              ? "A primeira cobrança do Asaas aparece pelo webhook ou em Importar faturas."
+              : "As próximas cobranças seguem esta escolha, mesmo se a forma padrão da empresa mudar."}
+            {assinatura ? ` Hoje: ${rotuloCobranca(assinatura.provedor, assinatura.formaCobranca)}.` : ""}
+          </p>
           {campos}
           <div className="flex flex-wrap gap-2">
             <button type="submit" className={classeBotaoPrimario} disabled={enviando}>{enviando ? "Ativando..." : "Ativar cobrança recorrente"}</button>
@@ -297,7 +324,7 @@ export function AcoesRecorrencia({
             Atualizar cobranças em aberto
           </label>
           <div className="flex flex-wrap gap-2">
-            <button type="submit" className={classeBotaoPrimario} disabled={enviando}>{enviando ? "Salvando..." : "Salvar recorrência"}</button>
+            <button type="submit" className={classeBotaoPrimario} disabled={enviando || !podeSalvarEdicao}>{enviando ? "Salvando..." : "Salvar recorrência"}</button>
             <button type="button" className={classeBotaoSecundario} onClick={() => setModo("ver")}>Voltar</button>
           </div>
         </form>

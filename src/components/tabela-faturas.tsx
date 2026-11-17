@@ -7,7 +7,7 @@ import { opcoesDaReguaAplicavel, rotuloReguaDaFatura, type OpcaoPassoRegua, type
 import { linhaDoTempoDaFatura } from "@/lib/linha-tempo-fatura";
 import { rotuloPromessaAte } from "@/lib/promessa";
 import type { EnvioReguaLista, ReguaParaProgresso } from "@/lib/regua-progresso";
-import { rotuloFormaCobranca } from "@/lib/rotulos";
+import { rotuloCobranca } from "@/lib/formas-cobranca";
 import type { ResultadoClassificacaoPagador } from "@/lib/classificacao-pagador";
 import type { ClienteServicoDTO, FaturaDTO, PreferenciasCobrancaDTO } from "@/lib/tipos";
 import { AcoesFatura } from "./acoes-fatura";
@@ -161,7 +161,7 @@ export function TabelaFaturas({
                   {formatarDataIso(fatura.vencimento)} · {formatarReais(fatura.valor)}
                 </p>
                 <p className="text-xs text-muted">
-                  {rotuloFormaCobranca(fatura.formaCobranca)}
+                  {rotuloCobranca(fatura.provedor, fatura.formaCobranca)}
                   {fatura.nomeServico ? ` · ${fatura.nomeServico}` : ""}
                 </p>
                 {motivoSelecao ? <p className="mt-1 text-xs text-muted">{motivoSelecao}</p> : null}

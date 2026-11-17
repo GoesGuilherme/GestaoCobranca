@@ -18,7 +18,7 @@ describe("botão Salvar da chave Pix", () => {
     expect(salvarPixHabilitado(inicial, inicial)).toBe(false);
     expect(salvarPixHabilitado({ ...inicial, cidadeRecebedor: "S" }, inicial)).toBe(false);
     expect(salvarPixHabilitado({ ...inicial, cidadeRecebedor: "Santos " }, inicial)).toBe(false);
-    expect(salvarPixHabilitado({ ...inicial, usarNasCobrancas: true }, inicial)).toBe(true);
+    expect(salvarPixHabilitado({ ...inicial, usarNasCobrancas: true }, inicial)).toBe(false);
     expect(salvarPixHabilitado({ ...inicial, nomeRecebedor: "Padaria Nova" }, inicial)).toBe(true);
   });
 

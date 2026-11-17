@@ -82,6 +82,7 @@ export type SituacaoCartao = "AGUARDANDO" | "CADASTRADO" | "RECUSADO";
 
 export type RecorrenciaAsaasDTO = {
   status: string;
+  provedor: string | null;
   formaCobranca: string | null;
   diaVencimento: number | null;
   proximoVencimento: string | null;

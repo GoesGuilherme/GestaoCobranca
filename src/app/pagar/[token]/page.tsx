@@ -30,6 +30,7 @@ export default async function PaginaPagarPix({ params }: { params: Promise<{ tok
           <h1 className="font-display text-3xl">{pagamento.empresa}</h1>
         </div>
         <p className="mt-4 text-sm leading-6 text-muted">{pagamento.descricao}</p>
+        <p className="mt-2 text-sm font-medium">PIX direto (da empresa)</p>
         <dl className="mt-6 grid gap-3 text-sm">
           <div className="flex justify-between gap-4">
             <dt className="text-muted">Valor</dt>

@@ -40,9 +40,9 @@ describe("boca de jacaré", () => {
 
   it("monta o endereço do gráfico sem perder os filtros do financeiro", () => {
     expect(
-      hrefBocaJacare({ periodo: "ultimos_3", forma: "PIX", statusCliente: "ATIVO" }, 6),
+      hrefBocaJacare({ periodo: "ultimos_3", forma: "PIX", provedor: null, statusCliente: "ATIVO" }, 6),
     ).toBe("/dashboards/financeiro?periodo=ultimos_3&forma=PIX&status=ATIVO&boca=6");
-    expect(hrefBocaJacare({ periodo: "este_mes", forma: null, statusCliente: null }, 12)).toBe(
+    expect(hrefBocaJacare({ periodo: "este_mes", forma: null, provedor: null, statusCliente: null }, 12)).toBe(
       "/dashboards/financeiro?boca=12",
     );
   });

@@ -6,10 +6,10 @@ import { STATUS_NORMALIZADO, statusBrutos } from "@/lib/status-pagamento";
 import { somenteDocumento } from "@/lib/documento";
 import type { FaturaDTO, FiltroVisualizacao, LembreteReguaDTO, ModoReguaCliente, PromessaPendenteDTO, SituacaoFatura, StatusLembrete } from "@/lib/tipos";
 import { esquemaFatura } from "@/lib/validacao";
-import { asaasRespondeu, traduzirErroAsaas } from "@/server/asaas/abrir";
+import { abrirClienteAsaas, asaasRespondeu, traduzirErroAsaas } from "@/server/asaas/abrir";
 import { type ClienteHttpAsaas, type CobrancaAsaas, type PaginaCobrancasAsaas } from "@/server/asaas/contrato";
 import { logAsaas, logAsaasErro, mensagemLogAsaas } from "@/server/asaas/log";
-import { clienteAsaasDaEmpresa, httpAsaasDaCobranca } from "@/server/pagamentos/fabrica";
+import { httpAsaasDaCobranca } from "@/server/pagamentos/fabrica";
 import { espelhoClienteAsaas, espelhoFaturaAsaas } from "@/server/pagamentos/gravacao";
 import type { AutorEmpresa } from "@/server/auth/papeis";
 import { exigirCobranca, exigirVerFaturas } from "@/server/auth/papeis";
@@ -22,6 +22,7 @@ import { conciliarPromessas, promessasPendentesDasFaturas } from "./promessa-ser
 import { encargosDaPreferencia, obterPreferenciasCobranca } from "./preferencia-cobranca-service";
 import { cancelarFaturaCora, emitirFaturaCora } from "./cora-cobranca";
 import { cancelarFaturaInter, emitirFaturaInter } from "./inter-cobranca";
+import { resolverRotaCobranca } from "./formas-cobranca-service";
 import { cancelarFaturaPix, emitirFaturaPix, sincronizarVencidasPix } from "./pix-cobranca";
 
 type FaturaComNomes = {
@@ -472,18 +473,22 @@ export async function emitirFatura(
   entrada: unknown,
   clienteHttp?: ClienteHttpAsaas,
 ): Promise<FaturaDTO> {
-  const empresa = await prisma.empresa.findUnique({
-    where: { id: autor.empresaId },
-    select: { provedorPagamento: true },
-  });
-  if (empresa?.provedorPagamento === "INTER") {
-    return emitirFaturaInter(autor, clienteId, entrada);
+  const bruto = entrada && typeof entrada === "object" ? (entrada as { provedor?: unknown; formaCobranca?: unknown }) : {};
+  const rota = await resolverRotaCobranca(
+    autor.empresaId,
+    typeof bruto.provedor === "string" ? bruto.provedor : null,
+    typeof bruto.formaCobranca === "string" ? bruto.formaCobranca : null,
+  );
+  const base = entrada && typeof entrada === "object" ? (entrada as Record<string, unknown>) : {};
+  const pedido = { ...base, formaCobranca: rota.forma, provedor: rota.provedor };
+  if (rota.provedor === "INTER") {
+    return emitirFaturaInter(autor, clienteId, pedido);
   }
-  if (empresa?.provedorPagamento === "CORA") {
-    return emitirFaturaCora(autor, clienteId, entrada);
+  if (rota.provedor === "CORA") {
+    return emitirFaturaCora(autor, clienteId, pedido);
   }
-  if (empresa?.provedorPagamento === "PIX_DIRETO") {
-    return emitirFaturaPix(autor, clienteId, entrada);
+  if (rota.provedor === "PIX_DIRETO") {
+    return emitirFaturaPix(autor, clienteId, pedido);
   }
   exigirCobranca(autor);
   const dados = lerEsquema(esquemaFatura, entrada);
@@ -509,7 +514,7 @@ export async function emitirFatura(
   const descricao = dados.descricao?.trim() ? dados.descricao.trim() : null;
 
   try {
-    const http = await clienteAsaasDaEmpresa(autor.empresaId, clienteHttp);
+    const http = (await abrirClienteAsaas(autor.empresaId, clienteHttp)).http;
     await garantirClienteAsaas(autor.empresaId, cliente, http);
     const { fatura: reservada, dono } = await reservarFatura({
       empresaId: autor.empresaId,

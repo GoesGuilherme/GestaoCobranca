@@ -232,12 +232,20 @@ describe("classificação financeira", () => {
     expect(lerFiltrosPainel({ periodo: "ano", forma: "DINHEIRO", status: "SUMIDO" })).toEqual({
       periodo: "este_mes",
       forma: null,
+      provedor: null,
       statusCliente: null,
     });
     expect(lerFiltrosPainel({ periodo: "ultimos_3", forma: "PIX", status: "BLOQUEADO" })).toEqual({
       periodo: "ultimos_3",
       forma: "PIX",
+      provedor: null,
       statusCliente: "BLOQUEADO",
+    });
+    expect(lerFiltrosPainel({ forma: "PIX_DIRETO" })).toEqual({
+      periodo: "este_mes",
+      forma: "PIX",
+      provedor: "PIX_DIRETO",
+      statusCliente: null,
     });
   });
 });

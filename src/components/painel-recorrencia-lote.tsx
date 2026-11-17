@@ -6,12 +6,13 @@ import { enviarJson } from "@/lib/api-cliente";
 import { descreverCobranca, PREFERENCIAS_COBRANCA_PADRAO } from "@/lib/cobranca";
 import { formatarAliquotaCampo, formatarReais, somarDinheiro } from "@/lib/dinheiro";
 import { formatarDataIso } from "@/lib/formatacao";
-import { FORMAS_COBRANCA } from "@/lib/rotulos";
+import { opcaoPorId, type PainelFormasCobranca } from "@/lib/formas-cobranca";
 import { textoResultadoLote, tomDoLote, type FalhaLoteVisivel } from "@/lib/textos-feedback";
 import type { PreferenciasCobrancaDTO, PreviaRecorrencia, ResultadoLoteRecorrencia } from "@/lib/tipos";
 import { esquemaLoteRecorrencia, mensagensDoZod } from "@/lib/validacao";
 import { Aviso } from "./aviso";
 import { Campo, classeCampo } from "./campo";
+import { SeletorFormaCobranca } from "./seletor-forma-cobranca";
 import { DialogoConfirmacao } from "./dialogo-confirmacao";
 import { classeBotaoPrimario, classeBotaoSecundario } from "./estilos";
 import { avisarCamposObrigatorios, avisarErro, avisarSucesso } from "./notificador";
@@ -23,14 +24,18 @@ function percentualCampo(valor: string | null) {
 export function PainelRecorrenciaLote({
   clienteId,
   preferencias = PREFERENCIAS_COBRANCA_PADRAO,
+  formas = { opcoes: [], padraoId: "", padraoDisponivel: false },
 }: {
   clienteId?: string;
   preferencias?: PreferenciasCobrancaDTO;
+  formas?: PainelFormasCobranca;
 }) {
   const router = useRouter();
   const [aberto, setAberto] = useState(false);
   const [dia, setDia] = useState(String(preferencias.diaVencimento));
-  const [forma, setForma] = useState<string>(preferencias.formaCobranca);
+  const escolhaInicial = formas.padraoDisponivel ? formas.padraoId : (formas.opcoes[0]?.id ?? "");
+  const [escolha, setEscolha] = useState(escolhaInicial);
+  const opcao = opcaoPorId(escolha, formas.opcoes);
   const [modelo, setModelo] = useState(preferencias.modeloDescricao);
   const [multa, setMulta] = useState(percentualCampo(preferencias.multaPercentual));
   const [juros, setJuros] = useState(percentualCampo(preferencias.jurosPercentual));
@@ -90,7 +95,8 @@ export function PainelRecorrenciaLote({
     const nomes = new Map(previa.itens.map((item) => [item.id, `${item.nomeCliente} · ${item.nomeServico}`]));
     const resposta = await enviarJson<ResultadoLoteRecorrencia>("/api/recorrencias/lote", "POST", {
       diaVencimento: previa.diaVencimento,
-      formaCobranca: forma,
+      provedor: opcao?.provedor,
+      formaCobranca: opcao?.forma,
       modeloDescricao: modelo,
       multaPercentual: multa,
       jurosPercentual: juros,
@@ -191,14 +197,10 @@ export function PainelRecorrenciaLote({
                 }}
               />
             </Campo>
-            <Campo label="Forma" htmlFor="forma-lote">
-              <select id="forma-lote" className={classeCampo} value={forma} onChange={(evento) => setForma(evento.target.value)}>
-                {FORMAS_COBRANCA.map((item) => (
-                  <option key={item.valor} value={item.valor}>{item.rotulo}</option>
-                ))}
-              </select>
+            <Campo label="Forma de cobrança" htmlFor="forma-lote">
+              <SeletorFormaCobranca id="forma-lote" valor={escolha} opcoes={formas.opcoes} onChange={setEscolha} />
             </Campo>
-            {forma === "CREDIT_CARD" ? (
+            {opcao?.forma === "CREDIT_CARD" ? (
               <p className="text-sm text-muted sm:col-span-2">
                 O cliente cadastra o cartão na página do Asaas. Esta empresa não recebe o número nem o CVV.
               </p>
@@ -261,11 +263,12 @@ export function PainelRecorrenciaLote({
             <button
               type="button"
               className={classeBotaoPrimario}
-              disabled={enviando || escolhidos.length === 0}
+              disabled={enviando || escolhidos.length === 0 || !opcao}
               onClick={() => {
                 const validado = esquemaLoteRecorrencia.safeParse({
                   diaVencimento: Number(dia),
-                  formaCobranca: forma,
+                  provedor: opcao?.provedor,
+                  formaCobranca: opcao?.forma,
                   modeloDescricao: modelo,
                   multaPercentual: multa,
                   jurosPercentual: juros,

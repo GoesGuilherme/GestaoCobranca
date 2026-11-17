@@ -6,6 +6,7 @@ import { prisma } from "@/server/db";
 import { alterarFatura } from "./alteracao-fatura-service";
 import { emitirFatura } from "./fatura-service";
 import { cartaComPix } from "./pix-email";
+import { definirFormaPadrao } from "./formas-cobranca-service";
 import { salvarConfiguracaoPix } from "./pix-config-service";
 import { cancelarFaturaPix, marcarFaturaPixPaga } from "./pix-cobranca";
 import { executarRecorrenciasPix } from "./pix-recorrencia";
@@ -53,14 +54,15 @@ describe("Pix por chave própria", () => {
     clienteId = criado.cliente.id;
   });
 
-  it("grava a chave só da própria empresa e liga o provedor", async () => {
+  it("grava a chave sem trocar o provedor da empresa", async () => {
+    await prisma.empresa.update({ where: { id: empresaId }, data: { provedorPagamento: "PIX_DIRETO" } });
     await expect(salvarConfiguracaoPix(autor(empresaId, "SUPORTE"), {})).rejects.toMatchObject({ status: 403 });
     const salva = await salvarConfiguracaoPix(autor(empresaId, "FINANCEIRO"), {
       tipoChave: "CNPJ",
       chavePix: chave(),
       nomeRecebedor: "Padaria do Teste",
       cidadeRecebedor: "Santos",
-      usarNasCobrancas: true,
+      usarNasCobrancas: false,
     });
     expect(salva.chavePix).toBe(chave());
     expect(salva.usarNasCobrancas).toBe(true);
@@ -75,8 +77,9 @@ describe("Pix por chave própria", () => {
       chavePix: "Financeiro@Empresa.Test",
       nomeRecebedor: "Padaria do Teste",
       cidadeRecebedor: "São Paulo",
-      usarNasCobrancas: true,
+      usarNasCobrancas: false,
     });
+    await definirFormaPadrao(autor(empresaId), "PIX_DIRETO");
     const fatura = await emitirFatura(autor(empresaId), clienteId, {
       valor: "150.00",
       vencimento: "2026-12-10",
@@ -186,8 +189,9 @@ describe("Pix por chave própria", () => {
       chavePix: chave(),
       nomeRecebedor: "Padaria",
       cidadeRecebedor: "Santos",
-      usarNasCobrancas: true,
+      usarNasCobrancas: false,
     });
+    await prisma.empresa.update({ where: { id: empresaId }, data: { provedorPagamento: "ASAAS" } });
     const servico = await prisma.servico.create({
       data: { empresaId, nome: "Forno", precoPadrao: "90.00" },
     });
@@ -202,6 +206,7 @@ describe("Pix por chave própria", () => {
         status: "ATIVO",
         asaasAssinaturaStatus: "ACTIVE",
         formaCobrancaRecorrente: "PIX",
+        provedorRecorrente: "PIX_DIRETO",
         diaVencimento: 10,
         proximoVencimento: new Date("2026-11-10T00:00:00.000Z"),
         descricaoRecorrente: "Mensalidade",

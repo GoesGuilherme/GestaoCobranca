@@ -82,10 +82,10 @@ export function FormularioPixProprio({ inicial }: { inicial: RascunhoPix & { con
   return (
     <form onSubmit={(evento) => void salvar(evento)} className="grid gap-4 rounded-3xl border border-line bg-card p-6">
       <div>
-        <h2 className="font-display text-2xl">Pix da empresa</h2>
+        <h2 className="font-display text-2xl">PIX direto (da empresa)</h2>
         <p className="mt-2 text-sm leading-6 text-muted">
-          Cobrança com a chave Pix da própria empresa, sem Asaas, Cora ou Inter. O QR Code segue o padrão do Banco Central.
-          A cidade entra no código e precisa ser a cidade do recebedor.
+          Chave Pix da própria empresa, sem Asaas, Cora ou Inter. O QR Code segue o padrão do Banco Central.
+          A cidade entra no código e precisa ser a cidade do recebedor. Salvar a chave não muda a forma padrão.
         </p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
@@ -143,18 +143,6 @@ export function FormularioPixProprio({ inicial }: { inicial: RascunhoPix & { con
           No QR Code: {nomeQr} · {cidadeQr}
         </p>
       ) : null}
-      <label className="flex items-start gap-2 text-sm">
-        <input
-          type="checkbox"
-          className="mt-1"
-          checked={valores.usarNasCobrancas}
-          onChange={(evento) => atualizar({ usarNasCobrancas: evento.target.checked })}
-        />
-        <span>
-          Usar este Pix nas cobranças novas. Asaas, Cora e Inter continuam cadastrados e voltam a valer se esta opção for
-          desligada. Provedor atual: {inicial.provedorAtual}.
-        </span>
-      </label>
       <div>
         <button type="submit" className={classeBotaoPrimario} disabled={enviando || !podeSalvar}>
           {enviando ? "Salvando..." : "Salvar"}

@@ -1,5 +1,6 @@
 import { descreverCobranca, formaCobrancaDe } from "@/lib/cobranca";
 import { dataHojeIso, dataIsoValida, proximoVencimentoIso } from "@/lib/data";
+import { provedorCodigo, type ProvedorCodigo } from "@/lib/status-pagamento";
 import type { ClienteServicoDTO, PreferenciasCobrancaDTO, PreviaRecorrencia, ResultadoLoteRecorrencia } from "@/lib/tipos";
 import {
   esquemaAtivarRecorrencia,
@@ -31,7 +32,6 @@ import {
   ativarRecorrenciaCora,
   cancelarRecorrenciaCora,
   editarRecorrenciaCora,
-  empresaUsaCora,
   pausarRecorrenciaCora,
   retomarRecorrenciaCora,
 } from "./cora-recorrencia";
@@ -39,7 +39,6 @@ import {
   ativarRecorrenciaInter,
   cancelarRecorrenciaInter,
   editarRecorrenciaInter,
-  empresaUsaInter,
   pausarRecorrenciaInter,
   retomarRecorrenciaInter,
 } from "./inter-recorrencia";
@@ -47,11 +46,21 @@ import {
   ativarRecorrenciaPix,
   cancelarRecorrenciaPix,
   editarRecorrenciaPix,
-  empresaUsaPix,
   pausarRecorrenciaPix,
   retomarRecorrenciaPix,
 } from "./pix-recorrencia";
+import { resolverRotaCobranca } from "./formas-cobranca-service";
 import { executarRegua } from "./regua-job";
+
+async function provedorDaRecorrencia(
+  empresaId: string,
+  vinculo: { asaasSubscriptionId: string | null; provedorRecorrente: ProvedorCodigo | null },
+): Promise<ProvedorCodigo> {
+  if (vinculo.asaasSubscriptionId) return "ASAAS";
+  if (vinculo.provedorRecorrente) return vinculo.provedorRecorrente;
+  const empresa = await prisma.empresa.findUnique({ where: { id: empresaId }, select: { provedorPagamento: true } });
+  return provedorCodigo(empresa?.provedorPagamento);
+}
 
 type OpcoesEnvioCartao = {
   agora?: Date;
@@ -237,9 +246,10 @@ export async function ativarRecorrencia(
   const descricao = (
     dados.descricao?.trim() || textoDaCobranca(dados.modeloDescricao?.trim() || prefs.modeloDescricao, vinculo, vencimento)
   ).slice(0, 500);
-  const forma = formaCobrancaDe(dados.formaCobranca ?? prefs.formaCobranca);
+  const rota = await resolverRotaCobranca(autor.empresaId, dados.provedor, dados.formaCobranca ?? prefs.formaCobranca);
+  const forma = rota.forma;
 
-  if (await empresaUsaInter(autor.empresaId)) {
+  if (rota.provedor === "INTER") {
     return ativarRecorrenciaInter(autor, clienteServicoId, {
       diaVencimento: dia,
       proximoVencimento: vencimento,
@@ -248,7 +258,7 @@ export async function ativarRecorrencia(
       descricao,
     });
   }
-  if (await empresaUsaCora(autor.empresaId)) {
+  if (rota.provedor === "CORA") {
     return ativarRecorrenciaCora(autor, clienteServicoId, {
       diaVencimento: dia,
       proximoVencimento: vencimento,
@@ -257,7 +267,7 @@ export async function ativarRecorrencia(
       descricao,
     });
   }
-  if (await empresaUsaPix(autor.empresaId)) {
+  if (rota.provedor === "PIX_DIRETO") {
     return ativarRecorrenciaPix(autor, clienteServicoId, {
       diaVencimento: dia,
       proximoVencimento: vencimento,
@@ -316,6 +326,7 @@ export async function ativarRecorrencia(
       ...espelhoAssinaturaAsaas(assinatura.id),
       asaasAssinaturaStatus: assinatura.status,
       formaCobrancaRecorrente: formaCobrancaDe(assinatura.formaCobranca),
+      provedorRecorrente: "ASAAS" as const,
       diaVencimento: dia,
       proximoVencimento: new Date(`${assinatura.proximoVencimento}T00:00:00.000Z`),
       descricaoRecorrente: assinatura.descricao ?? descricao,
@@ -402,7 +413,15 @@ export async function editarRecorrencia(
   exigirCobranca(autor);
   const dados = lerEsquema(esquemaEditarRecorrencia, entrada);
   const vinculo = await buscarVinculo(autor.empresaId, clienteServicoId);
-  if (!vinculo.asaasSubscriptionId && (await empresaUsaCora(autor.empresaId))) {
+  const provedorAtual = await provedorDaRecorrencia(autor.empresaId, vinculo);
+  if (dados.provedor && dados.provedor !== provedorAtual) {
+    throw new ErroAplicacao(
+      "Para trocar o provedor, cancele esta recorrência e ative outra com a forma nova.",
+      422,
+      "forma_indisponivel",
+    );
+  }
+  if (!vinculo.asaasSubscriptionId && provedorAtual === "CORA") {
     const hojeCora = dataHojeIso();
     const prefsCora = await obterPreferenciasCobranca(autor.empresaId);
     const vencimentoCora = resolverVencimento(dados.diaVencimento, dados.proximoVencimento, hojeCora);
@@ -420,7 +439,7 @@ export async function editarRecorrencia(
       descricao: descricaoCora,
     });
   }
-  if (!vinculo.asaasSubscriptionId && (await empresaUsaPix(autor.empresaId))) {
+  if (!vinculo.asaasSubscriptionId && provedorAtual === "PIX_DIRETO") {
     const hojePix = dataHojeIso();
     const prefsPix = await obterPreferenciasCobranca(autor.empresaId);
     const vencimentoPix = resolverVencimento(dados.diaVencimento, dados.proximoVencimento, hojePix);
@@ -438,7 +457,7 @@ export async function editarRecorrencia(
       descricao: descricaoPix,
     });
   }
-  if (!vinculo.asaasSubscriptionId && (await empresaUsaInter(autor.empresaId))) {
+  if (!vinculo.asaasSubscriptionId && provedorAtual === "INTER") {
     const hojeInter = dataHojeIso();
     const prefsInter = await obterPreferenciasCobranca(autor.empresaId);
     const vencimentoInter = resolverVencimento(dados.diaVencimento, dados.proximoVencimento, hojeInter);
@@ -487,6 +506,7 @@ export async function editarRecorrencia(
         valor: assinatura.valor,
         asaasAssinaturaStatus: assinatura.status,
         formaCobrancaRecorrente: formaCobrancaDe(assinatura.formaCobranca),
+        provedorRecorrente: "ASAAS" as const,
         diaVencimento: dados.diaVencimento,
         proximoVencimento: new Date(`${assinatura.proximoVencimento}T00:00:00.000Z`),
         descricaoRecorrente: assinatura.descricao ?? descricao,
@@ -523,9 +543,10 @@ export async function pausarRecorrencia(
 ): Promise<ClienteServicoDTO> {
   exigirCobranca(autor);
   const vinculo = await buscarVinculo(autor.empresaId, clienteServicoId);
-  if (!vinculo.asaasSubscriptionId && (await empresaUsaInter(autor.empresaId))) return pausarRecorrenciaInter(autor, clienteServicoId);
-  if (!vinculo.asaasSubscriptionId && (await empresaUsaCora(autor.empresaId))) return pausarRecorrenciaCora(autor, clienteServicoId);
-  if (!vinculo.asaasSubscriptionId && (await empresaUsaPix(autor.empresaId))) return pausarRecorrenciaPix(autor, clienteServicoId);
+  const provedorPausa = await provedorDaRecorrencia(autor.empresaId, vinculo);
+  if (!vinculo.asaasSubscriptionId && provedorPausa === "INTER") return pausarRecorrenciaInter(autor, clienteServicoId);
+  if (!vinculo.asaasSubscriptionId && provedorPausa === "CORA") return pausarRecorrenciaCora(autor, clienteServicoId);
+  if (!vinculo.asaasSubscriptionId && provedorPausa === "PIX_DIRETO") return pausarRecorrenciaPix(autor, clienteServicoId);
   if (!vinculo.asaasSubscriptionId || vinculo.asaasAssinaturaStatus !== "ACTIVE") {
     throw new ErroAplicacao("Só uma recorrência ativa pode ser pausada.", 409, "assinatura_ausente");
   }
@@ -561,19 +582,20 @@ export async function retomarRecorrencia(
   exigirCobranca(autor);
   const dados = lerEsquema(esquemaRetomarRecorrencia, entrada);
   const vinculo = await buscarVinculo(autor.empresaId, clienteServicoId);
-  if (!vinculo.asaasSubscriptionId && (await empresaUsaCora(autor.empresaId))) {
+  const provedorRetomar = await provedorDaRecorrencia(autor.empresaId, vinculo);
+  if (!vinculo.asaasSubscriptionId && provedorRetomar === "CORA") {
     const diaCora = dados.diaVencimento ?? vinculo.diaVencimento;
     if (!diaCora) throw new ErroAplicacao("Informe o dia de vencimento entre 1 e 31.", 400, "dia_invalido");
     const vencimentoCora = resolverVencimento(diaCora, dados.proximoVencimento, dataHojeIso());
     return retomarRecorrenciaCora(autor, clienteServicoId, { diaVencimento: diaCora, proximoVencimento: vencimentoCora });
   }
-  if (!vinculo.asaasSubscriptionId && (await empresaUsaPix(autor.empresaId))) {
+  if (!vinculo.asaasSubscriptionId && provedorRetomar === "PIX_DIRETO") {
     const diaPix = dados.diaVencimento ?? vinculo.diaVencimento;
     if (!diaPix) throw new ErroAplicacao("Informe o dia de vencimento entre 1 e 31.", 400, "dia_invalido");
     const vencimentoPix = resolverVencimento(diaPix, dados.proximoVencimento, dataHojeIso());
     return retomarRecorrenciaPix(autor, clienteServicoId, { diaVencimento: diaPix, proximoVencimento: vencimentoPix });
   }
-  if (!vinculo.asaasSubscriptionId && (await empresaUsaInter(autor.empresaId))) {
+  if (!vinculo.asaasSubscriptionId && provedorRetomar === "INTER") {
     const diaInter = dados.diaVencimento ?? vinculo.diaVencimento;
     if (!diaInter) throw new ErroAplicacao("Informe o dia de vencimento entre 1 e 31.", 400, "dia_invalido");
     const vencimentoInter = resolverVencimento(diaInter, dados.proximoVencimento, dataHojeIso());
@@ -622,9 +644,10 @@ export async function cancelarRecorrencia(
 ): Promise<ClienteServicoDTO> {
   exigirCobranca(autor);
   const vinculo = await buscarVinculo(autor.empresaId, clienteServicoId);
-  if (!vinculo.asaasSubscriptionId && (await empresaUsaInter(autor.empresaId))) return cancelarRecorrenciaInter(autor, clienteServicoId);
-  if (!vinculo.asaasSubscriptionId && (await empresaUsaCora(autor.empresaId))) return cancelarRecorrenciaCora(autor, clienteServicoId);
-  if (!vinculo.asaasSubscriptionId && (await empresaUsaPix(autor.empresaId))) return cancelarRecorrenciaPix(autor, clienteServicoId);
+  const provedorCancelar = await provedorDaRecorrencia(autor.empresaId, vinculo);
+  if (!vinculo.asaasSubscriptionId && provedorCancelar === "INTER") return cancelarRecorrenciaInter(autor, clienteServicoId);
+  if (!vinculo.asaasSubscriptionId && provedorCancelar === "CORA") return cancelarRecorrenciaCora(autor, clienteServicoId);
+  if (!vinculo.asaasSubscriptionId && provedorCancelar === "PIX_DIRETO") return cancelarRecorrenciaPix(autor, clienteServicoId);
   if (!vinculo.asaasSubscriptionId || vinculo.asaasAssinaturaStatus === "CANCELADA") {
     throw new ErroAplicacao("Esta venda não tem cobrança recorrente para cancelar.", 409, "assinatura_ausente");
   }
@@ -724,6 +747,7 @@ export async function ativarRecorrenciaEmLote(
         autor,
         id,
         {
+          provedor: dados.provedor,
           formaCobranca: dados.formaCobranca,
           diaVencimento: dados.diaVencimento,
           proximoVencimento: previa.vencimento,

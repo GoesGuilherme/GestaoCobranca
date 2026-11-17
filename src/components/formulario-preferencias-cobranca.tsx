@@ -33,9 +33,37 @@ export function FormularioPreferenciasCobranca({ inicial }: { inicial: Preferenc
   const [modeloAssunto, setModeloAssunto] = useState(inicial.modeloAssunto);
   const [campos, setCampos] = useState<Record<string, string>>({});
   const [enviando, setEnviando] = useState(false);
+  const fotoInicial = JSON.stringify({
+    formaCobranca: inicial.formaCobranca,
+    diaVencimento: String(inicial.diaVencimento),
+    modeloDescricao: inicial.modeloDescricao,
+    multaPercentual: percentualCampo(inicial.multaPercentual),
+    jurosPercentual: percentualCampo(inicial.jurosPercentual),
+    descontoPercentual: percentualCampo(inicial.descontoPercentual),
+    descontoDiasAntes: inicial.descontoDiasAntes === null ? "" : String(inicial.descontoDiasAntes),
+    diasAntesGerar: inicial.diasAntesGerar === null ? "" : String(inicial.diasAntesGerar),
+    atualizarPendentes: inicial.atualizarPendentes,
+    modeloMensagem: inicial.modeloMensagem,
+    modeloAssunto: inicial.modeloAssunto,
+  });
+  const podeSalvar =
+    JSON.stringify({
+      formaCobranca,
+      diaVencimento,
+      modeloDescricao,
+      multaPercentual,
+      jurosPercentual,
+      descontoPercentual,
+      descontoDiasAntes,
+      diasAntesGerar,
+      atualizarPendentes,
+      modeloMensagem,
+      modeloAssunto,
+    }) !== fotoInicial;
 
   async function salvar(evento: React.FormEvent) {
     evento.preventDefault();
+    if (enviando || !podeSalvar) return;
     const entrada = {
       formaCobranca,
       diaVencimento: Number(diaVencimento),
@@ -87,11 +115,11 @@ export function FormularioPreferenciasCobranca({ inicial }: { inicial: Preferenc
       <div>
         <h2 className="font-display text-3xl">Preferências de cobrança</h2>
         <p className="mt-2 max-w-2xl text-sm text-muted">
-          Valem só para esta empresa e já vêm preenchidas na cobrança avulsa, na recorrência e no lote. Quem emite ainda pode mudar forma, dia, descrição e encargos na hora.
+          Multa, juros, desconto e textos desta empresa. A forma padrão da empresa fica no card acima. Este campo só sugere a forma do Asaas quando a cobrança usa o Asaas e ninguém escolhe outra.
         </p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Campo label="Forma padrão" htmlFor="pref-forma" erro={campos.formaCobranca}>
+        <Campo label="Forma do Asaas" htmlFor="pref-forma" erro={campos.formaCobranca} dica="Não troca Cora, Inter nem PIX direto (da empresa).">
           <select id="pref-forma" className={classeCampo} value={formaCobranca} onChange={(evento) => setFormaCobranca(evento.target.value as PreferenciasCobrancaDTO["formaCobranca"])}>
             {FORMAS_COBRANCA.map((item) => (
               <option key={item.valor} value={item.valor}>{item.rotulo}</option>
@@ -159,7 +187,7 @@ export function FormularioPreferenciasCobranca({ inicial }: { inicial: Preferenc
         Ao mudar o valor, atualizar as cobranças em aberto
       </label>
       <div>
-        <button type="submit" className={classeBotaoPrimario} disabled={enviando}>
+        <button type="submit" className={classeBotaoPrimario} disabled={enviando || !podeSalvar}>
           {enviando ? "Salvando..." : "Salvar preferências"}
         </button>
       </div>

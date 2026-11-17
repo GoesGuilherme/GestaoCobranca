@@ -64,7 +64,7 @@ export function DialogoBaixaPix({
           Marcar como pago
         </h2>
         <p className="mt-2 text-sm text-muted">
-          O Pix da empresa não avisa o Taguaro quando o cliente paga. Confirme só depois de ver o crédito na conta de{" "}
+          O PIX direto (da empresa) não avisa o Taguaro quando o cliente paga. Confirme só depois de ver o crédito na conta de{" "}
           {fatura.nomeCliente}.
         </p>
         <div className="mt-4 grid gap-4">

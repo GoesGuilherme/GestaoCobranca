@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { enviarJson } from "@/lib/api-cliente";
+import { rotuloProvedor } from "@/lib/formas-cobranca";
 import { AMBIENTES_ASAAS } from "@/lib/rotulos";
 import type { ConfiguracaoInterDTO } from "@/lib/tipos";
 import { esquemaConfiguracaoInter, mensagensDoZod } from "@/lib/validacao";
@@ -33,9 +34,17 @@ export function FormularioInter({ inicial }: { inicial: ConfiguracaoInterDTO }) 
   const [campos, setCampos] = useState<Record<string, string>>({});
   const [enviando, setEnviando] = useState(false);
   const [testando, setTestando] = useState(false);
+  const mudou =
+    ambiente !== (configuracao.ambiente ?? "SANDBOX") ||
+    clientId.trim() !== "" ||
+    clientSecret.trim() !== "" ||
+    certificadoPem.trim() !== "" ||
+    chavePrivadaPem.trim() !== "" ||
+    contaCorrente.trim() !== (configuracao.contaCorrente ?? "");
 
   async function salvar(evento: React.FormEvent) {
     evento.preventDefault();
+    if (enviando || !mudou) return;
     const validado = esquemaConfiguracaoInter.safeParse({
       ambiente,
       clientId,
@@ -104,15 +113,10 @@ export function FormularioInter({ inicial }: { inicial: ConfiguracaoInterDTO }) 
 
   return (
     <div className="grid gap-6">
-      {configuracao.provedorAtual === "INTER" ? (
-        <p className="rounded-2xl border border-line bg-card px-4 py-3 text-sm leading-6">
-          As cobranças novas desta empresa saem pelo Inter. O que já foi emitido no Asaas continua no Asaas.
-        </p>
-      ) : (
-        <p className="rounded-2xl border border-line bg-card px-4 py-3 text-sm leading-6">
-          Salvar abaixo passa a usar o Inter nas cobranças novas. O Asaas desta empresa não é apagado.
-        </p>
-      )}
+      <p className="rounded-2xl border border-line bg-card px-4 py-3 text-sm leading-6">
+        Forma padrão atual: {rotuloProvedor(configuracao.provedorAtual)}. Salvar o certificado não troca a forma padrão.
+        Para usar Boleto + Pix (Inter) nas cobranças novas, escolha essa forma no card Forma padrão de cobrança.
+      </p>
       {configuracao.aviso ? (
         <p className="rounded-2xl border border-gold/40 bg-gold/15 px-4 py-3 text-sm leading-6">{configuracao.aviso}</p>
       ) : null}
@@ -222,8 +226,8 @@ export function FormularioInter({ inicial }: { inicial: ConfiguracaoInterDTO }) 
           </p>
         ) : null}
         <div className="flex flex-wrap gap-3">
-          <button type="submit" className={classeBotaoPrimario} disabled={enviando}>
-            {enviando ? "Salvando..." : "Salvar e usar o Inter"}
+          <button type="submit" className={classeBotaoPrimario} disabled={enviando || !mudou}>
+            {enviando ? "Salvando..." : "Salvar"}
           </button>
           <button type="button" className={classeBotaoSecundario} onClick={testar} disabled={testando || !configuracao.configurado}>
             {testando ? "Testando..." : "Testar conexão"}
@@ -241,7 +245,7 @@ export function FormularioInter({ inicial }: { inicial: ConfiguracaoInterDTO }) 
       ) : null}
       {configuracao.provedorAtual === "INTER" ? (
         <button type="button" className={classeBotaoSecundario} onClick={voltarAsaas}>
-          Voltar a usar o Asaas nas cobranças novas
+          Definir o Asaas como forma padrão
         </button>
       ) : null}
     </div>

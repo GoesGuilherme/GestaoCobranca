@@ -4,6 +4,7 @@ import { provedorCodigo, statusEh } from "@/lib/status-pagamento";
 import { formatarReais } from "@/lib/dinheiro";
 import { formatarDataIso } from "@/lib/formatacao";
 import { absolutizarLinkCobranca } from "@/lib/pix-link";
+import { rotuloCobranca } from "@/lib/formas-cobranca";
 import { cartaComPix } from "./pix-email";
 import { rotuloStatusFatura } from "@/lib/rotulos";
 import { emailDeCobranca } from "@/lib/remetentes";
@@ -494,6 +495,7 @@ export async function enviarLembreteAgora(
       logoUrl,
       mensagem: corpo,
       modoTeste,
+      metodo: rotuloCobranca(fatura.provedor, fatura.formaCobranca),
     },
     fatura,
   );
