@@ -9,7 +9,7 @@ import { esquemaFatura } from "@/lib/validacao";
 import { asaasRespondeu, traduzirErroAsaas } from "@/server/asaas/abrir";
 import { type ClienteHttpAsaas, type CobrancaAsaas, type PaginaCobrancasAsaas } from "@/server/asaas/contrato";
 import { logAsaas, logAsaasErro, mensagemLogAsaas } from "@/server/asaas/log";
-import { clienteAsaasDaEmpresa } from "@/server/pagamentos/fabrica";
+import { clienteAsaasDaEmpresa, httpAsaasDaCobranca } from "@/server/pagamentos/fabrica";
 import { espelhoClienteAsaas, espelhoFaturaAsaas } from "@/server/pagamentos/gravacao";
 import type { AutorEmpresa } from "@/server/auth/papeis";
 import { exigirCobranca, exigirVerFaturas } from "@/server/auth/papeis";
@@ -684,7 +684,7 @@ export async function cancelarFatura(
   }
 
   try {
-    const http = await clienteAsaasDaEmpresa(autor.empresaId, clienteHttp);
+    const http = await httpAsaasDaCobranca(autor.empresaId, clienteHttp);
     try {
       await http.cancelarCobranca(atual.asaasPaymentId);
     } catch (erro) {
@@ -762,7 +762,7 @@ export async function gravarCobrancasEspelhadas(empresaId: string, cobrancas: Co
 export async function importarFaturas(autor: AutorEmpresa, clienteHttp?: ClienteHttpAsaas) {
   exigirCobranca(autor);
   try {
-    const http = await clienteAsaasDaEmpresa(autor.empresaId, clienteHttp);
+    const http = await httpAsaasDaCobranca(autor.empresaId, clienteHttp);
     const clientes = await prisma.cliente.findMany({
       where: { empresaId: autor.empresaId, asaasCustomerId: { not: null } },
       select: { asaasCustomerId: true },

@@ -5,9 +5,10 @@ import type { AutorEmpresa } from "@/server/auth/papeis";
 import { prisma } from "@/server/db";
 import { ErroAplicacao } from "@/server/erros";
 import { avancarMes, chaveRecorrencia, deveEmitirRecorrencia } from "@/server/inter/calendario";
+import { abrirClienteInter } from "@/server/inter/abrir";
 import type { ClienteHttpInter } from "@/server/inter/contrato";
 import { logInter, logInterErro } from "@/server/inter/log";
-import { provedorDaEmpresa } from "@/server/pagamentos/fabrica";
+import { criarAdaptadorInter } from "@/server/pagamentos/adaptador-inter";
 import { paraClienteServico } from "./mapeadores";
 import { obterPreferenciasCobranca } from "./preferencia-cobranca-service";
 import { emitirFaturaInter } from "./inter-cobranca";
@@ -134,7 +135,7 @@ export async function editarRecorrenciaInter(
     });
     const comCodigo = abertas.filter((fatura) => fatura.idExterno);
     if (comCodigo.length > 0) {
-      const provedor = await provedorDaEmpresa(autor.empresaId, undefined, clienteHttp);
+      const provedor = criarAdaptadorInter(await abrirClienteInter(autor.empresaId, clienteHttp));
       for (const fatura of comCodigo) {
         if (fatura.idExterno && provedor.editarCobranca) {
           await provedor.editarCobranca(fatura.idExterno, { valor: entrada.valor });

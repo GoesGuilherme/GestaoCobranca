@@ -7,12 +7,12 @@ import {
   esquemaLoteRecorrencia,
   esquemaRetomarRecorrencia,
 } from "@/lib/validacao";
-import { asaasRespondeu, traduzirErroAsaas } from "@/server/asaas/abrir";
+import { abrirClienteAsaas, asaasRespondeu, traduzirErroAsaas } from "@/server/asaas/abrir";
 import type { ClienteHttpAsaas, EncargosAsaas } from "@/server/asaas/contrato";
 import type { ClienteResend } from "@/server/regua/resend";
 import type { ClienteTwilio } from "@/server/twilio/contrato";
 import { logAsaas, logAsaasErro, mensagemLogAsaas } from "@/server/asaas/log";
-import { clienteAsaasDaEmpresa } from "@/server/pagamentos/fabrica";
+import { httpAsaasDaCobranca } from "@/server/pagamentos/fabrica";
 import { espelhoAssinaturaAsaas } from "@/server/pagamentos/gravacao";
 import type { AutorEmpresa } from "@/server/auth/papeis";
 import { exigirCobranca } from "@/server/auth/papeis";
@@ -268,7 +268,7 @@ export async function ativarRecorrencia(
   }
 
   try {
-    const http = await clienteAsaasDaEmpresa(autor.empresaId, clienteHttp);
+    const { http } = await abrirClienteAsaas(autor.empresaId, clienteHttp);
     const customer = await garantirClienteAsaas(autor.empresaId, vinculo.cliente, http);
     const dono = await reivindicarEmissao(autor.empresaId, vinculo.id);
     let assinatura = await http.buscarAssinaturaPorReferencia(vinculo.id);
@@ -402,7 +402,7 @@ export async function editarRecorrencia(
   exigirCobranca(autor);
   const dados = lerEsquema(esquemaEditarRecorrencia, entrada);
   const vinculo = await buscarVinculo(autor.empresaId, clienteServicoId);
-  if (await empresaUsaCora(autor.empresaId)) {
+  if (!vinculo.asaasSubscriptionId && (await empresaUsaCora(autor.empresaId))) {
     const hojeCora = dataHojeIso();
     const prefsCora = await obterPreferenciasCobranca(autor.empresaId);
     const vencimentoCora = resolverVencimento(dados.diaVencimento, dados.proximoVencimento, hojeCora);
@@ -420,7 +420,7 @@ export async function editarRecorrencia(
       descricao: descricaoCora,
     });
   }
-  if (await empresaUsaPix(autor.empresaId)) {
+  if (!vinculo.asaasSubscriptionId && (await empresaUsaPix(autor.empresaId))) {
     const hojePix = dataHojeIso();
     const prefsPix = await obterPreferenciasCobranca(autor.empresaId);
     const vencimentoPix = resolverVencimento(dados.diaVencimento, dados.proximoVencimento, hojePix);
@@ -438,6 +438,25 @@ export async function editarRecorrencia(
       descricao: descricaoPix,
     });
   }
+  if (!vinculo.asaasSubscriptionId && (await empresaUsaInter(autor.empresaId))) {
+    const hojeInter = dataHojeIso();
+    const prefsInter = await obterPreferenciasCobranca(autor.empresaId);
+    const vencimentoInter = resolverVencimento(dados.diaVencimento, dados.proximoVencimento, hojeInter);
+    const descricaoInter = (
+      dados.descricao?.trim() ||
+      vinculo.descricaoRecorrente ||
+      textoDaCobranca(prefsInter.modeloDescricao, vinculo, vencimentoInter)
+    ).slice(0, 500);
+    const formaInter = formaCobrancaDe(dados.formaCobranca ?? vinculo.formaCobrancaRecorrente ?? prefsInter.formaCobranca);
+    return editarRecorrenciaInter(autor, clienteServicoId, {
+      diaVencimento: dados.diaVencimento,
+      proximoVencimento: vencimentoInter,
+      valor: dados.valor,
+      formaCobranca: formaInter,
+      descricao: descricaoInter,
+      atualizarPendentes: dados.atualizarPendentes ?? prefsInter.atualizarPendentes,
+    });
+  }
   if (!vinculo.asaasSubscriptionId || (vinculo.asaasAssinaturaStatus !== "ACTIVE" && vinculo.asaasAssinaturaStatus !== "INACTIVE")) {
     throw new ErroAplicacao("Esta venda não tem cobrança recorrente para editar.", 409, "assinatura_ausente");
   }
@@ -452,19 +471,8 @@ export async function editarRecorrencia(
   const forma = formaCobrancaDe(dados.formaCobranca ?? vinculo.formaCobrancaRecorrente ?? prefs.formaCobranca);
   const atualizarPendentes = dados.atualizarPendentes ?? prefs.atualizarPendentes;
 
-  if (await empresaUsaInter(autor.empresaId)) {
-    return editarRecorrenciaInter(autor, clienteServicoId, {
-      diaVencimento: dados.diaVencimento,
-      proximoVencimento: vencimento,
-      valor: dados.valor,
-      formaCobranca: forma,
-      descricao,
-      atualizarPendentes,
-    });
-  }
-
   try {
-    const http = await clienteAsaasDaEmpresa(autor.empresaId, clienteHttp);
+    const http = await httpAsaasDaCobranca(autor.empresaId, clienteHttp, "assinatura");
     const assinatura = await http.atualizarAssinatura(vinculo.asaasSubscriptionId, {
       formaCobranca: forma,
       valor: dados.valor,
@@ -515,14 +523,14 @@ export async function pausarRecorrencia(
 ): Promise<ClienteServicoDTO> {
   exigirCobranca(autor);
   const vinculo = await buscarVinculo(autor.empresaId, clienteServicoId);
-  if (await empresaUsaInter(autor.empresaId)) return pausarRecorrenciaInter(autor, clienteServicoId);
-  if (await empresaUsaCora(autor.empresaId)) return pausarRecorrenciaCora(autor, clienteServicoId);
-  if (await empresaUsaPix(autor.empresaId)) return pausarRecorrenciaPix(autor, clienteServicoId);
+  if (!vinculo.asaasSubscriptionId && (await empresaUsaInter(autor.empresaId))) return pausarRecorrenciaInter(autor, clienteServicoId);
+  if (!vinculo.asaasSubscriptionId && (await empresaUsaCora(autor.empresaId))) return pausarRecorrenciaCora(autor, clienteServicoId);
+  if (!vinculo.asaasSubscriptionId && (await empresaUsaPix(autor.empresaId))) return pausarRecorrenciaPix(autor, clienteServicoId);
   if (!vinculo.asaasSubscriptionId || vinculo.asaasAssinaturaStatus !== "ACTIVE") {
     throw new ErroAplicacao("Só uma recorrência ativa pode ser pausada.", 409, "assinatura_ausente");
   }
   try {
-    const http = await clienteAsaasDaEmpresa(autor.empresaId, clienteHttp);
+    const http = await httpAsaasDaCobranca(autor.empresaId, clienteHttp, "assinatura");
     const assinatura = await http.atualizarAssinatura(vinculo.asaasSubscriptionId, { status: "INACTIVE" });
     await prisma.clienteServico.updateMany({
       where: { id: vinculo.id, empresaId: autor.empresaId },
@@ -553,17 +561,23 @@ export async function retomarRecorrencia(
   exigirCobranca(autor);
   const dados = lerEsquema(esquemaRetomarRecorrencia, entrada);
   const vinculo = await buscarVinculo(autor.empresaId, clienteServicoId);
-  if (await empresaUsaCora(autor.empresaId)) {
+  if (!vinculo.asaasSubscriptionId && (await empresaUsaCora(autor.empresaId))) {
     const diaCora = dados.diaVencimento ?? vinculo.diaVencimento;
     if (!diaCora) throw new ErroAplicacao("Informe o dia de vencimento entre 1 e 31.", 400, "dia_invalido");
     const vencimentoCora = resolverVencimento(diaCora, dados.proximoVencimento, dataHojeIso());
     return retomarRecorrenciaCora(autor, clienteServicoId, { diaVencimento: diaCora, proximoVencimento: vencimentoCora });
   }
-  if (await empresaUsaPix(autor.empresaId)) {
+  if (!vinculo.asaasSubscriptionId && (await empresaUsaPix(autor.empresaId))) {
     const diaPix = dados.diaVencimento ?? vinculo.diaVencimento;
     if (!diaPix) throw new ErroAplicacao("Informe o dia de vencimento entre 1 e 31.", 400, "dia_invalido");
     const vencimentoPix = resolverVencimento(diaPix, dados.proximoVencimento, dataHojeIso());
     return retomarRecorrenciaPix(autor, clienteServicoId, { diaVencimento: diaPix, proximoVencimento: vencimentoPix });
+  }
+  if (!vinculo.asaasSubscriptionId && (await empresaUsaInter(autor.empresaId))) {
+    const diaInter = dados.diaVencimento ?? vinculo.diaVencimento;
+    if (!diaInter) throw new ErroAplicacao("Informe o dia de vencimento entre 1 e 31.", 400, "dia_invalido");
+    const vencimentoInter = resolverVencimento(diaInter, dados.proximoVencimento, dataHojeIso());
+    return retomarRecorrenciaInter(autor, clienteServicoId, { diaVencimento: diaInter, proximoVencimento: vencimentoInter });
   }
   if (!vinculo.asaasSubscriptionId || vinculo.asaasAssinaturaStatus !== "INACTIVE") {
     throw new ErroAplicacao("Só uma recorrência pausada pode ser retomada.", 409, "assinatura_ausente");
@@ -571,11 +585,8 @@ export async function retomarRecorrencia(
   const dia = dados.diaVencimento ?? vinculo.diaVencimento;
   if (!dia) throw new ErroAplicacao("Informe o dia de vencimento entre 1 e 31.", 400, "dia_invalido");
   const vencimento = resolverVencimento(dia, dados.proximoVencimento, dataHojeIso());
-  if (await empresaUsaInter(autor.empresaId)) {
-    return retomarRecorrenciaInter(autor, clienteServicoId, { diaVencimento: dia, proximoVencimento: vencimento });
-  }
   try {
-    const http = await clienteAsaasDaEmpresa(autor.empresaId, clienteHttp);
+    const http = await httpAsaasDaCobranca(autor.empresaId, clienteHttp, "assinatura");
     const assinatura = await http.atualizarAssinatura(vinculo.asaasSubscriptionId, {
       status: "ACTIVE",
       proximoVencimento: vencimento,
@@ -611,14 +622,14 @@ export async function cancelarRecorrencia(
 ): Promise<ClienteServicoDTO> {
   exigirCobranca(autor);
   const vinculo = await buscarVinculo(autor.empresaId, clienteServicoId);
-  if (await empresaUsaInter(autor.empresaId)) return cancelarRecorrenciaInter(autor, clienteServicoId);
-  if (await empresaUsaCora(autor.empresaId)) return cancelarRecorrenciaCora(autor, clienteServicoId);
-  if (await empresaUsaPix(autor.empresaId)) return cancelarRecorrenciaPix(autor, clienteServicoId);
+  if (!vinculo.asaasSubscriptionId && (await empresaUsaInter(autor.empresaId))) return cancelarRecorrenciaInter(autor, clienteServicoId);
+  if (!vinculo.asaasSubscriptionId && (await empresaUsaCora(autor.empresaId))) return cancelarRecorrenciaCora(autor, clienteServicoId);
+  if (!vinculo.asaasSubscriptionId && (await empresaUsaPix(autor.empresaId))) return cancelarRecorrenciaPix(autor, clienteServicoId);
   if (!vinculo.asaasSubscriptionId || vinculo.asaasAssinaturaStatus === "CANCELADA") {
     throw new ErroAplicacao("Esta venda não tem cobrança recorrente para cancelar.", 409, "assinatura_ausente");
   }
   try {
-    const http = await clienteAsaasDaEmpresa(autor.empresaId, clienteHttp);
+    const http = await httpAsaasDaCobranca(autor.empresaId, clienteHttp, "assinatura");
     try {
       await http.cancelarAssinatura(vinculo.asaasSubscriptionId);
     } catch (erro) {

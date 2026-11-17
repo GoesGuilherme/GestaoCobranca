@@ -1,7 +1,7 @@
 import { dataIsoValida } from "@/lib/data";
 import { statusBrutos, STATUS_NORMALIZADO } from "@/lib/status-pagamento";
 import { type ClienteHttpAsaas, type CobrancaAsaas, ErroAsaas } from "@/server/asaas/contrato";
-import { clienteAsaasDaEmpresa } from "@/server/pagamentos/fabrica";
+import { httpAsaasDaCobranca } from "@/server/pagamentos/fabrica";
 import { prisma } from "@/server/db";
 import { ErroAplicacao } from "@/server/erros";
 
@@ -90,7 +90,7 @@ export async function preencherPagoEmDaEmpresa(
 
   let http: Pick<ClienteHttpAsaas, "listarCobrancas">;
   try {
-    http = opcoes.http ?? (await clienteAsaasDaEmpresa(empresaId));
+    http = opcoes.http ?? (await httpAsaasDaCobranca(empresaId));
   } catch (erro) {
     if (erro instanceof ErroAplicacao && erro.codigo === "asaas_nao_configurado") {
       return vazio(empresaId, candidatas, true);

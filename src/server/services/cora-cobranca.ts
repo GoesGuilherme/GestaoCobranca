@@ -7,12 +7,14 @@ import type { AutorEmpresa } from "@/server/auth/papeis";
 import { exigirCobranca } from "@/server/auth/papeis";
 import { pagadorCoraDoCliente } from "@/server/cora/pagador";
 import { logCora, logCoraErro } from "@/server/cora/log";
+import { abrirClienteCora } from "@/server/cora/abrir";
 import type { ClienteHttpCora } from "@/server/cora/contrato";
 import { prisma } from "@/server/db";
 import { ErroAplicacao } from "@/server/erros";
 import { espelhoFaturaCora } from "@/server/pagamentos/gravacao";
+import { criarAdaptadorCora } from "@/server/pagamentos/adaptador-cora";
 import { provedorDaEmpresa } from "@/server/pagamentos/fabrica";
-import type { CobrancaNormalizada } from "@/server/pagamentos/tipos";
+import type { CobrancaNormalizada, ProvedorPagamento } from "@/server/pagamentos/tipos";
 import { lerEsquema } from "@/server/validar";
 import { encargosDaPreferencia, obterPreferenciasCobranca } from "./preferencia-cobranca-service";
 
@@ -251,7 +253,7 @@ export async function cancelarFaturaCora(
   if (!atual) throw new ErroAplicacao("Fatura não encontrada.", 404, "nao_encontrado");
   if (atual.excluida) return faturaPronta(autor, atual.id);
   if (atual.idExterno) {
-    const provedor = await provedorDaEmpresa(autor.empresaId, undefined, undefined, clienteHttp);
+    const provedor: ProvedorPagamento = criarAdaptadorCora(await abrirClienteCora(autor.empresaId, clienteHttp));
     try {
       await provedor.cancelarCobranca(atual.idExterno, "Cancelada no Taguaro");
     } catch (erro) {
