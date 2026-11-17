@@ -27,7 +27,7 @@ import type { ClienteHttpInter } from "@/server/inter/contrato";
 import { logInter, logInterErro } from "@/server/inter/log";
 import { criarAdaptadorCora } from "@/server/pagamentos/adaptador-cora";
 import { criarAdaptadorInter } from "@/server/pagamentos/adaptador-inter";
-import { clienteAsaasDaEmpresa } from "@/server/pagamentos/fabrica";
+import { httpAsaasDaCobranca } from "@/server/pagamentos/fabrica";
 import { espelhoFaturaAsaas } from "@/server/pagamentos/gravacao";
 import type { ClienteResend } from "@/server/regua/resend";
 import type { ClienteTwilio } from "@/server/twilio/contrato";
@@ -119,7 +119,7 @@ async function alterarAsaas(
   }
   const mudouTitulo = pedido.valor !== undefined || pedido.vencimento !== undefined;
   try {
-    const http = await clienteAsaasDaEmpresa(autor.empresaId, httpInjetado);
+    const http = await httpAsaasDaCobranca(autor.empresaId, httpInjetado);
     const cobranca = await http.atualizarCobranca(atual.asaasPaymentId, pedido);
     const forma = cobranca.formaCobranca;
     const cartao = forma === "CREDIT_CARD";

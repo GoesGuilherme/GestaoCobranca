@@ -3,7 +3,7 @@ import type { ResultadoVisualizacoesFaturas } from "@/lib/tipos";
 import { type ClienteHttpAsaas, ErroAsaas } from "@/server/asaas/contrato";
 import { logAsaas, logAsaasErro, mensagemLogAsaas } from "@/server/asaas/log";
 import { instanteMaisAntigo } from "@/server/asaas/visualizacao";
-import { clienteAsaasDaEmpresa } from "@/server/pagamentos/fabrica";
+import { httpAsaasDaCobranca } from "@/server/pagamentos/fabrica";
 import type { AutorEmpresa } from "@/server/auth/papeis";
 import { exigirAtualizarVisualizacoes } from "@/server/auth/papeis";
 import { prisma } from "@/server/db";
@@ -54,7 +54,7 @@ export async function sincronizarVisualizacoesEmpresa(
   empresaId: string,
   opcoes: OpcoesVisualizacao = {},
 ): Promise<ResultadoVisualizacoesFaturas> {
-  const http = await clienteAsaasDaEmpresa(empresaId, opcoes.http);
+  const http = await httpAsaasDaCobranca(empresaId, opcoes.http);
   const agora = opcoes.agora ?? new Date();
   const limite = opcoes.limite ?? LOTE_MANUAL;
   const concorrencia = concorrenciaDe(opcoes.concorrencia);

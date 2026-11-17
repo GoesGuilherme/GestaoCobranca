@@ -1,11 +1,12 @@
 import { hashTokenWebhook, tokensWebhookIguais } from "@/lib/asaas-cripto";
 import { Prisma } from "@/generated/prisma/client";
+import { abrirClienteAsaas } from "@/server/asaas/abrir";
 import { logAsaasErro } from "@/server/asaas/log";
 import { prisma } from "@/server/db";
 import { ErroAplicacao } from "@/server/erros";
+import { criarAdaptadorAsaas } from "@/server/pagamentos/adaptador-asaas";
 import { CAPACIDADES_ASAAS } from "@/server/pagamentos/capacidades";
 import { confirmarEventoParaBaixa } from "@/server/pagamentos/baixa";
-import { provedorDaEmpresa } from "@/server/pagamentos/fabrica";
 import { normalizarWebhookAsaas, sinalAsaasConfirmaPagamento } from "@/server/pagamentos/webhook-asaas";
 import { espelharPagamentoAsaas } from "./asaas-pagamento";
 import { conciliarPromessas } from "./promessa-service";
@@ -121,8 +122,8 @@ export async function processarWebhookAsaas(token: string | null, corpo: unknown
     {
       capacidades: () => CAPACIDADES_ASAAS,
       async consultarCobranca(idExterno: string) {
-        const provedor = await provedorDaEmpresa(config.empresaId);
-        return provedor.consultarCobranca(idExterno);
+        const { http } = await abrirClienteAsaas(config.empresaId);
+        return criarAdaptadorAsaas(http).consultarCobranca(idExterno);
       },
     },
     normalizado,

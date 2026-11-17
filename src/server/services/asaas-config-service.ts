@@ -13,8 +13,8 @@ import { exigirAsaas } from "@/server/auth/papeis";
 import { prisma } from "@/server/db";
 import { ErroAplicacao } from "@/server/erros";
 import { lerEsquema } from "@/server/validar";
-import { traduzirErroAsaas } from "@/server/asaas/abrir";
-import { provedorDaEmpresa } from "@/server/pagamentos/fabrica";
+import { abrirClienteAsaas, traduzirErroAsaas } from "@/server/asaas/abrir";
+import { criarAdaptadorAsaas } from "@/server/pagamentos/adaptador-asaas";
 import { mockAsaasLigado } from "@/server/asaas/fabrica";
 import type { ClienteHttpAsaas } from "@/server/asaas/contrato";
 
@@ -122,8 +122,8 @@ export async function testarConexaoAsaas(
 ): Promise<{ conectado: true; conta: string }> {
   exigirAsaas(autor);
   try {
-    const provedor = await provedorDaEmpresa(autor.empresaId, clienteHttp);
-    const conta = await provedor.testarConexao();
+    const { http } = await abrirClienteAsaas(autor.empresaId, clienteHttp);
+    const conta = await criarAdaptadorAsaas(http).testarConexao();
     return { conectado: true, conta: conta.titular };
   } catch (erro) {
     traduzirErroAsaas(erro);

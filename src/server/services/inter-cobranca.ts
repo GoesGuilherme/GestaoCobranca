@@ -5,12 +5,14 @@ import { esquemaFatura } from "@/lib/validacao";
 import { pagadorDoCliente } from "@/server/inter/pagador";
 import { urlPdfFatura } from "@/server/inter/url-publica";
 import { logInter, logInterErro } from "@/server/inter/log";
+import { abrirClienteInter } from "@/server/inter/abrir";
 import type { ClienteHttpInter } from "@/server/inter/contrato";
 import type { AutorEmpresa } from "@/server/auth/papeis";
 import { exigirCobranca } from "@/server/auth/papeis";
 import { prisma } from "@/server/db";
 import { ErroAplicacao } from "@/server/erros";
 import { espelhoFaturaInter } from "@/server/pagamentos/gravacao";
+import { criarAdaptadorInter } from "@/server/pagamentos/adaptador-inter";
 import { provedorDaEmpresa } from "@/server/pagamentos/fabrica";
 import type { CobrancaNormalizada } from "@/server/pagamentos/tipos";
 import { lerEsquema } from "@/server/validar";
@@ -225,7 +227,7 @@ export async function cancelarFaturaInter(
   if (!atual) throw new ErroAplicacao("Fatura não encontrada.", 404, "nao_encontrado");
   if (atual.excluida) return faturaPronta(autor, atual.id);
   if (atual.idExterno) {
-    const provedor = await provedorDaEmpresa(autor.empresaId, undefined, clienteHttp);
+    const provedor = criarAdaptadorInter(await abrirClienteInter(autor.empresaId, clienteHttp));
     try {
       await provedor.cancelarCobranca(atual.idExterno, "Cancelada no Taguaro");
     } catch (erro) {

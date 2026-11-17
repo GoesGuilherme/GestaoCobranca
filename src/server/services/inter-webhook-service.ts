@@ -2,9 +2,10 @@ import { Prisma } from "@/generated/prisma/client";
 import { hashTokenWebhook, tokensWebhookIguais } from "@/lib/asaas-cripto";
 import { prisma } from "@/server/db";
 import { ErroAplicacao } from "@/server/erros";
+import { abrirClienteInter } from "@/server/inter/abrir";
 import type { ClienteHttpInter } from "@/server/inter/contrato";
 import { confirmarEventoParaBaixa } from "@/server/pagamentos/baixa";
-import { provedorDaEmpresa } from "@/server/pagamentos/fabrica";
+import { criarAdaptadorInter } from "@/server/pagamentos/adaptador-inter";
 import { normalizarWebhookInter } from "@/server/pagamentos/webhook-inter";
 import { gravarCobrancaInter } from "./inter-cobranca";
 import { conciliarPromessas } from "./promessa-service";
@@ -43,7 +44,7 @@ export async function processarWebhookInter(segredo: string, corpo: unknown, cli
     throw new ErroAplicacao("Evento do Inter inválido.", 400, "webhook_invalido");
   }
 
-  const provedor = await provedorDaEmpresa(config.empresaId, undefined, clienteHttp);
+  const provedor = criarAdaptadorInter(await abrirClienteInter(config.empresaId, clienteHttp));
   let mudou = false;
   for (const evento of eventos) {
     const confirmado = await confirmarEventoParaBaixa(provedor, evento);
