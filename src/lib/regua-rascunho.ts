@@ -53,6 +53,37 @@ export function textoDiasDe(dias: number | null, naEmissao: boolean): string {
   return String(dias);
 }
 
+function passoComparavel(passo: PassoRascunho) {
+  return {
+    id: passo.id ?? "",
+    naEmissao: passo.naEmissao,
+    dias: passo.dias,
+    assunto: passo.assunto,
+    corpo: passo.corpo,
+    enviarWhatsapp: passo.enviarWhatsapp,
+  };
+}
+
+export function reguaAlterada(atual: ReguaRascunho, salva: ReguaRascunho) {
+  const esquerda = {
+    nome: atual.nome,
+    padrao: atual.padrao,
+    horaInicio: atual.horaInicio,
+    horaFim: atual.horaFim,
+    enviarFimDeSemana: atual.enviarFimDeSemana,
+    passos: atual.passos.map(passoComparavel),
+  };
+  const direita = {
+    nome: salva.nome,
+    padrao: salva.padrao,
+    horaInicio: salva.horaInicio,
+    horaFim: salva.horaFim,
+    enviarFimDeSemana: salva.enviarFimDeSemana,
+    passos: salva.passos.map(passoComparavel),
+  };
+  return JSON.stringify(esquerda) !== JSON.stringify(direita);
+}
+
 export function rotuloPassoRascunho(passo: { naEmissao: boolean; dias: string }): string {
   if (passo.naEmissao) return rotuloPasso({ naEmissao: true, dias: null });
   const dias = inteiroDeCampo(passo.dias);

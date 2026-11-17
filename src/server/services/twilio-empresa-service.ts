@@ -268,15 +268,15 @@ export async function gravarSubcontaExistente(
   const env = opcoes.env ?? process.env;
   const pai = credenciaisPaiTwilio(env);
   if (sid === pai.accountSid) {
-    throw new ErroAplicacao("Informe o SID da subconta, não o da conta pai.", 400, "twilio_sid_pai");
+    throw new ErroAplicacao("Informe o identificador da conta desta empresa, não o da conta principal.", 400, "twilio_sid_pai");
   }
   const existente = await prisma.subcontaTwilio.findUnique({ where: { empresaId } });
   if (existente && existente.subaccountSid !== sid) {
-    throw new ErroAplicacao("Esta empresa já tem outra subconta.", 409, "twilio_subconta_existente");
+    throw new ErroAplicacao("Esta empresa já tem outra conta de envio.", 409, "twilio_subconta_existente");
   }
   const deOutra = await prisma.subcontaTwilio.findUnique({ where: { subaccountSid: sid } });
   if (deOutra && deOutra.empresaId !== empresaId) {
-    throw new ErroAplicacao("Este SID já está vinculado a outra empresa.", 409, "twilio_sid_em_uso");
+    throw new ErroAplicacao("Este identificador já está em outra empresa.", 409, "twilio_sid_em_uso");
   }
   const cliente = opcoes.twilio ?? clienteTwilioPadrao(env);
   let token = "";
@@ -379,7 +379,7 @@ function validarListaDeModelos(entrada: unknown) {
     vistos.add(item.tipo);
     if (item.contentSid && !contentSidValido(item.contentSid)) {
       throw new ErroAplicacao(
-        `O ContentSid de ${rotuloTipoTemplateWhatsapp(item.tipo)} começa com HX e tem 34 caracteres.`,
+        `O código do modelo de ${rotuloTipoTemplateWhatsapp(item.tipo)} começa com HX e tem 34 caracteres.`,
         400,
         "content_sid_invalido",
       );
@@ -399,7 +399,7 @@ export async function gravarTemplatesDaEmpresa(
   for (const item of comSid) {
     if (!aprovacoes.has(item.contentSid)) {
       throw new ErroAplicacao(
-        `O ContentSid de ${rotuloTipoTemplateWhatsapp(item.tipo)} não está nesta subconta.`,
+        `O código do modelo de ${rotuloTipoTemplateWhatsapp(item.tipo)} não está na conta de envio desta empresa.`,
         400,
         "content_sid_ausente",
       );
@@ -440,7 +440,7 @@ export async function atualizarStatusTemplatesWhatsapp(
   const linhas = await prisma.templateWhatsapp.findMany({ where: { empresaId: acesso.empresaId } });
   const comSid = linhas.filter((linha) => contentSidValido(linha.contentSid));
   if (comSid.length === 0) {
-    throw new ErroAplicacao("Não há ContentSid salvo para atualizar.", 400, "template_sem_sid");
+    throw new ErroAplicacao("Não há código de modelo salvo para atualizar.", 400, "template_sem_sid");
   }
   const aprovacoes = await aprovacoesDaSubconta(acesso.empresaId, opcoes);
   for (const linha of comSid) {
@@ -449,7 +449,7 @@ export async function atualizarStatusTemplatesWhatsapp(
     if (!encontrado) {
       await prisma.templateWhatsapp.update({
         where: { id: linha.id },
-        data: { status: "FALHOU", motivo: "Este ContentSid não está na subconta." },
+        data: { status: "FALHOU", motivo: "Este código não está na conta de envio." },
       });
       continue;
     }

@@ -4,20 +4,22 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { valoresAposSalvar } from "@/lib/apos-salvar";
 import { enviarJson } from "@/lib/api-cliente";
+import { ligacaoReguaAlterada } from "@/lib/formulario-config";
 import { inteiroDeCampo, textoHoraPermitido, textoInteiroPermitido } from "@/lib/inteiro-campo";
 import { AMOSTRA_REGUA, TEXTO_PASSO_NA_EMISSAO, textoRegua } from "@/lib/regua";
+import { lerConfiguracaoRegua } from "@/lib/regua-cliente";
 import {
   MENSAGEM_DIAS_REGUA,
   MENSAGEM_HORA_REGUA,
   MENSAGEM_JANELA_REGUA,
   montarReguaParaSalvar,
+  reguaAlterada,
   rotuloPassoRascunho,
   textoDiasDe,
 } from "@/lib/regua-rascunho";
-import type { ConfiguracaoReguaDTO, ConfiguracaoTwilioDTO, ReguaDTO } from "@/lib/tipos";
+import type { ConfiguracaoReguaDTO, ReguaDTO } from "@/lib/tipos";
 import { esquemaConfiguracaoRegua, mensagensDoZod } from "@/lib/validacao";
 import { LinhaDoTempoRegua } from "./linha-tempo-regua";
-import { PainelWhatsapp } from "./painel-whatsapp";
 import { AvisoModoTeste } from "./aviso-modo-teste";
 import { Campo, classeCampo } from "./campo";
 import { classeBotaoPerigo, classeBotaoPrimario, classeBotaoSecundario } from "./estilos";
@@ -76,22 +78,16 @@ export function PainelRegua({
   nomeEmpresa,
   config,
   reguas,
-  whatsapp,
 }: {
   podeEditar: boolean;
   nomeEmpresa: string;
   config: ConfiguracaoReguaDTO;
   reguas: ReguaDTO[];
-  whatsapp: ConfiguracaoTwilioDTO;
 }) {
   const router = useRouter();
   const [ativa, setAtiva] = useState(config.ativa);
   const [modoTeste, setModoTeste] = useState(config.modoTeste);
-  const [remetenteNome, setRemetenteNome] = useState(config.remetenteNome);
-  const [remetenteEmail, setRemetenteEmail] = useState(config.remetenteEmail);
-  const [replyTo, setReplyTo] = useState(config.replyTo);
-  const [chave, setChave] = useState("");
-  const [configurada, setConfigurada] = useState(config.configurada);
+  const [ligacaoSalva, setLigacaoSalva] = useState({ ativa: config.ativa, modoTeste: config.modoTeste });
   const [lista, setLista] = useState(reguas);
   const [selecionada, setSelecionada] = useState(reguas.find((regua) => regua.padrao)?.id ?? reguas[0]?.id ?? "");
   const inicial = reguas.find((regua) => regua.id === selecionada) ?? reguas[0];
@@ -122,11 +118,7 @@ export function PainelRegua({
     setLista(painel.reguas);
     setAtiva(painel.config.ativa);
     setModoTeste(painel.config.modoTeste);
-    setRemetenteNome(painel.config.remetenteNome);
-    setRemetenteEmail(painel.config.remetenteEmail);
-    setReplyTo(painel.config.replyTo);
-    setConfigurada(painel.config.configurada);
-    setChave("");
+    setLigacaoSalva({ ativa: painel.config.ativa, modoTeste: painel.config.modoTeste });
     const id = manterId && painel.reguas.some((regua) => regua.id === manterId)
       ? manterId
       : painel.reguas.find((regua) => regua.padrao)?.id ?? painel.reguas[0]?.id ?? "";
@@ -145,31 +137,32 @@ export function PainelRegua({
 
   async function salvarConfig(evento: React.FormEvent) {
     evento.preventDefault();
-    if (!podeEditar) return;
-    const validado = esquemaConfiguracaoRegua.safeParse({
+    if (!podeEditar || !ligacaoAlterada || enviando) return;
+    setEnviando(true);
+    const atual = await lerConfiguracaoRegua();
+    if (!atual) {
+      setEnviando(false);
+      avisarErro("Não foi possível ler o remetente para guardar a régua.");
+      return;
+    }
+    const corpo = {
       ativa,
       modoTeste,
-      remetenteNome,
-      remetenteEmail,
-      replyTo,
-      chaveResend: chave,
-    });
+      remetenteNome: atual.remetenteNome,
+      remetenteEmail: atual.remetenteEmail,
+      replyTo: atual.replyTo,
+      chaveResend: "",
+    };
+    const validado = esquemaConfiguracaoRegua.safeParse(corpo);
     if (!validado.success) {
+      setEnviando(false);
       setCampos(mensagensDoZod(validado.error));
       avisarCamposObrigatorios();
       return;
     }
     setErro("");
     setCampos({});
-    setEnviando(true);
-    const resposta = await enviarJson<{ config: ConfiguracaoReguaDTO; reguas: ReguaDTO[] }>("/api/regua/config", "POST", {
-      ativa,
-      modoTeste,
-      remetenteNome,
-      remetenteEmail,
-      replyTo,
-      chaveResend: chave,
-    });
+    const resposta = await enviarJson<{ config: ConfiguracaoReguaDTO; reguas: ReguaDTO[] }>("/api/regua/config", "POST", corpo);
     setEnviando(false);
     if (!resposta.ok) {
       if (resposta.status === 401) {
@@ -180,7 +173,7 @@ export function PainelRegua({
       return;
     }
     aplicar(resposta.dados, selecionada);
-    avisarSucesso(resposta.dados.config.ativa ? "Régua salva" : "Régua desligada");
+    avisarSucesso("Configuração salva");
     router.refresh();
   }
 
@@ -271,19 +264,6 @@ export function PainelRegua({
     router.refresh();
   }
 
-  async function testarEmail() {
-    if (!podeEditar) return;
-    setErro("");
-    setEnviando(true);
-    const resposta = await enviarJson<{ enviado: boolean }>("/api/regua/teste-email", "POST");
-    setEnviando(false);
-    if (!resposta.ok) {
-      avisarErro(resposta.erro);
-      return;
-    }
-    avisarSucesso("E-mail de teste enviado");
-  }
-
   function atualizarPasso(indice: number, parcial: Partial<PassoEditavel>) {
     setRascunho((atual) => {
       if (!atual) return atual;
@@ -305,6 +285,9 @@ export function PainelRegua({
     setPassoAberto(indice + delta);
   }
 
+  const ligacaoAlterada = ligacaoReguaAlterada({ ativa, modoTeste }, ligacaoSalva);
+  const reguaSalva = rascunho ? lista.find((item) => item.id === rascunho.id) : undefined;
+  const passosAlterados = Boolean(rascunho && reguaSalva && reguaAlterada(rascunho, rascunhoDe(reguaSalva)));
   const passo = rascunho?.passos[passoAberto];
   const previa = useMemo(() => {
     if (!passo) return "";
@@ -320,56 +303,30 @@ export function PainelRegua({
       ) : null}
 
       <form className="rounded-3xl border border-line bg-card p-6" onSubmit={salvarConfig}>
-        <h2 className="font-display text-3xl">Envio</h2>
+        <h2 className="font-display text-3xl">Envio automático</h2>
         <div className="mt-4 grid gap-3">
           <label className="flex items-center gap-2 text-sm">
             <input id="regua-ativa" type="checkbox" checked={ativa} disabled={!podeEditar} onChange={(evento) => setAtiva(evento.target.checked)} />
             Ligar a régua desta empresa
           </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input id="regua-modo-teste" type="checkbox" checked={modoTeste} disabled={!podeEditar} onChange={(evento) => setModoTeste(evento.target.checked)} />
-            Modo teste (não envia para o cliente)
-          </label>
+          <div>
+            <label className="flex items-center gap-2 text-sm">
+              <input id="regua-modo-teste" type="checkbox" checked={modoTeste} disabled={!podeEditar} onChange={(evento) => setModoTeste(evento.target.checked)} />
+              Modo teste
+            </label>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-muted">
+              Vale para e-mail e WhatsApp. Com o modo teste ligado, o cliente não recebe.
+            </p>
+          </div>
         </div>
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
-          <Campo label="Nome do remetente" htmlFor="resend-nome">
-            <input id="resend-nome" className={classeCampo} value={remetenteNome} disabled={!podeEditar} onChange={(evento) => setRemetenteNome(evento.target.value)} />
-          </Campo>
-          <Campo label="E-mail do remetente" htmlFor="resend-email" erro={campos.remetenteEmail} dica="Se ficar vazio, os e-mails saem de cobranca@taguaro.com.br. O domínio precisa estar verificado na Resend.">
-            <input id="resend-email" className={classeCampo} value={remetenteEmail} disabled={!podeEditar} onChange={(evento) => setRemetenteEmail(evento.target.value)} />
-          </Campo>
-          <Campo label="Responder para" htmlFor="resend-reply" erro={campos.replyTo}>
-            <input id="resend-reply" className={classeCampo} value={replyTo} disabled={!podeEditar} onChange={(evento) => setReplyTo(evento.target.value)} />
-          </Campo>
-          <Campo label="Chave da Resend" htmlFor="resend-chave" erro={campos.chaveResend} dica="Fica cifrada. A tela não mostra a chave de novo.">
-            <input
-              id="resend-chave"
-              className={classeCampo}
-              type="password"
-              autoComplete="new-password"
-              value={chave}
-              disabled={!podeEditar}
-              placeholder={configurada ? "Deixe em branco para manter" : "Cole a chave"}
-              onChange={(evento) => setChave(evento.target.value)}
-            />
-          </Campo>
-        </div>
-        <p id="resend-estado" className="mt-3 text-sm font-medium">
-          {configurada ? "Chave configurada" : "Chave não configurada"}
-        </p>
         {podeEditar ? (
           <div className="mt-4 flex flex-wrap gap-2">
-            <button id="regua-salvar-config" type="submit" className={classeBotaoPrimario} disabled={enviando}>
-              Salvar envio
-            </button>
-            <button id="regua-teste-email" type="button" className={classeBotaoSecundario} disabled={enviando} onClick={testarEmail}>
-              Enviar e-mail de teste
+            <button id="regua-salvar-config" type="submit" className={classeBotaoPrimario} disabled={enviando || !ligacaoAlterada}>
+              Salvar
             </button>
           </div>
         ) : null}
       </form>
-
-      <PainelWhatsapp podeEditar={podeEditar} nomeEmpresa={nomeEmpresa} inicial={whatsapp} modoTeste={modoTeste} />
 
       <section className="mt-8 min-w-0 rounded-3xl border border-line bg-card p-6">
         <h2 className="font-display text-3xl">Réguas</h2>
@@ -594,7 +551,7 @@ export function PainelRegua({
                 </label>
                 {passo.naEmissao ? (
                   <p className="text-sm text-muted md:col-span-2">
-                    Esse WhatsApp usa o template aprovado que diz “boleto”. Ele só sai em cobrança com boleto. Cartão, Pix e as outras formas ficam no e-mail, até existir um template novo aprovado pela Meta.
+                    Esse WhatsApp usa o modelo aprovado que diz “boleto”. Ele só sai em cobrança com boleto. Cartão, Pix e as outras formas ficam no e-mail, até existir um modelo novo aprovado.
                   </p>
                 ) : null}
                 <Campo label="Assunto" htmlFor="passo-assunto" erro={campos[`assunto-${passoAberto}`]}>
@@ -617,7 +574,7 @@ export function PainelRegua({
 
             {podeEditar ? (
               <div className="flex flex-wrap gap-2">
-                <button id="regua-salvar" type="submit" className={classeBotaoPrimario} disabled={enviando}>Salvar régua</button>
+                <button id="regua-salvar" type="submit" className={classeBotaoPrimario} disabled={enviando || !passosAlterados}>Salvar régua</button>
                 <button type="button" className={classeBotaoPerigo} disabled={enviando} onClick={excluir}>Apagar régua</button>
               </div>
             ) : null}

@@ -753,7 +753,7 @@ export const esquemaSubcontaExistente = z.object({
   subaccountSid: z
     .string()
     .trim()
-    .regex(/^AC[0-9a-fA-F]{32}$/, "Informe o SID da subconta. Ele começa com AC."),
+    .regex(/^AC[0-9a-fA-F]{32}$/, "Informe o identificador da conta. Ele começa com AC."),
 });
 
 export const esquemaTemplatesWhatsappEmpresa = z.object({
@@ -764,7 +764,7 @@ export const esquemaTemplatesWhatsappEmpresa = z.object({
           ["BOLETO_GERADO", "VENCE_EM_DIAS", "VENCE_HOJE", "VENCEU", "PAGO"],
           "Escolha o tipo do modelo.",
         ),
-        contentSid: z.string().trim().max(40, "O ContentSid está longo demais."),
+        contentSid: z.string().trim().max(40, "O código do modelo está longo demais."),
       }),
     )
     .min(1, "Informe ao menos um modelo.")

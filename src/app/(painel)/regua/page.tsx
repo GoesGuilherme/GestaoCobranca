@@ -1,5 +1,6 @@
 import { CabecalhoPagina } from "@/components/cabecalho";
 import { PainelRegua } from "@/components/painel-regua";
+import { RedirecionarAncoraWhatsapp } from "@/components/redirecionar-ancora-whatsapp";
 import { podeConfigurarRegua, podeVerRegua } from "@/lib/permissoes";
 import { acessoDaPagina } from "@/server/auth/pagina";
 import { obterPainelRegua } from "@/server/services/regua-service";
@@ -24,14 +25,14 @@ export default async function PaginaRegua() {
       <CabecalhoPagina
         olho={acesso.nomeEmpresa}
         titulo="Régua de cobrança"
-        descricao="Cada empresa monta as próprias réguas. O cliente pode usar a padrão, outra régua, nenhuma, ou ficar pausado. O e-mail sai pela Resend e o WhatsApp, se marcado no passo, pela Twilio."
+        descricao="Cada empresa monta as próprias réguas. O cliente pode usar a padrão, outra, nenhuma, ou ficar pausado."
       />
+      <RedirecionarAncoraWhatsapp destino={podeConfigurarRegua(acesso.papel) ? "/whatsapp" : null} />
       <PainelRegua
         podeEditar={podeConfigurarRegua(acesso.papel)}
         nomeEmpresa={acesso.nomeEmpresa}
         config={painel.config}
         reguas={painel.reguas}
-        whatsapp={painel.whatsapp}
       />
     </>
   );

@@ -37,6 +37,12 @@ function resultadoProibido(pathname: string) {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  if (pathname === "/telefones") {
+    const destino = request.nextUrl.clone();
+    destino.pathname = "/whatsapp";
+    return NextResponse.redirect(destino);
+  }
   const token = request.cookies.get(COOKIE_SESSAO)?.value;
   const sessao = token ? await verificarToken(token) : null;
   const autenticado = Boolean(sessao);
@@ -201,16 +207,16 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/banco#asaas", request.url));
   }
 
-  const rotaTelefones =
-    pathname === "/telefones" ||
-    pathname.startsWith("/telefones/") ||
+  const rotaWhatsapp =
+    pathname === "/whatsapp" ||
+    pathname.startsWith("/whatsapp/") ||
     pathname === "/api/telefones" ||
     pathname.startsWith("/api/telefones/");
-  if (rotaTelefones && sessao.papel !== "DONO") {
+  if (rotaWhatsapp && sessao.papel !== "DONO") {
     return paginaProibida(
       pathname,
-      "Só o dono cadastra os telefones",
-      "A subconta Twilio e os números de WhatsApp e SMS ficam com o dono da empresa. Financeiro e suporte não entram aqui.",
+      "Só o dono configura o WhatsApp",
+      "A conta de envio, os números e os modelos ficam com o dono da empresa. Financeiro e suporte não entram aqui.",
     );
   }
 
@@ -221,8 +227,8 @@ export async function middleware(request: NextRequest) {
   if (rotaEmails && sessao.papel !== "DONO") {
     return paginaProibida(
       pathname,
-      "Só o dono personaliza os e-mails",
-      "A logo e a prévia dos avisos ficam com o dono da empresa. Financeiro e suporte não entram aqui.",
+      "Só o dono configura os e-mails",
+      "O remetente, a chave de envio, a logo e a prévia ficam com o dono da empresa. Financeiro e suporte não entram aqui.",
     );
   }
 

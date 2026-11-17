@@ -406,6 +406,8 @@ export async function processarFilaWhatsapp(
     }
 
     const [conexao, regua, template, decisao] = await Promise.all([
+      // Leitura da conexão antiga. A tela não grava mais isso; quem já tem número
+      // online continua saindo por ele quando a conta de envio da empresa não está pronta.
       prisma.configuracaoTwilio.findUnique({ where: { empresaId: item.empresaId } }),
       prisma.configuracaoRegua.findUnique({ where: { empresaId: item.empresaId } }),
       prisma.templateWhatsapp.findUnique({

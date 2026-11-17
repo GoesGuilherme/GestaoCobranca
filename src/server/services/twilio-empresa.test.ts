@@ -752,6 +752,10 @@ describe("subconta e números da empresa", () => {
   it("a tela e a API ficam só com o dono", async () => {
     const semSessao = await middleware(new NextRequest("http://127.0.0.1/telefones"));
     expect(semSessao.status).toBe(307);
+    expect(semSessao.headers.get("location")).toContain("/whatsapp");
+    const semSessaoWhatsapp = await middleware(new NextRequest("http://127.0.0.1/whatsapp"));
+    expect(semSessaoWhatsapp.status).toBe(307);
+    expect(semSessaoWhatsapp.headers.get("location")).toContain("/login");
     const financeiro = await emitirToken({
       sub: "usuario-financeiro-telefone",
       email: "financeiro.telefone@exemplo.test",
@@ -760,8 +764,13 @@ describe("subconta e números da empresa", () => {
       papel: "FINANCEIRO",
       superadministrador: false,
     });
-    const bloqueado = await middleware(
+    const antigo = await middleware(
       new NextRequest("http://127.0.0.1/telefones", { headers: { cookie: `${COOKIE_SESSAO}=${financeiro}` } }),
+    );
+    expect(antigo.status).toBe(307);
+    expect(antigo.headers.get("location")).toContain("/whatsapp");
+    const bloqueado = await middleware(
+      new NextRequest("http://127.0.0.1/whatsapp", { headers: { cookie: `${COOKIE_SESSAO}=${financeiro}` } }),
     );
     expect(bloqueado.status).toBe(403);
     const api = await middleware(
@@ -776,8 +785,13 @@ describe("subconta e números da empresa", () => {
       papel: "DONO",
       superadministrador: false,
     });
-    const liberado = await middleware(
+    const redirecionado = await middleware(
       new NextRequest("http://127.0.0.1/telefones", { headers: { cookie: `${COOKIE_SESSAO}=${dono}` } }),
+    );
+    expect(redirecionado.status).toBe(307);
+    expect(redirecionado.headers.get("location")).toContain("/whatsapp");
+    const liberado = await middleware(
+      new NextRequest("http://127.0.0.1/whatsapp", { headers: { cookie: `${COOKIE_SESSAO}=${dono}` } }),
     );
     expect(liberado.status).toBe(200);
   });

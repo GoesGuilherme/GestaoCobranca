@@ -1,78 +1,113 @@
 import { describe, expect, it } from "vitest";
-import { REMETENTE_OFICIAL_WHATSAPP, REMETENTE_SANDBOX_WHATSAPP } from "@/server/twilio/sandbox";
-import { descreverCanalWhatsapp, NUMERO_OFICIAL_TAGUARO, NUMERO_SANDBOX_TWILIO } from "./whatsapp-canal";
+import {
+  descreverEnvioWhatsapp,
+  montarEntradaExibicaoWhatsapp,
+  NOTA_MODO_TESTE_WHATSAPP,
+  type RotaExibicaoWhatsapp,
+} from "./whatsapp-canal";
 
-const base = {
-  modoTeste: true,
-  remetenteOficialLigado: false,
-  sandboxLigado: false,
-  numeroTesteConfigurado: true,
-  templatesContaPaiProntos: true,
-  numeroEmpresaPronto: false,
-  producaoOficialLiberada: false,
-};
+const rotas: RotaExibicaoWhatsapp[] = ["oficial_teste", "oficial_producao", "sandbox", "empresa", "nenhuma"];
 
-describe("texto do canal de WhatsApp", () => {
-  it("os números exibidos são os do código", () => {
-    expect(REMETENTE_OFICIAL_WHATSAPP).toBe("whatsapp:+16504762069");
-    expect(NUMERO_OFICIAL_TAGUARO.replace(/\D/g, "")).toBe("16504762069");
-    expect(REMETENTE_SANDBOX_WHATSAPP).toBe("whatsapp:+14155238886");
-    expect(NUMERO_SANDBOX_TWILIO.replace(/\D/g, "")).toBe("14155238886");
-  });
-
-  it("com a flag e o modo teste, sai do número da Taguaro só para o teste", () => {
-    const texto = descreverCanalWhatsapp({ ...base, remetenteOficialLigado: true, numeroEmpresaPronto: true });
-    expect(texto.selo).toBe("Sai pelo número da Taguaro");
-    expect(texto.usaNumeroEmpresa).toBe(false);
-    expect(texto.paragrafos.join(" ")).toContain(NUMERO_OFICIAL_TAGUARO);
-    expect(texto.paragrafos.join(" ")).toContain("só o número de teste recebe");
-    expect(texto.paragrafos.join(" ")).not.toContain("para o cliente");
-  });
-
-  it("sem template da conta pai não promete envio", () => {
-    const texto = descreverCanalWhatsapp({ ...base, remetenteOficialLigado: true, templatesContaPaiProntos: false });
-    expect(texto.paragrafos.join(" ")).toContain("falta template");
-    expect(texto.paragrafos.join(" ")).toContain("fila");
-  });
-
-  it("a flag sem a data de liberação não manda para cliente real", () => {
-    const texto = descreverCanalWhatsapp({
-      ...base,
-      modoTeste: false,
-      remetenteOficialLigado: true,
-      sandboxLigado: true,
+function frases() {
+  return rotas.flatMap((rota) => {
+    const entrada = montarEntradaExibicaoWhatsapp({
+      envioEmpresa: rota === "nenhuma",
+      numeroPadraoAtivo: "+5511999990000",
+      temModeloAprovado: rota !== "nenhuma",
+      rota,
+      numeroAntigoPronto: "+5511888887777",
     });
-    expect(texto.selo).toBe("WhatsApp parado");
-    expect(texto.paragrafos.join(" ")).toContain("ainda não foi liberado");
-    expect(texto.paragrafos.join(" ")).toContain("não são reenviadas");
-    expect(texto.paragrafos.join(" ")).toContain("sandbox");
+    const texto = descreverEnvioWhatsapp(entrada);
+    const semModelo = descreverEnvioWhatsapp(
+      montarEntradaExibicaoWhatsapp({
+        envioEmpresa: true,
+        numeroPadraoAtivo: "+5511999990000",
+        temModeloAprovado: false,
+        rota,
+        numeroAntigoPronto: "+5511888887777",
+      }),
+    );
+    return [texto.titulo, texto.complemento ?? "", semModelo.titulo, semModelo.complemento ?? ""];
+  });
+}
+
+describe("texto de onde saem as mensagens de WhatsApp", () => {
+  it("não mostra sandbox, variável de ambiente, número +1 nem código da conta principal", () => {
+    const texto = [...frases(), NOTA_MODO_TESTE_WHATSAPP].join("\n");
+    expect(texto).not.toMatch(/sandbox/i);
+    expect(texto).not.toMatch(/ContentSid/i);
+    expect(texto).not.toMatch(/conta pai/i);
+    expect(texto).not.toMatch(/\+1[\s-]*\d/);
+    expect(texto).not.toMatch(/TWILIO_|process\.env/i);
   });
 
-  it("com a data, o cliente recebe do número da Taguaro e o sandbox não", () => {
-    const texto = descreverCanalWhatsapp({
-      ...base,
-      modoTeste: false,
-      remetenteOficialLigado: true,
-      sandboxLigado: true,
-      producaoOficialLiberada: true,
-    });
-    expect(texto.selo).toBe("Sai pelo número da Taguaro");
-    expect(texto.paragrafos.join(" ")).toContain("WhatsApp do cliente desta cobrança recebe");
-    expect(texto.paragrafos.join(" ")).toContain("não manda para o cliente");
+  it("com número da empresa e modelo aprovado, diz esse número", () => {
+    const texto = descreverEnvioWhatsapp(
+      montarEntradaExibicaoWhatsapp({
+        envioEmpresa: true,
+        numeroPadraoAtivo: "+5511988887777",
+        temModeloAprovado: true,
+        rota: "oficial_producao",
+        numeroAntigoPronto: "+5511900000000",
+      }),
+    );
+    expect(texto.titulo).toBe("As mensagens saem do número +5511988887777.");
+    expect(texto.complemento).toBeNull();
   });
 
-  it("modo teste desligado e número da empresa pronto vai para o cliente", () => {
-    const texto = descreverCanalWhatsapp({ ...base, modoTeste: false, numeroEmpresaPronto: true });
-    expect(texto.usaNumeroEmpresa).toBe(true);
-    expect(texto.paragrafos.join(" ")).toContain("para o cliente");
-    expect(texto.paragrafos.join(" ")).not.toContain(NUMERO_OFICIAL_TAGUARO);
+  it("sem número da empresa pronto, o caminho oficial fala só da Taguaro", () => {
+    const texto = descreverEnvioWhatsapp(
+      montarEntradaExibicaoWhatsapp({
+        envioEmpresa: false,
+        numeroPadraoAtivo: null,
+        temModeloAprovado: false,
+        rota: "oficial_teste",
+        numeroAntigoPronto: "+5511900000000",
+      }),
+    );
+    expect(texto.titulo).toBe("As mensagens saem pelo número da Taguaro.");
+    expect(texto.titulo).not.toContain("+5511900000000");
   });
 
-  it("sandbox só aparece no modo teste, sem número oficial e sem empresa pronta", () => {
-    const texto = descreverCanalWhatsapp({ ...base, sandboxLigado: true });
-    expect(texto.selo).toBe("Sai pelo sandbox");
-    expect(texto.paragrafos.join(" ")).toContain(NUMERO_SANDBOX_TWILIO);
-    const oficial = descreverCanalWhatsapp({ ...base, sandboxLigado: true, remetenteOficialLigado: true });
-    expect(oficial.selo).toBe("Sai pelo número da Taguaro");
+  it("o número antigo só aparece quando é ele que envia", () => {
+    const texto = descreverEnvioWhatsapp(
+      montarEntradaExibicaoWhatsapp({
+        envioEmpresa: false,
+        numeroPadraoAtivo: null,
+        temModeloAprovado: false,
+        rota: "empresa",
+        numeroAntigoPronto: "+5511911112222",
+      }),
+    );
+    expect(texto.titulo).toBe("As mensagens saem do número +5511911112222.");
+  });
+
+  it("número de teste não leva o nome interno e avisa que o cliente não recebe", () => {
+    const texto = descreverEnvioWhatsapp(
+      montarEntradaExibicaoWhatsapp({
+        envioEmpresa: false,
+        numeroPadraoAtivo: null,
+        temModeloAprovado: false,
+        rota: "sandbox",
+        numeroAntigoPronto: null,
+      }),
+    );
+    expect(texto.titulo).toBe("As mensagens saem por um número de teste.");
+    expect(texto.complemento).toBe("O cliente não recebe.");
+  });
+
+  it("número ativo sem modelo aprovado não promete envio por ele", () => {
+    const texto = descreverEnvioWhatsapp(
+      montarEntradaExibicaoWhatsapp({
+        envioEmpresa: true,
+        numeroPadraoAtivo: "+5511988887777",
+        temModeloAprovado: false,
+        rota: "nenhuma",
+        numeroAntigoPronto: null,
+      }),
+    );
+    expect(texto.titulo).toBe("Nenhuma mensagem de WhatsApp sai neste momento.");
+    expect(texto.complemento).toContain("+5511988887777");
+    expect(texto.complemento).toContain("falta um modelo aprovado");
   });
 });

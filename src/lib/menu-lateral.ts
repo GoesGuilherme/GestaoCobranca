@@ -32,7 +32,6 @@ export function itemAtivo(pathname: string, hash: string, href: string) {
       : atual === caminho || atual.startsWith(`${caminho}/`);
   if (!noCaminho) return false;
   if (ancora) return hash === `#${ancora}`;
-  if (caminho === "/regua") return hash !== "#whatsapp";
   return true;
 }
 
@@ -73,10 +72,9 @@ export function montarGruposMenu(opcoes: OpcoesMenu): GrupoMenu[] {
       titulo: "Configurações",
       itens: [
         ...(mostrarUsuarios ? [{ href: "/empresa", rotulo: "Empresa" }] : []),
-        ...(mostrarUsuarios ? [{ href: "/emails", rotulo: "E-mails" }] : []),
-        ...(mostrarUsuarios ? [{ href: "/telefones", rotulo: "Telefones" }] : []),
+        ...(mostrarUsuarios ? [{ href: "/emails", rotulo: "Configurações de e-mail" }] : []),
+        ...(mostrarUsuarios ? [{ href: "/whatsapp", rotulo: "WhatsApp" }] : []),
         ...(mostrarAsaas ? [{ href: "/banco", rotulo: "Banco" }] : []),
-        ...(mostrarRegua ? [{ href: "/regua#whatsapp", rotulo: "WhatsApp" }] : []),
         ...(mostrarUsuarios ? [{ href: "/usuarios", rotulo: "Usuários" }] : []),
       ],
     },

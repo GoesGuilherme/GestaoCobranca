@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { enviarJson } from "@/lib/api-cliente";
 import type { PainelTelefonesDTO, NumeroTwilioDTO } from "@/lib/tipos";
+import { NOTA_MODO_TESTE_WHATSAPP } from "@/lib/whatsapp-canal";
 import { classeBotaoPerigo, classeBotaoPrimario, classeBotaoSecundario, classeCampo } from "./estilos";
 import { avisarErro, avisarSucesso } from "./notificador";
 
@@ -14,16 +15,26 @@ const STATUS = [
   { valor: "INATIVO", rotulo: "Inativo" },
 ] as const;
 
-function textoEnvio(canal: string, origem: "global" | "empresa") {
-  if (origem === "empresa") return `O ${canal} desta empresa sai pela subconta e pelo número padrão ativo.`;
-  return `O ${canal} continua saindo pela conta e pelo número globais.`;
+function textoSms(origem: "global" | "empresa") {
+  if (origem === "empresa") return "O SMS sai do número padrão ativo desta empresa.";
+  return "O SMS sai pelo número da Taguaro.";
 }
 
 function mapaTemplates(painel: PainelTelefonesDTO) {
   return Object.fromEntries(painel.templates.map((item) => [item.tipo, item.contentSid ?? ""]));
 }
 
-export function PainelTelefones({ inicial }: { inicial: PainelTelefonesDTO }) {
+export function PainelTelefones({
+  inicial,
+  modoTeste,
+  statusEnvio,
+  complementoEnvio,
+}: {
+  inicial: PainelTelefonesDTO;
+  modoTeste: boolean;
+  statusEnvio: string;
+  complementoEnvio: string | null;
+}) {
   const router = useRouter();
   const [telefone, setTelefone] = useState("");
   const [canal, setCanal] = useState<"WHATSAPP" | "SMS">("WHATSAPP");
@@ -154,8 +165,16 @@ export function PainelTelefones({ inicial }: { inicial: PainelTelefonesDTO }) {
 
   return (
     <div className="space-y-8">
+      <section className="max-w-2xl space-y-3 rounded-3xl border border-line bg-card p-6" aria-labelledby="origem-titulo">
+        <h2 id="origem-titulo" className="font-display text-2xl">De onde saem as mensagens</h2>
+        <p className="text-sm leading-6 text-ink">{statusEnvio}</p>
+        {complementoEnvio ? <p className="text-sm leading-6 text-muted">{complementoEnvio}</p> : null}
+        {modoTeste ? <p className="text-sm leading-6 text-ink">{NOTA_MODO_TESTE_WHATSAPP}</p> : null}
+        <p className="text-sm leading-6 text-muted">{textoSms(inicial.envioSms)}</p>
+      </section>
+
       <section className="max-w-2xl space-y-4 rounded-3xl border border-line bg-card p-6" aria-labelledby="subconta-titulo">
-        <h2 id="subconta-titulo" className="font-display text-2xl">Subconta</h2>
+        <h2 id="subconta-titulo" className="font-display text-2xl">Conta de envio</h2>
         {inicial.subconta ? (
           <dl className="grid gap-3 text-sm sm:grid-cols-2">
             <div>
@@ -167,33 +186,33 @@ export function PainelTelefones({ inicial }: { inicial: PainelTelefonesDTO }) {
               <dd className="font-medium text-ink">{inicial.subconta.credencialMascarada}</dd>
             </div>
             <div className="sm:col-span-2">
-              <dt className="text-muted">SID</dt>
+              <dt className="text-muted">Identificador</dt>
               <dd className="break-all font-medium text-ink">{inicial.subconta.sid}</dd>
             </div>
           </dl>
         ) : (
           <p className="text-sm leading-6 text-muted">
-            Sem subconta. Os envios de WhatsApp e SMS continuam na conta e no número globais da Taguaro.
+            Esta empresa ainda não tem conta de envio. Sem ela, o WhatsApp não sai de um número próprio.
           </p>
         )}
         <p className="text-sm leading-6 text-muted">
           {inicial.criacaoHabilitada
-            ? "A criação pela API da Twilio está ligada neste servidor. Ela não compra número."
-            : "A criação pela API da Twilio está desligada. O botão recusa e nenhuma chamada sai."}
+            ? "Dá para criar a conta por aqui. Isso não compra um número de telefone."
+            : "A criação da conta está desligada. O botão não faz a chamada."}
         </p>
         {inicial.subconta ? null : (
           <button type="button" className={classeBotaoSecundario} disabled={criando} onClick={() => void criarSubconta()}>
-            {criando ? "Consultando..." : "Criar subconta"}
+            {criando ? "Consultando..." : "Criar conta"}
           </button>
         )}
         {inicial.subconta ? null : (
           <form onSubmit={vincularSubconta} className="space-y-3 border-t border-line pt-4">
-            <h3 className="text-lg font-medium text-ink">Vincular subconta existente</h3>
+            <h3 className="text-lg font-medium text-ink">Usar uma conta que já existe</h3>
             <p className="text-sm leading-6 text-muted">
-              Não cria subconta e não envia mensagem. A conta pai busca o token do SID informado e o sistema guarda só a cifra.
+              Não cria outra conta e não envia mensagem. O acesso fica guardado de forma protegida.
             </p>
             <label className="block text-sm font-medium text-ink" htmlFor="sid-subconta">
-              SID da subconta
+              Identificador da conta
               <input
                 id="sid-subconta"
                 name="subaccountSid"
@@ -207,19 +226,17 @@ export function PainelTelefones({ inicial }: { inicial: PainelTelefonesDTO }) {
               />
             </label>
             <button type="submit" className={classeBotaoPrimario} disabled={vinculando || sid.trim().length < 34}>
-              {vinculando ? "Vinculando..." : "Vincular subconta"}
+              {vinculando ? "Vinculando..." : "Vincular conta"}
             </button>
           </form>
         )}
-        <p className="text-sm leading-6 text-ink">{textoEnvio("WhatsApp", inicial.envioWhatsapp)}</p>
-        <p className="text-sm leading-6 text-ink">{textoEnvio("SMS", inicial.envioSms)}</p>
       </section>
 
       <form onSubmit={salvarModelos} className="max-w-2xl space-y-4 rounded-3xl border border-line bg-card p-6">
         <h2 className="font-display text-2xl">Modelos de WhatsApp</h2>
         <p className="text-sm leading-6 text-muted">
-          Informe o ContentSid de cada modelo na subconta. Ao salvar, o status vem da análise da Meta. Só o modelo
-          aprovado entra no envio. Se faltar o modelo do tipo, a mensagem segue pelo número oficial.
+          Cole o código de cada modelo. Ele começa com HX. Ao salvar, mostramos se foi aprovado. Só o modelo aprovado
+          entra no envio.
         </p>
         <div className="space-y-4">
           {inicial.templates.map((modelo) => (
@@ -266,8 +283,8 @@ export function PainelTelefones({ inicial }: { inicial: PainelTelefonesDTO }) {
       <form onSubmit={cadastrar} className="max-w-2xl space-y-4 rounded-3xl border border-line bg-card p-6">
         <h2 className="font-display text-2xl">Cadastrar número</h2>
         <p className="text-sm leading-6 text-muted">
-          O número entra como Cadastrado. Isso não muda o envio. Ele só passa a ser o remetente quando a subconta
-          existir e o status estiver Ativo e padrão. Exemplo: +5511999990000.
+          O número entra como Cadastrado e ainda não envia. Ele passa a ser o remetente quando a conta de envio existir
+          e o status estiver Ativo e padrão. Exemplo: +5511999990000.
         </p>
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block text-sm font-medium text-ink" htmlFor="telefone-empresa">
