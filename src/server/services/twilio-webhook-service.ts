@@ -4,6 +4,10 @@ import { decisaoOptOut, digitosWhatsapp } from "@/lib/whatsapp-cobranca";
 import { prisma } from "@/server/db";
 import { ErroAplicacao } from "@/server/erros";
 import { processarEntradaAssessor } from "@/server/services/assessor-service";
+import { corpoVisivelPromessa } from "@/lib/whatsapp-promessa";
+import { processarPromessaWhatsapp } from "@/server/services/promessa-whatsapp";
+import type { ClienteTwilio } from "@/server/twilio/contrato";
+import { clienteTwilioPadrao } from "@/server/twilio/fabrica";
 import { credenciaisPaiTwilio, numeroTesteWhatsapp, urlWebhookTwilio } from "@/server/twilio/fabrica";
 import {
   REMETENTE_OFICIAL_WHATSAPP,
@@ -105,8 +109,9 @@ async function registrarEntrada(empresaId: string, dados: {
   de: string | null;
   para: string | null;
   corpo: string | null;
+  buttonPayload: string | null;
   optOutType: string;
-}, opcoes: { assessor?: boolean } = {}) {
+}, opcoes: { assessor?: boolean; twilio?: ClienteTwilio; agora?: Date } = {}) {
   const digitos = digitosWhatsapp((dados.de ?? "").replace(/^whatsapp:/i, ""));
   const decisao = decisaoOptOut({ corpo: dados.corpo ?? "", optOutType: dados.optOutType });
   if (digitos && decisao) {
@@ -125,14 +130,36 @@ async function registrarEntrada(empresaId: string, dados: {
         status: decisao ?? "RECEBIDA",
         de: dados.de,
         para: dados.para,
-        corpo: dados.corpo,
+        corpo: corpoVisivelPromessa(dados.corpo, dados.buttonPayload),
       },
     });
   } catch (erro) {
     if (conflito(erro)) return { recebido: true, duplicado: true };
     throw erro;
   }
-  if (opcoes.assessor === false) return { recebido: true, duplicado: false };
+  let promessa: { tratado: boolean; status: string | null } = { tratado: false, status: null };
+  if (!decisao) {
+    try {
+      promessa = await processarPromessaWhatsapp({
+        empresaId,
+        de: dados.de,
+        para: dados.para,
+        corpo: dados.corpo,
+        buttonPayload: dados.buttonPayload,
+        twilio: opcoes.twilio ?? clienteTwilioPadrao(),
+        agora: opcoes.agora,
+      });
+    } catch (erro) {
+      console.error("promessa_whatsapp", erro instanceof Error ? erro.name : "falha");
+    }
+  }
+  if (promessa.status) {
+    await prisma.eventoWhatsapp.updateMany({
+      where: { empresaId, messageSid: dados.messageSid, tipo: "INBOUND" },
+      data: { status: promessa.status },
+    });
+  }
+  if (promessa.tratado || opcoes.assessor === false) return { recebido: true, duplicado: false };
   try {
     await processarEntradaAssessor({
       empresaId,
@@ -176,6 +203,7 @@ function eventoAutenticado(parametros: Record<string, string>) {
     de: texto(parametros.From, 40),
     para: texto(parametros.To, 40),
     corpo: texto(parametros.Body, 500),
+    buttonPayload: texto(parametros.ButtonPayload, 80),
     errorCode: texto(parametros.ErrorCode, 20),
     errorMessage: texto(parametros.ErrorMessage, 180),
     optOutType: parametros.OptOutType ?? "",
@@ -204,6 +232,8 @@ async function empresasDoNumero(telefoneE164: string, canal?: "WHATSAPP" | "SMS"
 export async function processarWebhookTwilio(dados: {
   assinatura: string | null;
   parametros: Record<string, string>;
+  twilio?: ClienteTwilio;
+  agora?: Date;
 }) {
   const accountSid = dados.parametros.AccountSid?.trim() ?? "";
   const assinatura = dados.assinatura?.trim() ?? "";
@@ -229,7 +259,7 @@ export async function processarWebhookTwilio(dados: {
     if (!evento.inbound && evento.messageStatus) {
       return registrarStatus(config.empresaId, { ...evento, messageStatus: evento.messageStatus });
     }
-    return registrarEntrada(config.empresaId, evento);
+    return registrarEntrada(config.empresaId, evento, { twilio: dados.twilio, agora: dados.agora });
   }
 
   // O envio pela subconta usa esta mesma URL em StatusCallback. A assinatura
@@ -260,7 +290,7 @@ export async function processarWebhookTwilio(dados: {
     if (!evento.inbound && evento.messageStatus) {
       return registrarStatus(subconta.empresaId, { ...evento, messageStatus: evento.messageStatus });
     }
-    return registrarEntrada(subconta.empresaId, evento);
+    return registrarEntrada(subconta.empresaId, evento, { twilio: dados.twilio, agora: dados.agora });
   }
 
   const sandbox = sandboxWhatsappLigado();
@@ -310,7 +340,7 @@ export async function processarWebhookTwilio(dados: {
     if (evento.para?.toLowerCase().startsWith("whatsapp:") && e164Para) {
       const empresas = await empresasDoNumero(e164Para, "WHATSAPP");
       if (empresas.length > 1) return { recebido: true, duplicado: false };
-      if (empresas.length === 1) return registrarEntrada(empresas[0] ?? "", evento);
+      if (empresas.length === 1) return registrarEntrada(empresas[0] ?? "", evento, { twilio: dados.twilio, agora: dados.agora });
     }
     recusar();
   }
@@ -318,7 +348,7 @@ export async function processarWebhookTwilio(dados: {
   if (evento.para === REMETENTE_OFICIAL_WHATSAPP) {
     const empresas = await empresasDoClienteOficial(evento.de);
     for (const empresaId of empresas) {
-      await registrarEntrada(empresaId, evento, { assessor: false });
+      await registrarEntrada(empresaId, evento, { assessor: false, twilio: dados.twilio, agora: dados.agora });
     }
     return { recebido: true, duplicado: false };
   }
@@ -327,11 +357,11 @@ export async function processarWebhookTwilio(dados: {
   if (evento.para?.toLowerCase().startsWith("whatsapp:") && e164Para) {
     const empresas = await empresasDoNumero(e164Para, "WHATSAPP");
     if (empresas.length > 1) return { recebido: true, duplicado: false };
-    if (empresas.length === 1) return registrarEntrada(empresas[0] ?? "", evento);
+    if (empresas.length === 1) return registrarEntrada(empresas[0] ?? "", evento, { twilio: dados.twilio, agora: dados.agora });
   }
 
   if (!sandbox) return { recebido: true, duplicado: false };
   const empresaId = await empresaUnicaDoSandbox(evento.de);
   if (!empresaId) return { recebido: true, duplicado: false };
-  return registrarEntrada(empresaId, evento);
+  return registrarEntrada(empresaId, evento, { twilio: dados.twilio, agora: dados.agora });
 }

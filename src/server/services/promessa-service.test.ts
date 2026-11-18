@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { completarCnpj } from "@/lib/documento";
 import { isoDeData } from "@/lib/data";
+import { FRASE_PROMESSA_QUEBRADA } from "@/lib/promessa";
 import type { PapelUsuario } from "@/lib/tipos";
 import { prisma } from "@/server/db";
 import { clienteResendMemoria } from "@/server/regua/resend";
@@ -253,6 +254,8 @@ describe("promessa de pagamento", () => {
     const antes = caixa.caixa.length;
     await executarRegua({ agora: DIA_SEGUINTE, empresaId, resend: caixa });
     expect(caixa.caixa.length).toBe(antes + 1);
+    expect(caixa.caixa[0]?.texto).not.toContain(FRASE_PROMESSA_QUEBRADA);
+    expect(caixa.caixa.at(-1)?.texto).toContain(FRASE_PROMESSA_QUEBRADA);
     const quebrada = await prisma.promessaPagamento.findFirstOrThrow({ where: { faturaId: depois.id } });
     expect(quebrada.status).toBe("QUEBRADA");
     expect(quebrada.quebradaEm ? isoDeData(quebrada.quebradaEm) : null).toBe("2026-11-04");

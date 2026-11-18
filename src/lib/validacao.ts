@@ -848,6 +848,14 @@ export const esquemaSeloPromessa = z.object({
   contarNoSelo: z.boolean("Informe se a promessa quebrada entra no selo."),
 });
 
+export const esquemaPrazoPromessa = z.object({
+  prazoMaximoDias: z
+    .number()
+    .int("Informe o prazo em dias inteiros.")
+    .min(1, "O prazo mínimo é 1 dia.")
+    .max(90, "O prazo máximo é 90 dias."),
+});
+
 export const esquemaAssessor = z
   .object({
     ativo: z.boolean("Informe se o assessor está ligado."),

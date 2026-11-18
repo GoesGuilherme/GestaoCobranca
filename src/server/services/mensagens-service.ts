@@ -139,6 +139,15 @@ function nacionalDe(telefone: string): string {
   return telefone.startsWith("55") && telefone.length > 11 ? telefone.slice(2) : telefone;
 }
 
+function detalheEntrada(status: string): string {
+  if (status === "PARAR") return "Pediu para parar";
+  if (status === "PROMESSA_PEDIDO") return "Pediu para registrar promessa";
+  if (status === "PROMESSA_DATA") return "Informou a data da promessa";
+  if (status === "PROMESSA_REGISTRADA") return "Promessa registrada";
+  if (status === "PROMESSA_RECUSADA") return "Promessa não registrada";
+  return "Recebida";
+}
+
 type PassoEnvio = {
   naEmissao: boolean;
   dias: number | null;
@@ -492,14 +501,14 @@ export async function obterConversa(
       lado: "cliente" as const,
       quando: entrada.recebidoEm.toISOString(),
       texto: entrada.corpo?.trim() || "(sem texto)",
-      detalhe: entrada.status === "PARAR" ? "Pediu para parar" : "Recebida",
+      detalhe: detalheEntrada(entrada.status),
     })),
     ...respostas.map((resposta) => ({
       id: `resposta-${resposta.id}`,
       lado: "empresa" as const,
       quando: resposta.criadoEm.toISOString(),
       texto: resposta.corpo,
-      detalhe: "Resposta da equipe",
+      detalhe: resposta.origem === "PROMESSA" ? "Promessa de pagamento" : "Resposta da equipe",
     })),
   ].sort((a, b) => (a.quando < b.quando ? -1 : 1));
   const ultima = entradas.at(-1) ?? null;
@@ -529,7 +538,7 @@ export async function obterConversa(
   };
 }
 
-async function canalDeResposta(empresaId: string, para: string | null, env: NodeJS.ProcessEnv): Promise<{
+export async function canalRespostaWhatsapp(empresaId: string, para: string | null, env: NodeJS.ProcessEnv = process.env): Promise<{
   conta: CredencialTwilio;
   de: string;
   statusCallback: string;
@@ -598,7 +607,7 @@ export async function responderWhatsapp(
   if (!dentroDaJanela(fimDaJanela(ultima.recebidoEm), agora)) {
     throw new ErroAplicacao(TEXTO_FORA_DA_JANELA, 400, "janela");
   }
-  const canal = await canalDeResposta(acesso.empresaId, ultima.para, env);
+  const canal = await canalRespostaWhatsapp(acesso.empresaId, ultima.para, env);
   const twilio = opcoes.twilio ?? clienteTwilioPadrao(env);
   let sid = "";
   try {

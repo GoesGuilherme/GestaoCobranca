@@ -8,6 +8,7 @@ import { rotuloCobranca } from "@/lib/formas-cobranca";
 import { cartaComPix } from "./pix-email";
 import { rotuloStatusFatura } from "@/lib/rotulos";
 import { emailDeCobranca } from "@/lib/remetentes";
+import { comMencaoPromessaQuebrada } from "@/lib/promessa";
 import {
   assuntoRegua,
   dataSaoPaulo,
@@ -35,6 +36,7 @@ import { clienteResendPadrao, remetenteResend, type ClienteResend } from "@/serv
 import type { ClienteTwilio } from "@/server/twilio/contrato";
 import { clienteTwilioPadrao } from "@/server/twilio/fabrica";
 import { lerEsquema } from "@/server/validar";
+import { conciliarPromessas, faturaIdsComPromessaQuebrada } from "./promessa-service";
 import { urlLogoParaEmail } from "./logo-empresa-service";
 import { obterWhatsappDaEmpresa } from "./twilio-service";
 import { canalWhatsappGravado, concluirWhatsappDoPasso, prepararWhatsappDoPasso } from "./whatsapp-passo";
@@ -480,7 +482,10 @@ export async function enviarLembreteAgora(
     diasAtraso: String(diasAtraso(dataSaoPaulo(agora), vencimento)),
     empresa: empresa?.nomeFantasia ?? autor.nomeEmpresa,
   };
-  const corpo = textoRegua(passo.corpo, campos);
+  const hoje = dataSaoPaulo(agora);
+  await conciliarPromessas(autor.empresaId, hoje);
+  const quebradas = await faturaIdsComPromessaQuebrada(autor.empresaId, [fatura.id]);
+  const corpo = comMencaoPromessaQuebrada(textoRegua(passo.corpo, campos), quebradas.has(fatura.id));
   const carta = await cartaComPix(
     {
       empresa: empresa?.nomeFantasia ?? autor.nomeEmpresa,

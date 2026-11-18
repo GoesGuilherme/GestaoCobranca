@@ -139,6 +139,15 @@ enum CanalPromessa {
   @@map("canal_promessa")
 }
 
+// PAINEL: alguém da empresa gravou na tela.
+// WHATSAPP: o próprio cliente combinou no chat de cobrança.
+enum OrigemPromessa {
+  PAINEL
+  WHATSAPP
+
+  @@map("origem_promessa")
+}
+
 // PENDENTE vale até a data prometida, inclusive.
 // CUMPRIDA: pago no dia prometido ou antes.
 // CUMPRIDA_COM_ATRASO: pago depois do dia prometido (mesmo se já estava QUEBRADA).
@@ -198,7 +207,11 @@ model Empresa {
   segmentos            SegmentoCliente[]
   // Desligado por padrão. Ligado, promessa quebrada nos últimos 12 meses pesa no selo.
   promessasContamNoSelo Boolean        @default(false) @map("promessas_contam_no_selo")
+  // Teto da data que o cliente pode prometer pelo WhatsApp. A tela da empresa não usa este teto.
+  prazoMaximoPromessaDias Int          @default(15) @map("prazo_maximo_promessa_dias")
   promessas            PromessaPagamento[]
+  tokensPromessaWhatsapp TokenPromessaWhatsapp[]
+  conversasPromessaWhatsapp ConversaPromessaWhatsapp[]
   estadosOauth         EstadoOauth[]
   logo                 LogoEmpresa?
   configuracaoPix      ConfiguracaoPixProprio?
@@ -311,6 +324,8 @@ model Cliente {
   respostasWhatsapp RespostaWhatsapp[]
   pedidosAtendimento PedidoAtendimento[]
   promessas          PromessaPagamento[]
+  tokensPromessaWhatsapp TokenPromessaWhatsapp[]
+  conversasPromessaWhatsapp ConversaPromessaWhatsapp[]
 
   @@index([asaasCustomerId])
   @@index([idExterno])
@@ -525,6 +540,8 @@ model Fatura {
   lembretes        LembreteRegua[]
   filaWhatsapp     FilaWhatsapp[]
   promessas        PromessaPagamento[]
+  tokensPromessaWhatsapp TokenPromessaWhatsapp[]
+  conversasPromessaWhatsapp ConversaPromessaWhatsapp[]
   conciliacoes     ConciliacaoPagamento[]
   transacoesOfx    TransacaoOfx[]
 
@@ -968,6 +985,8 @@ model RespostaWhatsapp {
   usuarioId  String?  @map("usuario_id")
   corpo      String   @db.Text
   messageSid String?  @unique @map("message_sid")
+  // EQUIPE: resposta digitada na tela. PROMESSA: o chat de promessa de pagamento.
+  origem     String   @default("EQUIPE")
   criadoEm   DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
   empresa    Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   cliente    Cliente? @relation(fields: [clienteId], references: [id], onDelete: SetNull)
@@ -1087,9 +1106,10 @@ model PromessaPagamento {
   dataPrometida   DateTime                @map("data_prometida") @db.Date
   valorPrometido  Decimal                 @map("valor_prometido") @db.Decimal(12, 2)
   canal           CanalPromessa
+  origem          OrigemPromessa          @default(PAINEL)
   observacao      String?                 @db.Text
   status          StatusPromessaPagamento @default(PENDENTE)
-  registradaPorId String                  @map("registrada_por_id")
+  registradaPorId String?                 @map("registrada_por_id")
   registradaEm    DateTime                @default(now()) @map("registrada_em") @db.Timestamptz(3)
   cumpridaEm      DateTime?               @map("cumprida_em") @db.Date
   quebradaEm      DateTime?               @map("quebrada_em") @db.Date
@@ -1099,7 +1119,7 @@ model PromessaPagamento {
   empresa         Empresa                 @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   fatura          Fatura                  @relation(fields: [faturaId], references: [id], onDelete: Cascade)
   cliente         Cliente                 @relation(fields: [clienteId], references: [id], onDelete: Cascade)
-  registradaPor   Usuario                 @relation(fields: [registradaPorId], references: [id], onDelete: Restrict)
+  registradaPor   Usuario?                @relation(fields: [registradaPorId], references: [id], onDelete: Restrict)
 
   @@index([empresaId])
   @@index([faturaId])
@@ -1108,4 +1128,44 @@ model PromessaPagamento {
   @@index([empresaId, status, dataPrometida])
   @@index([empresaId, clienteId])
   @@map("promessas_pagamento")
+}
+
+// Token opaco do botão de promessa. Não é o id da fatura.
+// Vale enquanto a mensagem antiga ainda pode ser tocada.
+model TokenPromessaWhatsapp {
+  id        String   @id @default(cuid())
+  empresaId String   @map("empresa_id")
+  faturaId  String   @map("fatura_id")
+  clienteId String   @map("cliente_id")
+  token     String   @unique
+  criadoEm  DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
+  expiraEm  DateTime @map("expira_em") @db.Timestamptz(3)
+  empresa   Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  fatura    Fatura   @relation(fields: [faturaId], references: [id], onDelete: Cascade)
+  cliente   Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@index([empresaId, faturaId])
+  @@index([empresaId])
+  @@map("tokens_promessa_whatsapp")
+}
+
+// Conversa curta para escolher a data. Uma por telefone da empresa.
+// Expira sozinha: mensagem antiga não vira promessa.
+model ConversaPromessaWhatsapp {
+  id           String   @id @default(cuid())
+  empresaId    String   @map("empresa_id")
+  faturaId     String   @map("fatura_id")
+  clienteId    String   @map("cliente_id")
+  telefone     String
+  etapa        String
+  tentativas   Int      @default(0)
+  expiraEm     DateTime @map("expira_em") @db.Timestamptz(3)
+  atualizadoEm DateTime @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  empresa      Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  fatura       Fatura   @relation(fields: [faturaId], references: [id], onDelete: Cascade)
+  cliente      Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@unique([empresaId, telefone])
+  @@index([empresaId, faturaId])
+  @@map("conversas_promessa_whatsapp")
 }
