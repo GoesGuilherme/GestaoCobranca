@@ -9,7 +9,9 @@ import { criarClienteTwilioMemoria } from "@/server/twilio/memoria";
 import { REMETENTE_OFICIAL_WHATSAPP } from "@/server/twilio/sandbox";
 import { criarCliente } from "./cliente-service";
 import {
+  abrirConversaMensagens,
   lerFiltroMensagens,
+  listarCaixaMensagens,
   listarConversas,
   listarMensagens,
   obterConversa,
@@ -447,6 +449,81 @@ describe("monitor de mensagens da Twilio", () => {
       responderWhatsapp(autor, { telefone: "5513988881000", texto: "Oi" }, { twilio: semEntrada, agora: AGORA, env: process.env }),
     ).rejects.toThrow(TEXTO_SEM_ENTRADA);
     expect(semEntrada.textos).toHaveLength(0);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("pagina a caixa, separa o SMS e não mistura outra empresa", async () => {
+    const casa = await empresa("Casa Caixa", "200000000011");
+    const vizinha = await empresa("Vizinha Caixa", "200000000012");
+    const autor = acesso(casa.empresa.id, casa.usuario.id);
+    const nomes = [
+      ["Alfa", "13988881101", "300000000011"],
+      ["Beta", "13988881102", "300000000012"],
+      ["Gama", "13988881103", "300000000013"],
+    ] as const;
+    for (const [indice, [nome, whatsapp, raiz]] of nomes.entries()) {
+      const cliente = await pessoa(casa.empresa.id, nome, whatsapp, raiz);
+      const cobranca = await fatura(casa.empresa.id, cliente.id, `Cobrança ${nome}`);
+      await fila({
+        empresaId: casa.empresa.id,
+        faturaId: cobranca.id,
+        clienteId: cliente.id,
+        status: "ENVIADO",
+        destino: `whatsapp:+55${whatsapp}`,
+        messageSid: `SMcaixa${indice}00000000000000000001`,
+        criadoEm: new Date(`2026-11-1${indice}T12:00:00.000Z`),
+        rotulo: `WhatsApp · ${nome}`,
+      });
+    }
+    const smsCliente = await pessoa(casa.empresa.id, "Delta SMS", "13988881104", "300000000014");
+    const smsCobranca = await fatura(casa.empresa.id, smsCliente.id, "Cobrança Delta");
+    await fila({
+      empresaId: casa.empresa.id,
+      faturaId: smsCobranca.id,
+      clienteId: smsCliente.id,
+      status: "ENVIADO",
+      destino: "+5513988881104",
+      messageSid: "SMcaixaSMS000000000000000001",
+      tipo: "VENCEU",
+      rotulo: "SMS de atraso",
+      criadoEm: new Date("2026-11-18T18:00:00.000Z"),
+    });
+    const outro = await pessoa(vizinha.empresa.id, "Omega", "11977771111", "300000000015");
+    const faturaVizinha = await fatura(vizinha.empresa.id, outro.id, "Outra caixa");
+    await fila({
+      empresaId: vizinha.empresa.id,
+      faturaId: faturaVizinha.id,
+      clienteId: outro.id,
+      status: "ENVIADO",
+      destino: "whatsapp:+5511977771111",
+      messageSid: "SMcaixaVizinha00000000000001",
+    });
+
+    const filtro = lerFiltroMensagens({ periodo: "todos" }, "2026-11-18");
+    const primeira = await listarCaixaMensagens(autor, filtro, { limite: 2 });
+    expect(primeira.itens.map((item) => item.nomes)).toEqual(["Delta SMS", "Gama"]);
+    expect(primeira.itens[0]?.canal).toBe("SMS");
+    expect(primeira.proximoCursor).toBeTruthy();
+    expect(primeira.itens.some((item) => item.nomes === "Omega")).toBe(false);
+    const segunda = await listarCaixaMensagens(autor, filtro, { limite: 2, cursor: primeira.proximoCursor });
+    expect(segunda.itens.map((item) => item.nomes)).toEqual(["Beta", "Alfa"]);
+
+    const aberta = await abrirConversaMensagens(autor, "5513988881104", { filtro, limite: 10, marcarLida: false });
+    expect(aberta?.bolhas).toHaveLength(1);
+    expect(aberta?.bolhas[0]).toMatchObject({
+      lado: "empresa",
+      canal: "SMS",
+      ticks: "enviada",
+      cobranca: "Cobrança Delta",
+    });
+    const antiga = await abrirConversaMensagens(autor, "5513988881101", {
+      filtro,
+      limite: 1,
+      marcarLida: false,
+      agora: AGORA,
+    });
+    expect(antiga?.bolhas).toHaveLength(1);
+    expect(antiga?.proximoCursor).toBeNull();
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 });
