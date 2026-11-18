@@ -209,6 +209,8 @@ model Empresa {
   promessasContamNoSelo Boolean        @default(false) @map("promessas_contam_no_selo")
   // Teto da data que o cliente pode prometer pelo WhatsApp. A tela da empresa não usa este teto.
   prazoMaximoPromessaDias Int          @default(15) @map("prazo_maximo_promessa_dias")
+  // Ligado, a cobrança pode sair com o botão de promessa quando o modelo aprovado tem esse botão.
+  promessaWhatsapp     Boolean         @default(true) @map("promessa_whatsapp")
   promessas            PromessaPagamento[]
   tokensPromessaWhatsapp TokenPromessaWhatsapp[]
   conversasPromessaWhatsapp ConversaPromessaWhatsapp[]
@@ -869,6 +871,8 @@ model NumeroTwilioEmpresa {
 // Template da empresa, um de cada tipo. O envio pela subconta só usa status
 // APROVADO. VENCE_HOJE vale no passo com dias = 0 quando esse modelo está
 // aprovado. Sem ele, o passo continua em VENCE_EM_DIAS.
+// temBotao diz se o Content aprovado tem o quick reply de promessa.
+// corpoEnviado é o texto com {nome} que foi submetido; o rascunho fica em corpo.
 model TemplateWhatsapp {
   id          String   @id @default(cuid())
   empresaId   String   @map("empresa_id")
@@ -879,6 +883,8 @@ model TemplateWhatsapp {
   categoria   String   @default("UTILITY")
   status      String   @default("RASCUNHO")
   corpo       String   @db.Text
+  corpoEnviado String? @map("corpo_enviado") @db.Text
+  temBotao    Boolean  @default(false) @map("tem_botao")
   motivo      String?  @db.Text
   criadoEm    DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
   atualizadoEm DateTime @updatedAt @map("atualizado_em") @db.Timestamptz(3)

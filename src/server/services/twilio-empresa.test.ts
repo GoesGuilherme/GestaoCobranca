@@ -23,6 +23,7 @@ import {
   obterPainelTelefones,
   removerNumeroTwilio,
   atualizarStatusTemplatesWhatsapp,
+  enviarTemplateParaAprovacao,
   salvarTemplatesWhatsapp,
   vincularSubcontaExistente,
 } from "./twilio-empresa-service";
@@ -50,6 +51,10 @@ beforeEach(async () => {
   delete process.env.TWILIO_WHATSAPP_SENDER_OFICIAL;
   delete process.env.TWILIO_WHATSAPP_OFICIAL_DESDE;
   delete process.env.TWILIO_CONTENT_SID_VENCE_EM_DIAS;
+  delete process.env.TWILIO_CONTENT_SID_VENCE_EM_DIAS_V3;
+  delete process.env.TWILIO_CONTENT_SID_VENCE_HOJE;
+  delete process.env.TWILIO_CONTENT_SID_BOLETO_GERADO_V3;
+  delete process.env.TWILIO_CONTENT_SID_VENCEU_V3;
   empresaId = (await criarEmpresaDeTeste({ nomeFantasia: "Empresa Telefone", cnpj: completarCnpj("593000000001") })).id;
   outraId = (await criarEmpresaDeTeste({ nomeFantasia: "Outra Telefone", cnpj: completarCnpj("593000000002") })).id;
 });
@@ -59,6 +64,10 @@ afterEach(() => {
   delete process.env.TWILIO_WHATSAPP_SENDER_OFICIAL;
   delete process.env.TWILIO_WHATSAPP_OFICIAL_DESDE;
   delete process.env.TWILIO_CONTENT_SID_VENCE_EM_DIAS;
+  delete process.env.TWILIO_CONTENT_SID_VENCE_EM_DIAS_V3;
+  delete process.env.TWILIO_CONTENT_SID_VENCE_HOJE;
+  delete process.env.TWILIO_CONTENT_SID_BOLETO_GERADO_V3;
+  delete process.env.TWILIO_CONTENT_SID_VENCEU_V3;
 });
 
 function acesso(id: string, papel: Acesso["papel"] = "DONO"): Acesso {
@@ -548,7 +557,7 @@ describe("subconta e números da empresa", () => {
     expect(salvo.templates.find((item) => item.tipo === "BOLETO_GERADO")).toMatchObject({
       contentSid: pendente,
       status: "ENVIADO_APROVACAO",
-      statusRotulo: "Em aprovação",
+      statusRotulo: "Em análise",
       motivo: null,
     });
     expect(salvo.templates.find((item) => item.tipo === "VENCEU")).toMatchObject({
@@ -794,5 +803,161 @@ describe("subconta e números da empresa", () => {
       new NextRequest("http://127.0.0.1/whatsapp", { headers: { cookie: `${COOKIE_SESSAO}=${dono}` } }),
     );
     expect(liberado.status).toBe(200);
+  });
+
+  it("envia o modelo com botão para a subconta e não manda mensagem", async () => {
+    const env = {
+      ...process.env,
+      TWILIO_ACCOUNT_SID: PAI,
+      TWILIO_AUTH_TOKEN: "token-pai-de-teste-0001",
+      TWILIO_WEBHOOK_URL: "https://taguaro.test/api/webhooks/twilio",
+    };
+    const { corpoPadraoEditavel } = await import("@/lib/template-whatsapp-editor");
+    await expect(
+      enviarTemplateParaAprovacao(acesso(empresaId), {
+        tipo: "BOLETO_GERADO",
+        corpo: corpoPadraoEditavel("BOLETO_GERADO", "Empresa Telefone", true),
+      }),
+    ).rejects.toMatchObject({ codigo: "twilio_sem_subconta" });
+
+    await vincularSubcontaExistente(acesso(empresaId), { subaccountSid: SID_SUB }, { twilio: twilioQueConta([]), env });
+    const twilio = criarClienteTwilioMemoria();
+    const painel = await enviarTemplateParaAprovacao(
+      acesso(empresaId),
+      { tipo: "BOLETO_GERADO", corpo: corpoPadraoEditavel("BOLETO_GERADO", "Empresa Telefone", true) },
+      { twilio, env },
+    );
+    expect(twilio.enviados).toHaveLength(0);
+    expect(twilio.textos).toHaveLength(0);
+    expect(twilio.publicados[0]?.botoes).toEqual([{ title: "Registrar promessa", id: "{{5}}" }]);
+    expect(twilio.publicados[0]?.corpo).toContain("Empresa Telefone");
+    expect(twilio.publicados[0]?.corpo).not.toContain("Asaas");
+    expect(painel.templates.find((item) => item.tipo === "BOLETO_GERADO")).toMatchObject({
+      status: "APROVADO",
+      temBotao: true,
+    });
+    const pago = await enviarTemplateParaAprovacao(
+      acesso(empresaId),
+      { tipo: "PAGO", corpo: corpoPadraoEditavel("PAGO", "Empresa Telefone", false) },
+      { twilio, env },
+    );
+    expect(twilio.publicados.at(-1)?.botoes).toBeUndefined();
+    expect(pago.templates.find((item) => item.tipo === "PAGO")?.temBotao).toBe(false);
+    await expect(
+      enviarTemplateParaAprovacao(
+        acesso(empresaId),
+        { tipo: "BOLETO_GERADO", corpo: "{nome} seu boleto {link} fim" },
+        { twilio, env },
+      ),
+    ).rejects.toMatchObject({ codigo: "template_invalido" });
+    await expect(
+      enviarTemplateParaAprovacao(acesso(empresaId, "FINANCEIRO"), {
+        tipo: "PAGO",
+        corpo: corpoPadraoEditavel("PAGO", "Empresa Telefone", false),
+      }),
+    ).rejects.toMatchObject({ status: 403 });
+  });
+
+  it("manda o token só quando o modelo aprovado tem botão e cai no modelo sem botão sem ele", async () => {
+    const { tokenPromessaValido } = await import("@/lib/whatsapp-promessa");
+    process.env.TWILIO_WHATSAPP_SENDER_OFICIAL = "true";
+    process.env.TWILIO_WHATSAPP_OFICIAL_DESDE = "2026-01-01T00:00:00.000Z";
+    const sidV2 = `HX${"a".repeat(32)}`;
+    const sidV3 = `HX${"b".repeat(32)}`;
+    process.env.TWILIO_CONTENT_SID_VENCE_EM_DIAS = sidV2;
+    process.env.TWILIO_CONTENT_SID_VENCE_EM_DIAS_V3 = sidV3;
+    const cliente = await criarCliente(empresaId, {
+      nomeFantasia: "Cliente da Régua",
+      razaoSocial: "Cliente da Régua Ltda",
+      documento: completarCnpj("593000000009"),
+      segmento: "RESTAURANTE",
+      contatoNome: "Ana Exemplo",
+      whatsapp: "13988881001",
+      email: "cliente.botao@exemplo.test",
+      cidade: "Santos",
+      uf: "SP",
+      status: "ATIVO",
+    });
+    const fatura = await prisma.fatura.create({
+      data: {
+        empresaId,
+        clienteId: cliente.id,
+        asaasPaymentId: `pay_${randomBytes(4).toString("hex")}`,
+        valor: "150.00",
+        vencimento: new Date("2026-10-26T00:00:00.000Z"),
+        status: "PENDING",
+        formaCobranca: "BOLETO",
+        boletoUrl: "https://www.asaas.com/i/exemplo-boleto",
+        descricao: "Serviço exemplo",
+        criadoEm: new Date("2026-10-26T15:00:00.000Z"),
+      },
+    });
+    const variaveis = {
+      "1": "Cliente da Régua",
+      "2": "R$ 150,00",
+      "3": "5",
+      "4": "26/10/2026",
+      "5": "https://www.asaas.com/i/exemplo-boleto",
+    };
+    async function enfileirar(chave: string) {
+      await prisma.filaWhatsapp.create({
+        data: {
+          empresaId,
+          faturaId: fatura.id,
+          clienteId: cliente.id,
+          tipo: "VENCE_EM_DIAS",
+          chaveIdempotencia: chave,
+          status: "PENDENTE",
+          destino: "whatsapp:+5513988881001",
+          modoTeste: false,
+          rotulo: "vence",
+          variaveis: JSON.stringify(variaveis),
+          disponivelEm: new Date("2026-10-26T15:00:00.000Z"),
+        },
+      });
+    }
+    await enfileirar("wa:botao:v3");
+    const comBotao = criarClienteTwilioMemoria();
+    const agora = new Date("2026-10-26T16:00:00.000Z");
+    expect((await processarFilaWhatsapp({ agora, empresaId, twilio: comBotao, conciliar: false })).enviados).toBe(1);
+    expect(comBotao.enviados[0]?.contentSid).toBe(sidV3);
+    expect(tokenPromessaValido(comBotao.enviados[0]?.variaveis["6"] ?? "")).toBe(true);
+    expect(comBotao.enviados[0]?.variaveis["6"]).not.toContain(fatura.id);
+
+    delete process.env.TWILIO_CONTENT_SID_VENCE_EM_DIAS_V3;
+    await enfileirar("wa:botao:v2");
+    const semBotao = criarClienteTwilioMemoria();
+    expect((await processarFilaWhatsapp({ agora, empresaId, twilio: semBotao, conciliar: false })).enviados).toBe(1);
+    expect(semBotao.enviados[0]?.contentSid).toBe(sidV2);
+    expect(semBotao.enviados[0]?.variaveis).toEqual(variaveis);
+
+    const env = {
+      ...process.env,
+      TWILIO_ACCOUNT_SID: PAI,
+      TWILIO_AUTH_TOKEN: "token-pai-de-teste-0001",
+      TWILIO_WEBHOOK_URL: "https://taguaro.test/api/webhooks/twilio",
+    };
+    await vincularSubcontaExistente(acesso(empresaId), { subaccountSid: SID_SUB }, { twilio: twilioQueConta([]), env });
+    const numero = await cadastrarNumeroTwilio(acesso(empresaId), { telefone: "+5511911112222", canal: "WHATSAPP" });
+    await atualizarNumeroTwilio(acesso(empresaId), numero.numeros[0]?.id ?? "", { status: "ATIVO" });
+    const sidEmpresa = `HX${"c".repeat(32)}`;
+    await prisma.templateWhatsapp.create({
+      data: {
+        empresaId,
+        tipo: "VENCE_EM_DIAS",
+        contentSid: sidEmpresa,
+        nome: "emp_vence_em_dias",
+        corpo: "Olá, {nome}.",
+        corpoEnviado: null,
+        status: "APROVADO",
+        temBotao: true,
+      },
+    });
+    await enfileirar("wa:botao:empresa");
+    const daEmpresa = criarClienteTwilioMemoria();
+    expect((await processarFilaWhatsapp({ agora, empresaId, twilio: daEmpresa, conciliar: false })).enviados).toBe(1);
+    expect(daEmpresa.enviados[0]?.contentSid).toBe(sidEmpresa);
+    expect(tokenPromessaValido(daEmpresa.enviados[0]?.variaveis["6"] ?? "")).toBe(true);
+    expect(daEmpresa.enviados[0]?.de).toBe("whatsapp:+5511911112222");
   });
 });

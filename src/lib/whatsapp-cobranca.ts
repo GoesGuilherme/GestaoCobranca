@@ -243,26 +243,78 @@ export function contentSidValido(valor: string | null | undefined): string | nul
 }
 
 const LINK_TEMPLATE = /^https?:\/\/\S+$/i;
+const TOKEN_EXTRA = /^pp1_[A-Za-z0-9_-]{43}$/;
 
 function linkDeTemplate(valor: string | undefined): boolean {
   const link = valor ?? "";
   return LINK_TEMPLATE.test(link) && link.length <= 500;
 }
 
+function tokenExtra(valor: string | undefined): boolean {
+  return TOKEN_EXTRA.test(valor ?? "");
+}
+
 // O corpo aprovado na Meta exige este contrato. Um payload antigo de
 // VENCE_EM_DIAS punha o link em {{4}} e os dias em {{5}}; isso não pode sair.
+// O modelo com botão acrescenta o token opaco: {{6}} em VENCE_EM_DIAS e {{5}}
+// nos outros avisos, menos em PAGO.
 export function variaveisCompativeisComTemplate(tipo: string, variaveis: Record<string, string>): boolean {
   if (!TIPOS_TEMPLATE_WHATSAPP.includes(tipo as TipoTemplateWhatsapp)) return false;
   const chaves = Object.keys(variaveis).sort().join(",");
   if (tipo === "VENCE_EM_DIAS") {
-    if (chaves !== "1,2,3,4,5") return false;
+    const comBotao = chaves === "1,2,3,4,5,6";
+    if (chaves !== "1,2,3,4,5" && !comBotao) return false;
+    if (comBotao && !tokenExtra(variaveis["6"])) return false;
     if (!/^\d{1,3}$/.test(variaveis["3"] ?? "")) return false;
     if (!variaveis["1"] || !variaveis["2"] || !variaveis["4"]) return false;
     if (linkDeTemplate(variaveis["4"])) return false;
     return linkDeTemplate(variaveis["5"]);
   }
-  if (chaves !== "1,2,3,4") return false;
+  if (tipo === "PAGO") {
+    if (chaves !== "1,2,3,4") return false;
+  } else if (chaves !== "1,2,3,4" && chaves !== "1,2,3,4,5") {
+    return false;
+  } else if (chaves === "1,2,3,4,5" && !tokenExtra(variaveis["5"])) {
+    return false;
+  }
   if (!variaveis["1"] || !variaveis["2"] || !variaveis["3"]) return false;
   if (linkDeTemplate(variaveis["3"])) return false;
   return linkDeTemplate(variaveis["4"]);
+}
+
+export function acrescentarTokenPadrao(
+  tipo: string,
+  variaveis: Record<string, string>,
+  token: string,
+): Record<string, string> | null {
+  if (tipo === "PAGO" || !tokenExtra(token)) return null;
+  if (tipo === "VENCE_EM_DIAS") {
+    if (variaveis["6"]) return null;
+    return { ...variaveis, "6": token };
+  }
+  if (variaveis["5"]) return null;
+  return { ...variaveis, "5": token };
+}
+
+export function dadosDasVariaveisGravadas(
+  tipo: string,
+  variaveis: Record<string, string>,
+): { nome: string; valor: string; vencimento: string; link: string; dias?: string } | null {
+  if (tipo === "VENCE_EM_DIAS") {
+    return {
+      nome: variaveis["1"] ?? "",
+      valor: variaveis["2"] ?? "",
+      dias: variaveis["3"] ?? "",
+      vencimento: variaveis["4"] ?? "",
+      link: variaveis["5"] ?? "",
+    };
+  }
+  if (!variaveis["1"] || !variaveis["4"]) return null;
+  return {
+    nome: variaveis["1"],
+    valor: variaveis["2"] ?? "",
+    vencimento: variaveis["3"] ?? "",
+    link: variaveis["4"],
+    dias: "0",
+  };
 }

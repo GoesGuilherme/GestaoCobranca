@@ -38,7 +38,7 @@ export function rotuloTipoTemplateWhatsapp(tipo: string): string {
 
 export function rotuloStatusTemplateWhatsapp(status: string | null): string {
   if (status === "APROVADO") return "Aprovado";
-  if (status === "ENVIADO_APROVACAO") return "Em aprovação";
+  if (status === "ENVIADO_APROVACAO") return "Em análise";
   if (status === "REJEITADO") return "Rejeitado";
   if (status === "FALHOU") return "Falhou";
   if (status === "RASCUNHO") return "Rascunho";

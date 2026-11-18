@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { enviarJson } from "@/lib/api-cliente";
 import type { PainelTelefonesDTO, NumeroTwilioDTO } from "@/lib/tipos";
 import { NOTA_MODO_TESTE_WHATSAPP } from "@/lib/whatsapp-canal";
+import { FormularioModelosWhatsapp } from "./formulario-modelos-whatsapp";
 import { classeBotaoPerigo, classeBotaoPrimario, classeBotaoSecundario, classeCampo } from "./estilos";
 import { avisarErro, avisarSucesso } from "./notificador";
 
@@ -231,6 +232,8 @@ export function PainelTelefones({
           </form>
         )}
       </section>
+
+      <FormularioModelosWhatsapp inicial={inicial} />
 
       <form onSubmit={salvarModelos} className="max-w-2xl space-y-4 rounded-3xl border border-line bg-card p-6">
         <h2 className="font-display text-2xl">Modelos de WhatsApp</h2>

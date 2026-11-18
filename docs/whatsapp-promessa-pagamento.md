@@ -1,12 +1,12 @@
 # Promessa de pagamento no WhatsApp
 
-Estes modelos são uma proposta. Eles não foram enviados à Twilio nem à Meta, e nenhuma mensagem saiu daqui.
+Os textos `taguaro_*_v3` da conta pai continuam fora da publicação automática. O dono grava o ContentSid deles nas variáveis de ambiente depois que a Meta aprovar. Cada empresa, na tela de WhatsApp, edita o próprio texto e envia o modelo da subconta para aprovação. Isso não manda mensagem ao cliente. Enquanto o modelo com botão não está aprovado, a cobrança segue no modelo sem botão.
 
 O botão pedido é **Quero registrar uma promessa de pagamento** (43 caracteres). A Meta limita o título de um quick reply a 20 caracteres, então o título pronto para submissão é **Registrar promessa** (19). A frase completa fica no corpo. O link da cobrança continua no texto, ao lado do botão. O payload do botão é a variável do token opaco (`pp1_` + 43 caracteres). Esse token não é o id da fatura.
 
 O aviso de pagamento (`PAGO`) não leva o botão: a cobrança já foi paga.
 
-Nada disso entra na publicação automática. Os modelos em uso continuam `taguaro_*_v2` e `taguaro_vence_hoje`.
+A publicação automática da conta antiga continua nos modelos sem botão (`taguaro_*_v2`). O `taguaro_vence_hoje` da subconta também continua sem botão até a empresa enviar o texto novo.
 
 ## taguaro_boleto_gerado_v3
 

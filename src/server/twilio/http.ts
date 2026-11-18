@@ -83,7 +83,9 @@ function conteudoComAprovacao(item: unknown, accountSid: string): ConteudoComApr
   const motivoBruto = typeof fonte.rejection_reason === "string" ? fonte.rejection_reason.trim() : "";
   const categoria = typeof fonte.category === "string" && fonte.category.trim() ? fonte.category : "UTILITY";
   const nome = typeof bloco.friendly_name === "string" ? bloco.friendly_name : "";
-  return { sid, aprovacao, motivo: motivoBruto || null, categoria, nome };
+  const types = bloco.types && typeof bloco.types === "object" ? (bloco.types as Record<string, unknown>) : null;
+  const temBotao = types ? Object.prototype.hasOwnProperty.call(types, "twilio/quick-reply") : undefined;
+  return { sid, aprovacao, motivo: motivoBruto || null, categoria, nome, ...(temBotao === undefined ? {} : { temBotao }) };
 }
 
 function senderDe(corpo: Record<string, unknown>, accountTypeAceito: boolean, pedirCoexistencia: boolean): SenderTwilio {
@@ -231,6 +233,16 @@ export function criarClienteTwilioHttp(
       return senderDe(json, true, true);
     },
     async publicarTemplate(conta, template) {
+      const texto = { "twilio/text": { body: template.corpo } };
+      const types = template.botoes?.length
+        ? {
+            ...texto,
+            "twilio/quick-reply": {
+              body: template.corpo,
+              actions: template.botoes.map((botao) => ({ title: botao.title, id: botao.id })),
+            },
+          }
+        : texto;
       const criado = await pedir(
         conta,
         URL_CONTENT,
@@ -239,7 +251,7 @@ export function criarClienteTwilioHttp(
           friendly_name: template.nome,
           language: template.idioma,
           variables: template.variaveisExemplo,
-          types: { "twilio/text": { body: template.corpo } },
+          types,
         }),
         "application/json",
       );

@@ -173,6 +173,11 @@ describe("templates de cobrança", () => {
       }),
     ).toBe(false);
     expect(boleto && variaveisCompativeisComTemplate("VENCE_EM_DIAS", boleto)).toBe(false);
+    const token = `pp1_${"B".repeat(43)}`;
+    expect(boleto && variaveisCompativeisComTemplate("BOLETO_GERADO", { ...boleto, "5": token })).toBe(true);
+    expect(boleto && variaveisCompativeisComTemplate("PAGO", { ...boleto, "5": token })).toBe(false);
+    expect(vence && variaveisCompativeisComTemplate("VENCE_EM_DIAS", { ...vence, "6": token })).toBe(true);
+    expect(vence && variaveisCompativeisComTemplate("VENCE_EM_DIAS", { ...vence, "6": "token-curto" })).toBe(false);
   });
 
   it("normaliza o telefone e lê o opt-out", () => {

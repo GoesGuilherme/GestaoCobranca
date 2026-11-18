@@ -74,7 +74,22 @@ describe("cliente HTTP da Twilio", () => {
     });
     expect(template.sid.startsWith("HX")).toBe(true);
     expect(chamadas.some((item) => item.body.includes('"category":"UTILITY"'))).toBe(true);
+    expect(chamadas.some((item) => item.body.includes("twilio/quick-reply"))).toBe(false);
     expect(chamadas.some((item) => item.url.includes("graph.facebook.com"))).toBe(false);
+
+    await cliente.publicarTemplate(CONTA, {
+      nome: "emp_boleto_gerado_teste",
+      idioma: "pt_BR",
+      corpo: "Olá, {{1}}. Acesse sua fatura: {{2}}. Para registrar uma promessa de pagamento, toque no botão. Qualquer dúvida, responda esta mensagem.",
+      variaveisExemplo: { "1": "Ana", "2": "https://www.asaas.com/i/exemplo", "3": "pp1_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ" },
+      categoria: "UTILITY",
+      botoes: [{ title: "Registrar promessa", id: "{{3}}" }],
+    });
+    const comBotao = chamadas.find((item) => item.body.includes("twilio/quick-reply"));
+    expect(comBotao?.body).toContain("Registrar promessa");
+    expect(comBotao?.body).toContain("{{3}}");
+    expect(comBotao?.url.includes("graph.facebook.com")).toBe(false);
+    expect(comBotao?.url.endsWith("/Messages.json")).toBe(false);
   });
 
   it("envia texto de sessão pela API oficial da Twilio, sem chamar a Meta", async () => {
