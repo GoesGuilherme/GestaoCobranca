@@ -109,7 +109,7 @@ export function PainelFaturasCliente({
   const link = emitida ? (emitida.boletoUrl ?? emitida.faturaUrl) : null;
 
   return (
-    <section className="mt-8">
+    <section id="faturas" className="mt-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-display text-3xl">Faturas</h2>
         {podeCancelar ? (
