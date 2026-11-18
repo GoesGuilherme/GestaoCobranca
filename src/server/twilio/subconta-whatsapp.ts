@@ -2,6 +2,7 @@ import { contentSidValido, resolverWhatsappDoPasso, TIPOS_TEMPLATE_WHATSAPP, typ
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db";
 import type { CredencialTwilio } from "@/server/twilio/contrato";
+import { contentSidBotaoContaPai } from "@/server/twilio/sandbox";
 import { remetenteDaEmpresa, type DbRemetente } from "@/server/twilio/remetente";
 
 type DbModelo = DbRemetente & Pick<Prisma.TransactionClient, "templateWhatsapp">;
@@ -13,6 +14,8 @@ export type DecisaoSubcontaWhatsapp =
       conta: CredencialTwilio;
       de: string;
       contentSid: string;
+      temBotao: boolean;
+      corpoEnviado: string | null;
       statusCallback: string;
     }
   | { usar: false; motivo: string | null };
@@ -21,13 +24,24 @@ function tipoConhecido(tipo: string): tipo is TipoTemplateWhatsapp {
   return TIPOS_TEMPLATE_WHATSAPP.includes(tipo as TipoTemplateWhatsapp);
 }
 
-async function sidAprovado(empresaId: string, tipo: string, db: DbModelo): Promise<string | null> {
+async function modeloAprovado(empresaId: string, tipo: string, db: DbModelo) {
   if (!tipoConhecido(tipo)) return null;
   const linha = await db.templateWhatsapp.findUnique({
     where: { empresaId_tipo: { empresaId, tipo } },
   });
   if (!linha || linha.status !== "APROVADO") return null;
-  return contentSidValido(linha.contentSid);
+  const contentSid = contentSidValido(linha.contentSid);
+  if (!contentSid) return null;
+  return {
+    contentSid,
+    temBotao: tipo !== "PAGO" && linha.temBotao,
+    corpoEnviado: linha.corpoEnviado,
+  };
+}
+
+async function sidAprovado(empresaId: string, tipo: string, db: DbModelo): Promise<string | null> {
+  const modelo = await modeloAprovado(empresaId, tipo, db);
+  return modelo?.contentSid ?? null;
 }
 
 // Subconta configurada, número padrão ativo e modelo aprovado deste tipo.
@@ -60,14 +74,16 @@ export async function decidirSubcontaWhatsapp(
 ): Promise<DecisaoSubcontaWhatsapp> {
   const remetente = await remetenteDaEmpresa(empresaId, "WHATSAPP", env, db);
   if (!remetente) return { usar: false, motivo: null };
-  const contentSid = await sidAprovado(empresaId, tipo, db);
-  if (!contentSid) return { usar: false, motivo: motivoSemModeloAprovado(tipo) };
+  const modelo = await modeloAprovado(empresaId, tipo, db);
+  if (!modelo) return { usar: false, motivo: motivoSemModeloAprovado(tipo) };
   return {
     usar: true,
     motivo: null,
     conta: remetente.conta,
     de: remetente.de,
-    contentSid,
+    contentSid: modelo.contentSid,
+    temBotao: modelo.temBotao,
+    corpoEnviado: modelo.corpoEnviado,
     statusCallback: remetente.statusCallback,
   };
 }
@@ -86,6 +102,8 @@ export async function tipoWhatsappDoPasso(
   if (!resolvido) return null;
   if (passo.naEmissao || passo.dias !== 0 || resolvido.tipo !== "VENCE_EM_DIAS") return resolvido;
   const contentSid = await contentSidAprovadoDaEmpresa(empresaId, "VENCE_HOJE", env, db);
-  if (!contentSid) return resolvido;
-  return { tipo: "VENCE_HOJE", dias: 0 };
+  if (contentSid) return { tipo: "VENCE_HOJE", dias: 0 };
+  // Sem subconta, o modelo da conta pai vale quando o dono já gravou o ContentSid.
+  if (contentSidBotaoContaPai("VENCE_HOJE", env)) return { tipo: "VENCE_HOJE", dias: 0 };
+  return resolvido;
 }

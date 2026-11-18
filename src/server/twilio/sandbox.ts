@@ -11,12 +11,27 @@ export const REMETENTE_OFICIAL_WHATSAPP = "whatsapp:+16504762069";
 
 type AmbienteSandbox = Record<string, string | undefined>;
 
-// VENCE_HOJE não tem ContentSid na conta pai. Ele só existe na subconta.
+// Modelos sem botão, já usados pela conta pai. O envio cai neles quando o
+// modelo com botão não está configurado ou ainda não foi aprovado.
 const CHAVE_CONTENT_SID: Record<Exclude<TipoTemplateWhatsapp, "VENCE_HOJE">, string> = {
   BOLETO_GERADO: "TWILIO_CONTENT_SID_BOLETO_GERADO",
   VENCE_EM_DIAS: "TWILIO_CONTENT_SID_VENCE_EM_DIAS",
   VENCEU: "TWILIO_CONTENT_SID_VENCEU",
   PAGO: "TWILIO_CONTENT_SID_PAGO",
+};
+
+// VENCE_HOJE na conta pai é o modelo com botão. Não entra na checagem de
+// "templates prontos": sem essa variável o passo segue em VENCE_EM_DIAS.
+const CHAVE_CONTENT_SID_EXTRA: Partial<Record<TipoTemplateWhatsapp, string>> = {
+  VENCE_HOJE: "TWILIO_CONTENT_SID_VENCE_HOJE",
+};
+
+// Modelos com o botão "Registrar promessa". Vazios, o envio usa o modelo sem botão.
+const CHAVE_CONTENT_SID_BOTAO: Partial<Record<TipoTemplateWhatsapp, string>> = {
+  BOLETO_GERADO: "TWILIO_CONTENT_SID_BOLETO_GERADO_V3",
+  VENCE_EM_DIAS: "TWILIO_CONTENT_SID_VENCE_EM_DIAS_V3",
+  VENCE_HOJE: "TWILIO_CONTENT_SID_VENCE_HOJE",
+  VENCEU: "TWILIO_CONTENT_SID_VENCEU_V3",
 };
 
 function ligadoPelaFlag(valor: string | undefined) {
@@ -93,9 +108,22 @@ export function sinaisCanalWhatsapp(env: AmbienteSandbox = process.env) {
   };
 }
 
+function chaveDoTipo(mapa: Partial<Record<TipoTemplateWhatsapp, string>>, tipo: string): string | null {
+  if (!Object.prototype.hasOwnProperty.call(mapa, tipo)) return null;
+  return mapa[tipo as TipoTemplateWhatsapp] ?? null;
+}
+
 // ContentSid criado na conta pai. O da subconta não serve no sandbox.
 export function contentSidSandbox(tipo: string, env: AmbienteSandbox = process.env): string | null {
-  if (!Object.prototype.hasOwnProperty.call(CHAVE_CONTENT_SID, tipo)) return null;
-  const chave = CHAVE_CONTENT_SID[tipo as Exclude<TipoTemplateWhatsapp, "VENCE_HOJE">];
+  const chave = chaveDoTipo(CHAVE_CONTENT_SID, tipo) ?? chaveDoTipo(CHAVE_CONTENT_SID_EXTRA, tipo);
+  if (!chave) return null;
+  return contentSidValido(env[chave]);
+}
+
+// ContentSid do modelo com botão na conta pai. PAGO não tem.
+export function contentSidBotaoContaPai(tipo: string, env: AmbienteSandbox = process.env): string | null {
+  if (tipo === "PAGO") return null;
+  const chave = chaveDoTipo(CHAVE_CONTENT_SID_BOTAO, tipo);
+  if (!chave) return null;
   return contentSidValido(env[chave]);
 }

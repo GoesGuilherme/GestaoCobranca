@@ -13,13 +13,21 @@ import {
   type StatusNumeroTwilio,
 } from "@/lib/twilio-empresa";
 import type { NumeroTwilioDTO, PainelTelefonesDTO, TemplateTelefoneDTO } from "@/lib/tipos";
-import { esquemaNumeroTwilio, esquemaStatusNumeroTwilio, esquemaSubcontaExistente, esquemaTemplatesWhatsappEmpresa } from "@/lib/validacao";
+import {
+  corpoPadraoEditavel,
+  corpoTemChip,
+  nomeNovoTemplate,
+  prepararCorpoParaEnvio,
+  validarCorpoTemplate,
+} from "@/lib/template-whatsapp-editor";
+import { esquemaCorpoTemplateWhatsapp, esquemaNumeroTwilio, esquemaPromessaWhatsapp, esquemaStatusNumeroTwilio, esquemaSubcontaExistente, esquemaTemplatesWhatsappEmpresa } from "@/lib/validacao";
 import { contentSidValido, templateCobrancaWhatsapp, TIPOS_TEMPLATE_WHATSAPP, type TipoTemplateWhatsapp } from "@/lib/whatsapp-cobranca";
+import { EXEMPLO_TOKEN_PROMESSA, TITULO_BOTAO_PROMESSA } from "@/lib/whatsapp-promessa";
 import type { Acesso } from "@/server/auth/acesso";
 import { exigirDono } from "@/server/auth/acesso";
 import { prisma } from "@/server/db";
 import { ErroAplicacao } from "@/server/erros";
-import { statusAprovacao, type ClienteTwilio, type ConteudoComAprovacao, type CredencialTwilio } from "@/server/twilio/contrato";
+import { ErroTwilio, statusAprovacao, type ClienteTwilio, type ConteudoComAprovacao, type CredencialTwilio } from "@/server/twilio/contrato";
 import { clienteTwilioPadrao, credenciaisPaiTwilio } from "@/server/twilio/fabrica";
 import { remetenteDaEmpresa } from "@/server/twilio/remetente";
 import { lerEsquema } from "@/server/validar";
@@ -36,11 +44,15 @@ type LinhaNumero = {
 };
 
 function templatesDoPainel(
-  linhas: { tipo: string; contentSid: string | null; status: string; motivo?: string | null }[],
+  linhas: { tipo: string; contentSid: string | null; status: string; motivo?: string | null; corpo?: string; temBotao?: boolean }[],
+  marca: string,
+  promessaWhatsapp: boolean,
 ): TemplateTelefoneDTO[] {
   return TIPOS_TEMPLATE_WHATSAPP.map((tipo) => {
     const linha = linhas.find((item) => item.tipo === tipo);
     const status = linha?.status ?? "";
+    const comBotao = promessaWhatsapp && tipo !== "PAGO";
+    const corpo = linha?.corpo && corpoTemChip(linha.corpo) ? linha.corpo : corpoPadraoEditavel(tipo, marca, comBotao);
     return {
       tipo,
       rotulo: rotuloTipoTemplateWhatsapp(tipo),
@@ -48,6 +60,8 @@ function templatesDoPainel(
       status,
       statusRotulo: rotuloStatusTemplateWhatsapp(status || null),
       motivo: linha?.motivo ?? null,
+      corpo,
+      temBotao: Boolean(linha?.temBotao),
     };
   });
 }
@@ -80,7 +94,7 @@ export async function obterPainelTelefones(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<PainelTelefonesDTO> {
   exigirDono(acesso);
-  const [subconta, numeros, modelos, whatsapp, sms] = await Promise.all([
+  const [subconta, numeros, modelos, whatsapp, sms, empresa, conexaoAntiga] = await Promise.all([
     prisma.subcontaTwilio.findUnique({ where: { empresaId: acesso.empresaId } }),
     prisma.numeroTwilioEmpresa.findMany({
       where: { empresaId: acesso.empresaId },
@@ -88,10 +102,18 @@ export async function obterPainelTelefones(
     }),
     prisma.templateWhatsapp.findMany({
       where: { empresaId: acesso.empresaId },
-      select: { tipo: true, contentSid: true, status: true, motivo: true },
+      select: { tipo: true, contentSid: true, status: true, motivo: true, corpo: true, temBotao: true },
     }),
     remetenteDaEmpresa(acesso.empresaId, "WHATSAPP", env),
     remetenteDaEmpresa(acesso.empresaId, "SMS", env),
+    prisma.empresa.findUnique({
+      where: { id: acesso.empresaId },
+      select: { nomeFantasia: true, promessaWhatsapp: true },
+    }),
+    prisma.configuracaoTwilio.findUnique({
+      where: { empresaId: acesso.empresaId },
+      select: { id: true },
+    }),
   ]);
   const legivel = subconta ? await credencialLegivel(subconta.credencialCifrada) : false;
   return {
@@ -106,9 +128,12 @@ export async function obterPainelTelefones(
       : null,
     criacaoHabilitada: criacaoSubcontaHabilitada(env),
     numeros: numeros.map(numeroDe),
-    templates: templatesDoPainel(modelos),
+    templates: templatesDoPainel(modelos, empresa?.nomeFantasia ?? "sua empresa", empresa?.promessaWhatsapp !== false),
     envioWhatsapp: whatsapp ? "empresa" : "global",
     envioSms: sms ? "empresa" : "global",
+    promessaWhatsapp: empresa?.promessaWhatsapp !== false,
+    marca: empresa?.nomeFantasia ?? "sua empresa",
+    podeEnviarModelo: Boolean(subconta || conexaoAntiga),
   };
 }
 
@@ -365,6 +390,7 @@ function dadosDoModelo(tipo: TipoTemplateWhatsapp, contentSid: string, encontrad
     categoria: "UTILITY",
     status,
     corpo: modelo.corpo,
+    temBotao: tipo !== "PAGO" && encontrado.temBotao === true,
     motivo,
   };
 }
@@ -459,8 +485,149 @@ export async function atualizarStatusTemplatesWhatsapp(
       data: {
         status,
         motivo: status === "REJEITADO" ? (encontrado.motivo || "A Meta recusou este modelo.").slice(0, 500) : null,
+        ...(typeof encontrado.temBotao === "boolean"
+          ? { temBotao: linha.tipo !== "PAGO" && encontrado.temBotao }
+          : {}),
       },
     });
   }
+  return obterPainelTelefones(acesso, opcoes.env);
+}
+
+function falhaTwilio(erro: unknown, segredos: string[]): never {
+  if (erro instanceof ErroAplicacao) {
+    throw new ErroAplicacao(textoSemSegredo(erro.message, segredos), erro.status, erro.codigo);
+  }
+  const bruto = erro instanceof ErroTwilio ? erro.message : erro instanceof Error ? erro.message : "Falha ao falar com a Twilio.";
+  const status = erro instanceof ErroTwilio && erro.status >= 400 && erro.status < 500 ? 400 : 502;
+  throw new ErroAplicacao(textoSemSegredo(bruto, segredos), status, "twilio");
+}
+
+async function contaParaModelo(empresaId: string): Promise<CredencialTwilio> {
+  const subconta = await prisma.subcontaTwilio.findUnique({ where: { empresaId } });
+  if (subconta?.status === "CONFIGURADA") return contaDaSubconta(empresaId);
+  const antiga = await prisma.configuracaoTwilio.findUnique({ where: { empresaId } });
+  if (!antiga) {
+    throw new ErroAplicacao(
+      "Vincule a conta de envio desta empresa antes de enviar o modelo.",
+      400,
+      "twilio_sem_subconta",
+    );
+  }
+  let token = "";
+  try {
+    token = decifrarSegredoAsaas(antiga.authTokenCifrado).trim();
+  } catch {
+    token = "";
+  }
+  if (token.length < 16) {
+    throw new ErroAplicacao("A credencial da conta de envio está ilegível.", 500, "twilio_ilegivel");
+  }
+  return { accountSid: antiga.subaccountSid, authToken: token };
+}
+
+export async function salvarPromessaWhatsapp(
+  acesso: Acesso,
+  entrada: unknown,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<PainelTelefonesDTO> {
+  exigirDono(acesso);
+  const dados = lerEsquema(esquemaPromessaWhatsapp, entrada);
+  await prisma.empresa.update({
+    where: { id: acesso.empresaId },
+    data: { promessaWhatsapp: dados.ligada },
+  });
+  return obterPainelTelefones(acesso, env);
+}
+
+export async function salvarCorpoTemplateWhatsapp(
+  acesso: Acesso,
+  entrada: unknown,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<PainelTelefonesDTO> {
+  exigirDono(acesso);
+  const dados = lerEsquema(esquemaCorpoTemplateWhatsapp, entrada);
+  const tipo = dados.tipo as TipoTemplateWhatsapp;
+  const corpo = dados.corpo.trim();
+  const existente = await prisma.templateWhatsapp.findUnique({
+    where: { empresaId_tipo: { empresaId: acesso.empresaId, tipo } },
+  });
+  if (existente) {
+    await prisma.templateWhatsapp.update({
+      where: { id: existente.id },
+      data: { corpo },
+    });
+  } else {
+    await prisma.templateWhatsapp.create({
+      data: {
+        empresaId: acesso.empresaId,
+        tipo,
+        nome: `rascunho_${tipo.toLowerCase()}`,
+        idioma: "pt_BR",
+        categoria: "UTILITY",
+        status: "RASCUNHO",
+        corpo,
+        temBotao: false,
+      },
+    });
+  }
+  return obterPainelTelefones(acesso, env);
+}
+
+// Cria o Content na subconta e pede a aprovação da Meta. Não envia mensagem.
+export async function enviarTemplateParaAprovacao(
+  acesso: Acesso,
+  entrada: unknown,
+  opcoes: OpcoesTwilioEmpresa = {},
+): Promise<PainelTelefonesDTO> {
+  exigirDono(acesso);
+  const dados = lerEsquema(esquemaCorpoTemplateWhatsapp, entrada);
+  const tipo = dados.tipo as TipoTemplateWhatsapp;
+  const empresa = await prisma.empresa.findUnique({
+    where: { id: acesso.empresaId },
+    select: { promessaWhatsapp: true },
+  });
+  const comBotao = empresa?.promessaWhatsapp !== false && tipo !== "PAGO";
+  const validado = validarCorpoTemplate(tipo, dados.corpo, comBotao);
+  if (!validado.ok) throw new ErroAplicacao(validado.mensagem, 400, "template_invalido");
+  const conta = await contaParaModelo(acesso.empresaId);
+  const cliente = opcoes.twilio ?? clienteTwilioPadrao(opcoes.env ?? process.env);
+  const corpo = prepararCorpoParaEnvio(tipo, dados.corpo, comBotao);
+  const variaveisExemplo = { ...validado.twilio.variaveisExemplo };
+  const botoes = validado.twilio.variavelBotao
+    ? [{ title: TITULO_BOTAO_PROMESSA, id: `{{${validado.twilio.variavelBotao}}}` }]
+    : undefined;
+  if (validado.twilio.variavelBotao) variaveisExemplo[validado.twilio.variavelBotao] = EXEMPLO_TOKEN_PROMESSA;
+  const nome = nomeNovoTemplate(tipo);
+  let publicado: { sid: string; aprovacao: string; motivo: string | null };
+  try {
+    publicado = await cliente.publicarTemplate(conta, {
+      nome,
+      idioma: "pt_BR",
+      corpo: validado.twilio.corpo,
+      variaveisExemplo,
+      categoria: "UTILITY",
+      botoes,
+    });
+  } catch (erro) {
+    falhaTwilio(erro, [conta.authToken]);
+  }
+  const status = statusAprovacao(publicado.aprovacao);
+  const gravado = {
+    contentSid: publicado.sid,
+    nome,
+    idioma: "pt_BR",
+    categoria: "UTILITY",
+    status,
+    corpo,
+    corpoEnviado: corpo,
+    temBotao: comBotao,
+    motivo: status === "REJEITADO" ? (publicado.motivo || "A Meta recusou este modelo.").slice(0, 500) : null,
+  };
+  await prisma.templateWhatsapp.upsert({
+    where: { empresaId_tipo: { empresaId: acesso.empresaId, tipo } },
+    create: { empresaId: acesso.empresaId, tipo, ...gravado },
+    update: gravado,
+  });
   return obterPainelTelefones(acesso, opcoes.env);
 }

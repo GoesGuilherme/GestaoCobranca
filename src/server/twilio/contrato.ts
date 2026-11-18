@@ -33,12 +33,18 @@ export type PedidoSender = {
   pedirCoexistencia: boolean;
 };
 
+export type BotaoConteudo = {
+  title: string;
+  id: string;
+};
+
 export type TemplateConteudo = {
   nome: string;
   idioma: string;
   corpo: string;
   variaveisExemplo: Record<string, string>;
   categoria: "UTILITY";
+  botoes?: BotaoConteudo[];
 };
 
 export type ConteudoTwilio = {
@@ -50,6 +56,7 @@ export type ConteudoTwilio = {
 
 export type ConteudoComAprovacao = ConteudoTwilio & {
   nome: string;
+  temBotao?: boolean;
 };
 
 export type MensagemTemplate = {

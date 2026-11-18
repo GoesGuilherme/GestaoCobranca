@@ -6,6 +6,7 @@ import {
   type MensagemTexto,
   type PedidoSender,
   type SenderTwilio,
+  type TemplateConteudo,
   ErroTwilio,
   lerCoexistencia,
 } from "./contrato";
@@ -17,6 +18,7 @@ export type ClienteTwilioMemoria = ClienteTwilio & {
   enviados: MensagemRegistrada[];
   textos: TextoRegistrado[];
   aprovacoes: { nome: string; categoria: string; contentSid: string }[];
+  publicados: TemplateConteudo[];
   subcontas: { sid: string; authToken: string; nome: string }[];
   chamouRede: boolean;
 };
@@ -48,6 +50,8 @@ export function criarClienteTwilioMemoria(
 ): ClienteTwilioMemoria {
   const enviados: MensagemRegistrada[] = [];
   const textos: TextoRegistrado[] = [];
+  const publicados: TemplateConteudo[] = [];
+  const temBotao = new Map<string, boolean>();
   const aprovacoes: ClienteTwilioMemoria["aprovacoes"] = [];
   const subcontas: ClienteTwilioMemoria["subcontas"] = [];
   const senders = new Map<string, SenderTwilio>();
@@ -58,6 +62,7 @@ export function criarClienteTwilioMemoria(
     enviados,
     textos,
     aprovacoes,
+    publicados,
     subcontas,
     chamouRede: false,
     async criarSubconta(_pai, nome) {
@@ -123,6 +128,8 @@ export function criarClienteTwilioMemoria(
         categoria: "UTILITY",
       };
       conteudos.set(contentSid, conteudo);
+      temBotao.set(contentSid, Boolean(template.botoes?.length));
+      publicados.push(template);
       aprovacoes.push({ nome: template.nome, categoria: template.categoria, contentSid });
       return conteudo;
     },
@@ -137,7 +144,11 @@ export function criarClienteTwilioMemoria(
       );
     },
     async listarConteudosComAprovacao() {
-      return [...conteudos.values()].map((item) => ({ ...item, nome: "" }));
+      return [...conteudos.values()].map((item) => ({
+        ...item,
+        nome: "",
+        ...(temBotao.has(item.sid) ? { temBotao: temBotao.get(item.sid) === true } : {}),
+      }));
     },
     async enviarMensagem(_conta, mensagem) {
       const registrada = { ...mensagem, sid: sid("SM") };

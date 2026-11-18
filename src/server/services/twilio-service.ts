@@ -118,6 +118,7 @@ async function garantirTemplates(empresaId: string, conta: CredencialTwilio, cli
       categoria: "UTILITY",
       status: statusAprovacao(publicado.aprovacao),
       corpo: template.corpo,
+      temBotao: false,
       motivo: publicado.motivo,
     };
     await prisma.templateWhatsapp.upsert({

@@ -78,6 +78,9 @@ export {
   obterPainelTelefones,
   removerNumeroTwilio,
   atualizarStatusTemplatesWhatsapp,
+  enviarTemplateParaAprovacao,
+  salvarCorpoTemplateWhatsapp,
+  salvarPromessaWhatsapp,
   salvarTemplatesWhatsapp,
   vincularSubcontaExistente,
 } from "./twilio-empresa-service";

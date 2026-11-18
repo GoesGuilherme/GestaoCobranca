@@ -2,7 +2,10 @@ import { dataHojeIso, isoDeData } from "@/lib/data";
 import { absolutizarLinkCobranca } from "@/lib/pix-link";
 import { formatarReais } from "@/lib/dinheiro";
 import { formatarDataIso } from "@/lib/formatacao";
+import { corpoTemChip, variaveisDoCorpoAmigavel } from "@/lib/template-whatsapp-editor";
 import {
+  acrescentarTokenPadrao,
+  dadosDasVariaveisGravadas,
   digitosWhatsapp,
   rotuloTemplateWhatsapp,
   rotuloWhatsappNaEmissao,
@@ -25,6 +28,7 @@ import {
   tipoWhatsappDoPasso,
 } from "@/server/twilio/subconta-whatsapp";
 import {
+  contentSidBotaoContaPai,
   contentSidSandbox,
   inicioWhatsappOficialProducao,
   REMETENTE_OFICIAL_WHATSAPP,
@@ -35,6 +39,7 @@ import {
 } from "@/server/twilio/sandbox";
 import { decifrarSegredoAsaas } from "@/lib/asaas-cripto";
 import { conciliarPromessas } from "@/server/services/promessa-service";
+import { emitirTokenPromessaWhatsapp } from "@/server/services/promessa-whatsapp";
 
 const ESPERA_MAX_MS = 7 * 24 * 60 * 60 * 1000;
 const TENTATIVAS_MAX = 3;
@@ -255,6 +260,61 @@ function motivoInelegivel(
   return "fatura não está em aberto";
 }
 
+type VariaveisProntas = { variaveis: Record<string, string>; usouBotao: boolean };
+
+async function promessaWhatsappLigada(empresaId: string): Promise<boolean> {
+  const empresa = await prisma.empresa.findUnique({
+    where: { id: empresaId },
+    select: { promessaWhatsapp: true },
+  });
+  return empresa?.promessaWhatsapp !== false;
+}
+
+async function prepararVariaveisDoItem(
+  item: { tipo: string; variaveis: string; empresaId: string; faturaId: string },
+  agora: Date,
+  querBotao: boolean,
+  corpoEnviado: string | null,
+): Promise<VariaveisProntas | null> {
+  const base = variaveisGravadas(item.variaveis);
+  if (!base || !variaveisCompativeisComTemplate(item.tipo, base)) return null;
+  if (!querBotao || item.tipo === "PAGO") return { variaveis: base, usouBotao: false };
+  const token = await emitirTokenPromessaWhatsapp(item.empresaId, item.faturaId, agora);
+  if (!token) return { variaveis: base, usouBotao: false };
+  if (corpoTemChip(corpoEnviado)) {
+    const dados = dadosDasVariaveisGravadas(item.tipo, base);
+    const custom = dados ? variaveisDoCorpoAmigavel(corpoEnviado ?? "", dados, token) : null;
+    if (!custom) return { variaveis: base, usouBotao: false };
+    return { variaveis: custom, usouBotao: true };
+  }
+  const comToken = acrescentarTokenPadrao(item.tipo, base, token);
+  if (!comToken || !variaveisCompativeisComTemplate(item.tipo, comToken)) {
+    return { variaveis: base, usouBotao: false };
+  }
+  return { variaveis: comToken, usouBotao: true };
+}
+
+function sidEVariaveisDaContaPai(
+  tipo: string,
+  base: Record<string, string>,
+  preparadas: VariaveisProntas,
+): { sid: string; variaveis: Record<string, string> } | null {
+  if (preparadas.usouBotao && tipo !== "PAGO") {
+    const sid = contentSidBotaoContaPai(tipo);
+    if (sid) return { sid, variaveis: preparadas.variaveis };
+  }
+  if (tipo === "VENCE_HOJE") {
+    const sid = contentSidSandbox("VENCE_EM_DIAS");
+    const dados = dadosDasVariaveisGravadas(tipo, base);
+    const variaveis = dados ? variaveisDoTemplate("VENCE_EM_DIAS", { ...dados, dias: dados.dias || "0" }) : null;
+    if (!sid || !variaveis || !variaveisCompativeisComTemplate("VENCE_EM_DIAS", variaveis)) return null;
+    return { sid, variaveis };
+  }
+  const sid = contentSidSandbox(tipo);
+  if (!sid) return null;
+  return { sid, variaveis: base };
+}
+
 function variaveisGravadas(texto: string): Record<string, string> | null {
   try {
     const json = JSON.parse(texto) as unknown;
@@ -446,22 +506,30 @@ export async function processarFilaWhatsapp(
           continue;
         }
       }
-      const variaveisEmpresa = variaveisGravadas(item.variaveis);
-      if (!variaveisEmpresa || !variaveisCompativeisComTemplate(item.tipo, variaveisEmpresa)) {
+      const promessa = decisao.temBotao ? await promessaWhatsappLigada(item.empresaId) : false;
+      const preparadas = await prepararVariaveisDoItem(
+        item,
+        agora,
+        decisao.temBotao && promessa,
+        decisao.corpoEnviado,
+      );
+      if (!preparadas) {
         await marcar(item.id, { status: "FALHOU", motivo: "variáveis inválidas" });
         resultado.falhas += 1;
         continue;
       }
-      const envioEmpresa = await concluirEnvio(twilio, item, agora, decisao.conta, {
-        de: decisao.de,
-        para: regra.destino,
-        contentSid: decisao.contentSid,
-        variaveis: variaveisEmpresa,
-        statusCallback: decisao.statusCallback,
-      });
-      if (envioEmpresa === "enviado") resultado.enviados += 1;
-      if (envioEmpresa === "falha") resultado.falhas += 1;
-      continue;
+      if (!decisao.temBotao || preparadas.usouBotao) {
+        const envioEmpresa = await concluirEnvio(twilio, item, agora, decisao.conta, {
+          de: decisao.de,
+          para: regra.destino,
+          contentSid: decisao.contentSid,
+          variaveis: preparadas.variaveis,
+          statusCallback: decisao.statusCallback,
+        });
+        if (envioEmpresa === "enviado") resultado.enviados += 1;
+        if (envioEmpresa === "falha") resultado.falhas += 1;
+        continue;
+      }
     }
     if (decisao.motivo) registrarFallbackSubconta(item.empresaId, item.tipo, decisao.motivo);
     const producaoPronta = Boolean(
@@ -504,12 +572,21 @@ export async function processarFilaWhatsapp(
       if (espera === "ignorado") resultado.ignorados += 1;
       continue;
     }
-    const variaveis = variaveisGravadas(item.variaveis);
-    if (!variaveis || !variaveisCompativeisComTemplate(item.tipo, variaveis)) {
+    const base = variaveisGravadas(item.variaveis);
+    if (!base || !variaveisCompativeisComTemplate(item.tipo, base)) {
       await marcar(item.id, { status: "FALHOU", motivo: "variáveis inválidas" });
       resultado.falhas += 1;
       continue;
     }
+    const botaoPai = contentSidBotaoContaPai(item.tipo);
+    const promessaPai = botaoPai ? await promessaWhatsappLigada(item.empresaId) : false;
+    const preparadasPai = await prepararVariaveisDoItem(item, agora, Boolean(botaoPai && promessaPai), null);
+    if (!preparadasPai) {
+      await marcar(item.id, { status: "FALHOU", motivo: "variáveis inválidas" });
+      resultado.falhas += 1;
+      continue;
+    }
+    const escolhaPai = sidEVariaveisDaContaPai(item.tipo, base, preparadasPai);
 
     let conta: CredencialTwilio;
     let mensagem: MensagemTemplate;
@@ -526,7 +603,8 @@ export async function processarFilaWhatsapp(
         resultado.ignorados += 1;
         continue;
       }
-      const contentSid = contentSidSandbox(item.tipo);
+      const contentSid = escolhaPai?.sid ?? null;
+      const variaveis = escolhaPai?.variaveis ?? base;
       if (!contentSid) {
         const espera = await adiarOuIgnorar(
           item.id,
@@ -569,7 +647,7 @@ export async function processarFilaWhatsapp(
         variaveis,
         statusCallback,
       };
-    } else if (!oficial && conexao?.senderTelefone && template?.contentSid) {
+    } else if (!oficial && conexao?.senderTelefone && template?.contentSid && !(template.temBotao && item.tipo !== "PAGO" && !preparadasPai.usouBotao)) {
       let token = "";
       try {
         token = decifrarSegredoAsaas(conexao.authTokenCifrado);
@@ -583,7 +661,7 @@ export async function processarFilaWhatsapp(
         de: `whatsapp:${whatsappE164(conexao.senderTelefone) ?? conexao.senderTelefone}`,
         para: regra.destino,
         contentSid: template.contentSid,
-        variaveis,
+        variaveis: template.temBotao && preparadasPai.usouBotao ? preparadasPai.variaveis : base,
         statusCallback: conexao.webhookUrl,
       };
     } else {

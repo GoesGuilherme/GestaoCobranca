@@ -769,6 +769,18 @@ export const esquemaSubcontaExistente = z.object({
     .regex(/^AC[0-9a-fA-F]{32}$/, "Informe o identificador da conta. Ele começa com AC."),
 });
 
+export const esquemaPromessaWhatsapp = z.object({
+  ligada: z.boolean("Informe se a promessa pelo WhatsApp fica ligada."),
+});
+
+export const esquemaCorpoTemplateWhatsapp = z.object({
+  tipo: z.enum(
+    ["BOLETO_GERADO", "VENCE_EM_DIAS", "VENCE_HOJE", "VENCEU", "PAGO"],
+    "Escolha o tipo do modelo.",
+  ),
+  corpo: z.string().trim().min(1, "Escreva o texto do modelo.").max(2000, "O texto do modelo está longo demais."),
+});
+
 export const esquemaTemplatesWhatsappEmpresa = z.object({
   templates: z
     .array(

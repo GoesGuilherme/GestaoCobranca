@@ -362,6 +362,8 @@ export type TemplateTelefoneDTO = {
   status: string;
   statusRotulo: string;
   motivo: string | null;
+  corpo: string;
+  temBotao: boolean;
 };
 
 export type CanalWhatsappServidor = {
@@ -395,6 +397,9 @@ export type PainelTelefonesDTO = {
   templates: TemplateTelefoneDTO[];
   envioWhatsapp: "global" | "empresa";
   envioSms: "global" | "empresa";
+  promessaWhatsapp: boolean;
+  marca: string;
+  podeEnviarModelo: boolean;
 };
 
 export type ConfiguracaoTwilioDTO = {

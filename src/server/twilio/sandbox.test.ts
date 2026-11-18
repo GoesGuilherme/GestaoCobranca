@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  contentSidBotaoContaPai,
   contentSidSandbox,
+  sinaisCanalWhatsapp,
   REMETENTE_OFICIAL_WHATSAPP,
   REMETENTE_SANDBOX_WHATSAPP,
   inicioWhatsappOficialProducao,
@@ -37,6 +39,19 @@ describe("sandbox de WhatsApp", () => {
     expect(contentSidSandbox("PAGO", { TWILIO_CONTENT_SID_PAGO: SID })).toBe(SID);
     expect(contentSidSandbox("PAGO", { TWILIO_CONTENT_SID_PAGO: "HXcurto" })).toBeNull();
     expect(contentSidSandbox("OUTRO", { TWILIO_CONTENT_SID_PAGO: SID })).toBeNull();
+    expect(contentSidSandbox("VENCE_HOJE", { TWILIO_CONTENT_SID_VENCE_HOJE: SID })).toBe(SID);
+    expect(contentSidSandbox("VENCE_HOJE", {})).toBeNull();
+    expect(contentSidBotaoContaPai("PAGO", { TWILIO_CONTENT_SID_PAGO: SID })).toBeNull();
+    expect(contentSidBotaoContaPai("BOLETO_GERADO", { TWILIO_CONTENT_SID_BOLETO_GERADO_V3: SID })).toBe(SID);
+    expect(contentSidBotaoContaPai("VENCE_HOJE", { TWILIO_CONTENT_SID_VENCE_HOJE: SID })).toBe(SID);
+    expect(
+      sinaisCanalWhatsapp({
+        TWILIO_CONTENT_SID_BOLETO_GERADO: SID,
+        TWILIO_CONTENT_SID_VENCE_EM_DIAS: SID,
+        TWILIO_CONTENT_SID_VENCEU: SID,
+        TWILIO_CONTENT_SID_PAGO: SID,
+      }).templatesContaPaiProntos,
+    ).toBe(true);
   });
 
   it("o Sender oficial liga com a flag e o cliente real só depois da data", () => {
