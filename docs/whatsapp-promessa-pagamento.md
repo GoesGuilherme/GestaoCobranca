@@ -14,7 +14,7 @@ Categoria: UTILITY. Idioma: pt_BR.
 
 Corpo:
 
-> Olá, {{1}}. Seu boleto de {{2}}, com vencimento em {{3}}, foi gerado. Acesse o link do Asaas: {{4}}. Para registrar uma promessa de pagamento, toque no botão. Qualquer dúvida, responda esta mensagem.
+> Olá, {{1}}. Seu boleto de {{2}}, com vencimento em {{3}}, foi gerado. Acesse sua fatura: {{4}}. Para registrar uma promessa de pagamento, toque no botão. Qualquer dúvida, responda esta mensagem.
 
 Botão quick reply: `Registrar promessa`, id `{{5}}`.
 
@@ -24,7 +24,7 @@ Exemplo: 1 Maria Exemplo, 2 R$ 150,00, 3 30/10/2026, 4 https://www.asaas.com/i/e
 
 Corpo:
 
-> Olá, {{1}}. Sua cobrança de {{2}} vence em {{3}} dias, na data {{4}}. Acesse o link do Asaas: {{5}}. Para registrar uma promessa de pagamento, toque no botão. Qualquer dúvida, responda esta mensagem.
+> Olá, {{1}}. Sua cobrança de {{2}} vence em {{3}} dias, na data {{4}}. Acesse sua fatura: {{5}}. Para registrar uma promessa de pagamento, toque no botão. Qualquer dúvida, responda esta mensagem.
 
 Botão: `Registrar promessa`, id `{{6}}`.
 
@@ -32,7 +32,7 @@ Botão: `Registrar promessa`, id `{{6}}`.
 
 Corpo:
 
-> Olá, {{1}}. Sua cobrança de {{2}} vence hoje, na data {{3}}. Acesse o link do Asaas: {{4}}. Para registrar uma promessa de pagamento, toque no botão. Qualquer dúvida, responda esta mensagem.
+> Olá, {{1}}. Sua cobrança de {{2}} vence hoje, na data {{3}}. Acesse sua fatura: {{4}}. Para registrar uma promessa de pagamento, toque no botão. Qualquer dúvida, responda esta mensagem.
 
 Botão: `Registrar promessa`, id `{{5}}`.
 
@@ -40,7 +40,7 @@ Botão: `Registrar promessa`, id `{{5}}`.
 
 Corpo:
 
-> Olá, {{1}}. A cobrança de {{2}}, com vencimento em {{3}}, está em atraso. Acesse o link do Asaas: {{4}}. Para registrar uma promessa de pagamento, toque no botão. Qualquer dúvida, responda esta mensagem.
+> Olá, {{1}}. A cobrança de {{2}}, com vencimento em {{3}}, está em atraso. Acesse sua fatura: {{4}}. Para registrar uma promessa de pagamento, toque no botão. Qualquer dúvida, responda esta mensagem.
 
 Botão: `Registrar promessa`, id `{{5}}`.
 

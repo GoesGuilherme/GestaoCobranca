@@ -49,13 +49,13 @@ export type TemplatePromessaProposto = {
   variaveisExemplo: Record<string, string>;
 };
 
-const CORPO_BOLETO = `Olá, {{1}}. Seu boleto de {{2}}, com vencimento em {{3}}, foi gerado. Acesse o link do Asaas: {{4}}. ${FRASE_BOTAO_PROMESSA} ${FECHO}`;
+const CORPO_BOLETO = `Olá, {{1}}. Seu boleto de {{2}}, com vencimento em {{3}}, foi gerado. Acesse sua fatura: {{4}}. ${FRASE_BOTAO_PROMESSA} ${FECHO}`;
 
-const CORPO_VENCE_EM_DIAS = `Olá, {{1}}. Sua cobrança de {{2}} vence em {{3}} dias, na data {{4}}. Acesse o link do Asaas: {{5}}. ${FRASE_BOTAO_PROMESSA} ${FECHO}`;
+const CORPO_VENCE_EM_DIAS = `Olá, {{1}}. Sua cobrança de {{2}} vence em {{3}} dias, na data {{4}}. Acesse sua fatura: {{5}}. ${FRASE_BOTAO_PROMESSA} ${FECHO}`;
 
-const CORPO_VENCE_HOJE = `Olá, {{1}}. Sua cobrança de {{2}} vence hoje, na data {{3}}. Acesse o link do Asaas: {{4}}. ${FRASE_BOTAO_PROMESSA} ${FECHO}`;
+const CORPO_VENCE_HOJE = `Olá, {{1}}. Sua cobrança de {{2}} vence hoje, na data {{3}}. Acesse sua fatura: {{4}}. ${FRASE_BOTAO_PROMESSA} ${FECHO}`;
 
-const CORPO_VENCEU = `Olá, {{1}}. A cobrança de {{2}}, com vencimento em {{3}}, está em atraso. Acesse o link do Asaas: {{4}}. ${FRASE_BOTAO_PROMESSA} ${FECHO}`;
+const CORPO_VENCEU = `Olá, {{1}}. A cobrança de {{2}}, com vencimento em {{3}}, está em atraso. Acesse sua fatura: {{4}}. ${FRASE_BOTAO_PROMESSA} ${FECHO}`;
 
 const EXEMPLO_COMUM = {
   "1": "Maria Exemplo",

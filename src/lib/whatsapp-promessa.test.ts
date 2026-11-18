@@ -35,7 +35,8 @@ describe("modelos propostos da promessa", () => {
     expect(TITULO_BOTAO_PROMESSA.length).toBeLessThanOrEqual(20);
     for (const modelo of TEMPLATES_PROMESSA_PROPOSTOS) {
       expect(modelo.nome.endsWith("_v3")).toBe(true);
-      expect(modelo.corpo).toContain("Acesse o link do Asaas:");
+      expect(modelo.corpo).toContain("Acesse sua fatura:");
+      expect(modelo.corpo).not.toContain("Asaas");
       expect(modelo.corpo).toContain("Para registrar uma promessa de pagamento, toque no botão.");
       expect(modelo.corpo.endsWith("Qualquer dúvida, responda esta mensagem.")).toBe(true);
       expect(modelo.tituloBotao).toBe(TITULO_BOTAO_PROMESSA);
