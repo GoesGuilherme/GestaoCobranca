@@ -283,7 +283,7 @@ describe("atendimento por IA no WhatsApp", () => {
       superadministrador: false,
     };
     const conversa = await obterConversa(dono, "5511977770022", { agora: AGORA, marcarLida: false });
-    expect(conversa?.bolhas.some((bolha) => bolha.detalhe === "IA" && bolha.texto.includes("R$ 150,00"))).toBe(true);
+    expect(conversa?.bolhas.some((bolha) => bolha.origem === "IA" && bolha.detalhe === "IA" && bolha.texto.includes("R$ 150,00"))).toBe(true);
     expect(resposta.origem).toBe("IA");
     expect(fetchSpy).not.toHaveBeenCalled();
   });
