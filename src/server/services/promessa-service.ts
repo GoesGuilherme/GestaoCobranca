@@ -10,8 +10,10 @@ import {
   type MetricasPromessas,
   type StatusPromessa,
 } from "@/lib/promessa";
+import { classificarDataPromessa, PRAZO_PROMESSA_PADRAO } from "@/lib/whatsapp-promessa";
+import { somarDias } from "@/lib/regua";
 import type { PromessaDTO, PromessaPendenteDTO } from "@/lib/tipos";
-import { esquemaPromessa, esquemaSeloPromessa } from "@/lib/validacao";
+import { esquemaPrazoPromessa, esquemaPromessa, esquemaSeloPromessa } from "@/lib/validacao";
 import type { AutorEmpresa } from "@/server/auth/papeis";
 import { exigirCobranca, exigirVerFaturas } from "@/server/auth/papeis";
 import { prisma } from "@/server/db";
@@ -63,12 +65,13 @@ function paraPromessa(linha: {
   dataPrometida: Date;
   valorPrometido: { toFixed(casas: number): string };
   canal: CanalPromessa;
+  origem: "PAINEL" | "WHATSAPP";
   observacao: string | null;
   status: StatusPromessa;
   registradaEm: Date;
   cliente: { nomeFantasia: string };
   fatura: { valor: { toFixed(casas: number): string }; vencimento: Date; status: string };
-  registradaPor: { nome: string };
+  registradaPor: { nome: string } | null;
 }): PromessaDTO {
   return {
     id: linha.id,
@@ -81,11 +84,17 @@ function paraPromessa(linha: {
     dataPrometida: isoDeData(linha.dataPrometida),
     valorPrometido: linha.valorPrometido.toFixed(2),
     canal: linha.canal,
+    origem: linha.origem,
     observacao: linha.observacao,
     status: linha.status,
-    registradaPor: linha.registradaPor.nome,
+    registradaPor: nomeDeQuemRegistrou(linha.origem, linha.registradaPor),
     registradaEm: linha.registradaEm.toISOString(),
   };
+}
+
+function nomeDeQuemRegistrou(origem: "PAINEL" | "WHATSAPP", usuario: { nome: string } | null): string {
+  if (origem === "WHATSAPP") return "Cliente pelo WhatsApp";
+  return usuario?.nome ?? "—";
 }
 
 function paraPendente(linha: {
@@ -95,7 +104,7 @@ function paraPendente(linha: {
   canal: CanalPromessa;
   observacao: string | null;
   registradaEm: Date;
-  registradaPor: { nome: string };
+  registradaPor: { nome: string } | null;
 }): PromessaPendenteDTO {
   return {
     id: linha.id,
@@ -103,7 +112,7 @@ function paraPendente(linha: {
     valorPrometido: linha.valorPrometido.toFixed(2),
     canal: linha.canal,
     observacao: linha.observacao,
-    registradaPor: linha.registradaPor.nome,
+    registradaPor: linha.registradaPor?.nome ?? "Cliente pelo WhatsApp",
     registradaEm: linha.registradaEm.toISOString(),
   };
 }
@@ -199,6 +208,15 @@ export async function faturaIdsComPromessaAtiva(empresaId: string, hoje: string)
   return new Set(linhas.map((linha) => linha.faturaId));
 }
 
+export async function faturaIdsComPromessaQuebrada(empresaId: string, faturaIds: string[]): Promise<Set<string>> {
+  if (faturaIds.length === 0) return new Set();
+  const linhas = await prisma.promessaPagamento.findMany({
+    where: { empresaId, faturaId: { in: faturaIds }, status: "QUEBRADA" },
+    select: { faturaId: true },
+  });
+  return new Set(linhas.map((linha) => linha.faturaId));
+}
+
 async function carregar(empresaId: string, id: string) {
   const promessa = await prisma.promessaPagamento.findFirst({
     where: { id, empresaId },
@@ -257,6 +275,7 @@ export async function registrarPromessa(autor: AutorPromessa, faturaId: string, 
         dataPrometida: new Date(`${dados.dataPrometida}T00:00:00.000Z`),
         valorPrometido: valor,
         canal: dados.canal,
+        origem: "PAINEL",
         observacao: dados.observacao.trim() ? dados.observacao.trim() : null,
         status: "PENDENTE",
         registradaPorId: usuario.id,
@@ -479,4 +498,73 @@ export async function salvarAjusteSeloPromessa(autor: AutorEmpresa, entrada: unk
     data: { promessasContamNoSelo: dados.contarNoSelo },
   });
   return { contarNoSelo: dados.contarNoSelo };
+}
+
+export async function salvarPrazoPromessa(autor: AutorEmpresa, entrada: unknown) {
+  if (autor.papel !== "DONO") {
+    throw new ErroAplicacao("Só o dono da empresa pode mudar esta regra.", 403, "sem_permissao");
+  }
+  const dados = lerEsquema(esquemaPrazoPromessa, entrada);
+  await prisma.empresa.update({
+    where: { id: autor.empresaId },
+    data: { prazoMaximoPromessaDias: dados.prazoMaximoDias },
+  });
+  return { prazoMaximoDias: dados.prazoMaximoDias };
+}
+
+export async function registrarPromessaPeloWhatsapp(entrada: {
+  empresaId: string;
+  faturaId: string;
+  clienteId: string;
+  dataPrometida: string;
+  valorPrometido: string;
+  agora?: Date;
+}) {
+  const agora = entrada.agora ?? new Date();
+  const hoje = dataHojeIso(agora);
+  const [fatura, empresa] = await Promise.all([
+    prisma.fatura.findFirst({
+      where: { id: entrada.faturaId, empresaId: entrada.empresaId, clienteId: entrada.clienteId },
+      select: { id: true, clienteId: true, valor: true, status: true, excluida: true },
+    }),
+    prisma.empresa.findFirst({
+      where: { id: entrada.empresaId },
+      select: { prazoMaximoPromessaDias: true },
+    }),
+  ]);
+  if (!fatura || !empresa) throw new ErroAplicacao("Cobrança não encontrada.", 404, "nao_encontrado");
+  if (!faturaAceitaPromessa(fatura.status, fatura.excluida)) {
+    throw new ErroAplicacao("Só dá para prometer em fatura em aberto ou vencida.", 409, "fatura_encerrada");
+  }
+  const prazo = empresa.prazoMaximoPromessaDias || PRAZO_PROMESSA_PADRAO;
+  const limite = somarDias(hoje, prazo);
+  if (classificarDataPromessa(entrada.dataPrometida, hoje, prazo) === "longe") {
+    throw new ErroAplicacao(`Essa data passa do prazo de ${prazo} dias.`, 400, "prazo_promessa", {
+      dataPrometida: `Escolha uma data até ${limite}.`,
+    });
+  }
+  const valor = validarCampos(entrada.dataPrometida, entrada.valorPrometido, fatura.valor.toFixed(2), hoje);
+  try {
+    const criada = await prisma.promessaPagamento.create({
+      data: {
+        empresaId: entrada.empresaId,
+        faturaId: fatura.id,
+        clienteId: fatura.clienteId,
+        dataPrometida: new Date(`${entrada.dataPrometida}T00:00:00.000Z`),
+        valorPrometido: valor,
+        canal: "WHATSAPP",
+        origem: "WHATSAPP",
+        observacao: null,
+        status: "PENDENTE",
+        registradaPorId: null,
+      },
+      include: includeLista,
+    });
+    return paraPromessa(criada);
+  } catch (erro) {
+    if (conflitoPendente(erro)) {
+      throw new ErroAplicacao("Esta fatura já tem uma promessa pendente.", 409, "promessa_pendente");
+    }
+    throw erro;
+  }
 }

@@ -41,7 +41,9 @@ export function ListaPromessas({
               {rotuloCanalPromessa(promessa.canal)}
             </p>
             <p className="text-xs text-muted">
-              Registrada por {promessa.registradaPor} em {formatarData(promessa.registradaEm)}
+              {promessa.origem === "WHATSAPP"
+                ? `Registrada pelo cliente no WhatsApp em ${formatarData(promessa.registradaEm)}`
+                : `Registrada por ${promessa.registradaPor} em ${formatarData(promessa.registradaEm)}`}
             </p>
             {promessa.observacao ? <p className="mt-1 text-sm text-ink">{promessa.observacao}</p> : null}
           </div>

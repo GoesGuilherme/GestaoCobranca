@@ -34,6 +34,7 @@ function paraEmpresa(
     status: "ATIVA" | "SUSPENSA";
     plano: string;
     promessasContamNoSelo: boolean;
+    prazoMaximoPromessaDias: number;
     criadoEm: Date;
     _count?: { usuarios: number; clientes: number };
   },
@@ -50,6 +51,7 @@ function paraEmpresa(
     quantidadeUsuarios: empresa._count?.usuarios ?? 0,
     quantidadeClientes: empresa._count?.clientes ?? 0,
     promessasContamNoSelo: empresa.promessasContamNoSelo,
+    prazoMaximoPromessaDias: empresa.prazoMaximoPromessaDias,
     criadoEm: empresa.criadoEm.toISOString(),
   };
 }

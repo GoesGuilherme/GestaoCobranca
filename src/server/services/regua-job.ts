@@ -26,7 +26,8 @@ import { dispararLembrete, registrarIgnorado, textoErroEnvio } from "@/server/re
 import { clienteResendPadrao, remetenteResend, type ClienteResend } from "@/server/regua/resend";
 import type { ClienteTwilio } from "@/server/twilio/contrato";
 import { clienteTwilioPadrao } from "@/server/twilio/fabrica";
-import { conciliarPromessas, faturaIdsComPromessaAtiva } from "@/server/services/promessa-service";
+import { comMencaoPromessaQuebrada } from "@/lib/promessa";
+import { conciliarPromessas, faturaIdsComPromessaAtiva, faturaIdsComPromessaQuebrada } from "@/server/services/promessa-service";
 import { urlLogoParaEmail } from "@/server/services/logo-empresa-service";
 import { enfileirarWhatsappDoPasso, processarFilaWhatsapp } from "@/server/services/whatsapp-fila";
 
@@ -118,6 +119,7 @@ export async function executarRegua(
 
     const padrao = reguas.find((regua) => regua.padrao) ?? null;
     const promessasAtivas = await faturaIdsComPromessaAtiva(config.empresaId, hoje);
+    const promessasQuebradas = await faturaIdsComPromessaQuebrada(config.empresaId, faturas.map((fatura) => fatura.id));
     const segredo = chaveOuNula(config.chaveResendCifrada);
     const remetente = emailDeCobranca(config.remetenteEmail);
     const remetentePronto = Boolean(segredo.chave && remetente);
@@ -250,7 +252,7 @@ export async function executarRegua(
             diasAtraso: String(diasAtraso(hoje, vencimento)),
             empresa: nomeEmpresa,
           };
-          const corpo = textoRegua(passo.corpo, campos);
+          const corpo = comMencaoPromessaQuebrada(textoRegua(passo.corpo, campos), promessasQuebradas.has(fatura.id));
           const carta = await cartaComPix(
             {
               empresa: nomeEmpresa,

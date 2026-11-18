@@ -189,6 +189,7 @@ export type EmpresaResumo = {
   quantidadeUsuarios: number;
   quantidadeClientes: number;
   promessasContamNoSelo: boolean;
+  prazoMaximoPromessaDias: number;
   criadoEm: string;
 };
 
@@ -248,6 +249,8 @@ export type PromessaPendenteDTO = {
   registradaEm: string;
 };
 
+export type OrigemPromessa = "PAINEL" | "WHATSAPP";
+
 export type PromessaDTO = PromessaPendenteDTO & {
   faturaId: string;
   clienteId: string;
@@ -256,6 +259,7 @@ export type PromessaDTO = PromessaPendenteDTO & {
   vencimentoFatura: string;
   statusFatura: string;
   status: StatusPromessa;
+  origem: OrigemPromessa;
   registradaPor: string;
   registradaEm: string;
 };

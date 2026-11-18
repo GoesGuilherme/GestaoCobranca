@@ -20,6 +20,8 @@ export function usarBancoDeTeste() {
     await prisma.optOutWhatsapp.deleteMany();
     await prisma.templateWhatsapp.deleteMany();
     await prisma.configuracaoTwilio.deleteMany();
+    await prisma.conversaPromessaWhatsapp.deleteMany();
+    await prisma.tokenPromessaWhatsapp.deleteMany();
     await prisma.promessaPagamento.deleteMany();
     await prisma.lembreteRegua.deleteMany();
     await prisma.passoRegua.deleteMany();

@@ -91,6 +91,15 @@ export function rotuloPromessaAte(dataPrometida: string): string {
   return `Promessa até ${match[3]}/${match[2]}`;
 }
 
+export const FRASE_PROMESSA_QUEBRADA = "A promessa de pagamento anterior não foi cumprida.";
+
+export function comMencaoPromessaQuebrada(texto: string, mencionar: boolean): string {
+  if (!mencionar || texto.includes(FRASE_PROMESSA_QUEBRADA)) return texto;
+  const base = texto.trimEnd();
+  const ligacao = /[.!?]$/.test(base) ? " " : ". ";
+  return `${base}${ligacao}${FRASE_PROMESSA_QUEBRADA}`.slice(0, 2000);
+}
+
 /**
  * Uma casa, truncada. Total zero não tem taxa.
  * Cumprida com atraso conta como cumprida.
