@@ -1,9 +1,11 @@
 import { CabecalhoPagina } from "@/components/cabecalho";
+import { FormularioAtendimentoIa } from "@/components/formulario-atendimento-ia";
 import { PainelTelefones } from "@/components/painel-telefones";
 import { descreverEnvioWhatsapp, montarEntradaExibicaoWhatsapp } from "@/lib/whatsapp-canal";
 import { acessoDaPagina } from "@/server/auth/pagina";
 import { obterPainelRegua } from "@/server/services/regua-service";
 import { obterPainelTelefones } from "@/server/services/twilio-empresa-service";
+import { obterAtendimentoIa } from "@/server/services/atendimento-ia-service";
 import { obterWhatsappDaEmpresa } from "@/server/services/twilio-service";
 import { rotaWhatsapp } from "@/server/twilio/sandbox";
 import { redirect } from "next/navigation";
@@ -13,10 +15,11 @@ export const metadata = { title: "WhatsApp" };
 export default async function PaginaWhatsapp() {
   const acesso = await acessoDaPagina();
   if (acesso.papel !== "DONO") redirect("/");
-  const [painel, regua, whatsapp] = await Promise.all([
+  const [painel, regua, whatsapp, atendimentoIa] = await Promise.all([
     obterPainelTelefones(acesso),
     obterPainelRegua(acesso),
     obterWhatsappDaEmpresa(acesso.empresaId),
+    obterAtendimentoIa(acesso.empresaId),
   ]);
   const padrao = painel.numeros.find(
     (numero) => numero.canal === "WHATSAPP" && numero.padrao && numero.status === "ATIVO",
@@ -57,6 +60,7 @@ export default async function PaginaWhatsapp() {
         statusEnvio={exibicao.titulo}
         complementoEnvio={exibicao.complemento}
       />
+      <FormularioAtendimentoIa inicial={atendimentoIa} />
     </>
   );
 }

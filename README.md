@@ -125,6 +125,10 @@ Os testes apagam empresas, usuários, clientes, filiais, serviços, vínculos, f
 | `ASSESSOR_TIMEOUT_MS` | Tempo máximo da consulta ao modelo, em milissegundos. Vazio usa 12000. Estourar o tempo manda o texto de fallback. |
 | `ASSESSOR_LIMITE_TELEFONE` | Mensagens por telefone a cada 10 minutos. Vazio usa 8. |
 | `ASSESSOR_LIMITE_EMPRESA` | Mensagens da empresa a cada 10 minutos. Vazio usa 60. |
+| `AI_WHATSAPP_MODEL` | Modelo do atendimento por IA no WhatsApp, no formato `provider/modelo` do catálogo do AI Gateway. Vazio usa `spacexai/grok-4.20-non-reasoning`. |
+| `AI_WHATSAPP_MAX_TOKENS` | Teto de tokens de saída de cada resposta ao cliente. Vazio usa 280. |
+| `AI_WHATSAPP_LIMITE_CONVERSA` | Respostas da IA por conversa a cada 10 minutos. Vazio usa 6. |
+| `AI_WHATSAPP_TIMEOUT_MS` | Tempo máximo da consulta ao modelo, em milissegundos. Vazio usa 12000. |
 | `CRON_SECRET` | Segredo das rotas diárias `/api/cron/regua`, `/api/cron/visualizacoes`, `/api/cron/recorrencias` e `/api/cron/conciliacao`. A Vercel Cron envia `Authorization: Bearer`. Sem ele a rota responde 500. Não é a chave da Resend nem a chave do Asaas. |
 | `ASAAS_MOCK` | Só no computador de desenvolvimento. `true` usa um Asaas em memória, sem rede e sem chave real, para a tela funcionar antes de existir a chave. Se `NODE_ENV` for `production`, a aplicação recusa esse modo. Não defina na Vercel. |
 
@@ -180,6 +184,7 @@ Em **Project Settings → Environment Variables**, no ambiente Production (e no 
 | `TWILIO_CONTENT_SID_BOLETO_GERADO` | Opcional. ContentSid do template na conta pai, para a régua em sandbox. O mesmo vale para `TWILIO_CONTENT_SID_VENCE_EM_DIAS`, `TWILIO_CONTENT_SID_VENCEU` e `TWILIO_CONTENT_SID_PAGO`. |
 | `AI_GATEWAY_MODEL` | Id `provider/modelo` do catálogo do AI Gateway. |
 | `AI_GATEWAY_API_KEY` | Opcional na Vercel se o OIDC estiver ativo. Obrigatória fora dela. |
+| `AI_WHATSAPP_MODEL` | Opcional. Vazio usa `spacexai/grok-4.20-non-reasoning`. O atendimento por IA só responde se o dono ligar o interruptor na tela WhatsApp. |
 | `CRON_SECRET` | Saída de `openssl rand -base64 32`. A Vercel Cron envia esse valor em `Authorization: Bearer` para `/api/cron/regua` e `/api/cron/visualizacoes`. |
 
 Não defina `ASAAS_MOCK` nem `TWILIO_MOCK` na Vercel. O assessor, fora de produção, não chama o AI Gateway nem a Twilio. Em produção ele usa o AI Gateway (chave ou OIDC) e a subconta Twilio da empresa. O modelo não fica fixo no código. Em produção a integração chama `https://api.asaas.com/v3` ou `https://api-sandbox.asaas.com/v3`, conforme o ambiente salvo pelo dono, e envia a chave no cabeçalho `access_token`. A chave real ainda não entra neste repositório.

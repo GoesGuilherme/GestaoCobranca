@@ -508,7 +508,12 @@ export async function obterConversa(
       lado: "empresa" as const,
       quando: resposta.criadoEm.toISOString(),
       texto: resposta.corpo,
-      detalhe: resposta.origem === "PROMESSA" ? "Promessa de pagamento" : "Resposta da equipe",
+      detalhe:
+        resposta.origem === "PROMESSA"
+          ? "Promessa de pagamento"
+          : resposta.origem === "IA"
+            ? "IA"
+            : "Resposta da equipe",
     })),
   ].sort((a, b) => (a.quando < b.quando ? -1 : 1));
   const ultima = entradas.at(-1) ?? null;

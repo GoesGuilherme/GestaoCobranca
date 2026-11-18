@@ -214,6 +214,9 @@ model Empresa {
   promessas            PromessaPagamento[]
   tokensPromessaWhatsapp TokenPromessaWhatsapp[]
   conversasPromessaWhatsapp ConversaPromessaWhatsapp[]
+  configuracaoAtendimentoIa ConfiguracaoAtendimentoIa?
+  conversasAtendimentoIa    ConversaAtendimentoIa[]
+  entradasAtendimentoIa     EntradaAtendimentoIa[]
   estadosOauth         EstadoOauth[]
   logo                 LogoEmpresa?
   configuracaoPix      ConfiguracaoPixProprio?
@@ -328,6 +331,7 @@ model Cliente {
   promessas          PromessaPagamento[]
   tokensPromessaWhatsapp TokenPromessaWhatsapp[]
   conversasPromessaWhatsapp ConversaPromessaWhatsapp[]
+  conversasAtendimentoIa    ConversaAtendimentoIa[]
 
   @@index([asaasCustomerId])
   @@index([idExterno])
@@ -1174,4 +1178,53 @@ model ConversaPromessaWhatsapp {
   @@unique([empresaId, telefone])
   @@index([empresaId, faturaId])
   @@map("conversas_promessa_whatsapp")
+}
+
+// Atendimento por IA no WhatsApp da empresa. Nasce desligado.
+// O texto da empresa não libera desconto, nem dado de outro cliente.
+model ConfiguracaoAtendimentoIa {
+  id           String   @id @default(cuid())
+  empresaId    String   @unique @map("empresa_id")
+  ativo        Boolean  @default(false)
+  instrucoes   String?  @db.Text
+  textoRepasse String?  @map("texto_repasse") @db.Text
+  criadoEm     DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm DateTime @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  empresa      Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+
+  @@map("configuracoes_atendimento_ia")
+}
+
+// Uma conversa por telefone. pausadaAte impede nova resposta da IA.
+// precisaAtencao marca o repasse para uma pessoa da empresa.
+model ConversaAtendimentoIa {
+  id                 String    @id @default(cuid())
+  empresaId          String    @map("empresa_id")
+  telefone           String
+  clienteId          String?   @map("cliente_id")
+  precisaAtencao     Boolean   @default(false) @map("precisa_atencao")
+  pausadaAte         DateTime? @map("pausada_ate") @db.Timestamptz(3)
+  divulgouAssistente Boolean   @default(false) @map("divulgou_assistente")
+  motivoAtencao      String?   @map("motivo_atencao") @db.Text
+  atualizadoEm       DateTime  @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  empresa            Empresa   @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  cliente            Cliente?  @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+
+  @@unique([empresaId, telefone])
+  @@index([empresaId, precisaAtencao])
+  @@index([clienteId])
+  @@map("conversas_atendimento_ia")
+}
+
+// MessageSid da entrada. A segunda entrega do mesmo evento não chama o modelo de novo.
+model EntradaAtendimentoIa {
+  id         String   @id @default(cuid())
+  empresaId  String   @map("empresa_id")
+  messageSid String   @map("message_sid")
+  criadoEm   DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
+  empresa    Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+
+  @@unique([empresaId, messageSid])
+  @@index([empresaId])
+  @@map("entradas_atendimento_ia")
 }

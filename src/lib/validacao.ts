@@ -881,6 +881,12 @@ export const esquemaAssessor = z
   })
   .refine((dados) => dados.horaInicio < dados.horaFim, "A hora final precisa ser depois da hora inicial.");
 
+export const esquemaAtendimentoIa = z.object({
+  ativo: z.boolean("Informe se o atendimento por IA está ligado."),
+  instrucoes: z.string().trim().max(1500, "As instruções podem ter no máximo 1500 caracteres."),
+  textoRepasse: z.string().trim().max(500, "O texto de contato pode ter no máximo 500 caracteres."),
+});
+
 export const esquemaRespostaAssessor = z.object({
   texto: z.string().trim().min(1, "Escreva a mensagem.").max(1000, "A mensagem pode ter no máximo 1000 caracteres."),
 });

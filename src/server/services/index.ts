@@ -85,6 +85,7 @@ export {
   vincularSubcontaExistente,
 } from "./twilio-empresa-service";
 export { processarWebhookTwilio } from "./twilio-webhook-service";
+export { executarAtendimentoIa, obterAtendimentoIa, salvarAtendimentoIa } from "./atendimento-ia-service";
 export {
   assumirConversa,
   devolverConversa,
