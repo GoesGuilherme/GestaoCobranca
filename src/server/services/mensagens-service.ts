@@ -754,13 +754,14 @@ function bolhaDaEntrada(entrada: { id: string; corpo: string | null; status: str
 
 function bolhaDaResposta(resposta: { id: string; corpo: string; origem: string; criadoEm: Date; messageSid: string | null }): BolhaConversa {
   const promessa = resposta.origem === "PROMESSA";
+  const ia = resposta.origem === "IA";
   return {
     id: `resposta-${resposta.id}`,
     lado: "empresa",
     quando: resposta.criadoEm.toISOString(),
     texto: resposta.corpo,
-    detalhe: promessa ? "Promessa de pagamento" : "Resposta da equipe",
-    origem: promessa ? "Promessa de pagamento" : "Manual",
+    detalhe: ia ? "IA" : promessa ? "Promessa de pagamento" : "Resposta da equipe",
+    origem: ia ? "IA" : promessa ? "Promessa de pagamento" : "Manual",
     template: null,
     cobrancaId: null,
     cobranca: null,
@@ -892,7 +893,6 @@ export async function abrirConversaMensagens(
       update: { lidoEm: agora },
     });
   }
-
   const janelaAte = ultimaEntrada ? fimDaJanela(ultimaEntrada.recebidoEm) : null;
   const optOut = opt?.ativo === true;
   const janelaAberta = Boolean(janelaAte && dentroDaJanela(janelaAte, agora) && !optOut);

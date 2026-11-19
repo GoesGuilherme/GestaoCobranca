@@ -8,6 +8,9 @@ export function usarBancoDeTeste() {
     if (!url.includes("gestaocobranca_test")) {
       throw new Error("Os testes só podem apagar dados do banco gestaocobranca_test.");
     }
+    await prisma.entradaAtendimentoIa.deleteMany();
+    await prisma.conversaAtendimentoIa.deleteMany();
+    await prisma.configuracaoAtendimentoIa.deleteMany();
     await prisma.mensagemAssessor.deleteMany();
     await prisma.pedidoAtendimento.deleteMany();
     await prisma.conversaAssessor.deleteMany();

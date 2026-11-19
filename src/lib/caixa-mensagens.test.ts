@@ -67,6 +67,23 @@ describe("caixa de mensagens", () => {
         modoTeste: false,
       }),
     ).toBe("SMS · Régua · 3 dias antes · taguaro_vence_em_dias_v2");
+    expect(
+      legendaDaBolha({
+        id: "ia",
+        lado: "empresa",
+        quando: AGORA.toISOString(),
+        texto: "Fatura em aberto.",
+        detalhe: "IA",
+        origem: "IA",
+        template: null,
+        cobrancaId: null,
+        cobranca: null,
+        canal: "WHATSAPP",
+        ticks: "enviada",
+        motivo: null,
+        modoTeste: false,
+      }),
+    ).toBe("IA");
   });
 
   it("redireciona as abas antigas e conta filtros", () => {
