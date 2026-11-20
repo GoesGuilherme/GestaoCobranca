@@ -1,11 +1,17 @@
 import { BarraLateral } from "@/components/barra-lateral";
 import { podeVerAssessor, podeVerFaturas, podeVerRegua } from "@/lib/permissoes";
 import { acessoDaPagina } from "@/server/auth/pagina";
+import { prisma } from "@/server/db";
 
 export const dynamic = "force-dynamic";
 
 export default async function LayoutPainel({ children }: { children: React.ReactNode }) {
   const acesso = await acessoDaPagina();
+  const comprovantesPendentes = podeVerFaturas(acesso.papel)
+    ? await prisma.fatura.count({
+        where: { empresaId: acesso.empresaId, comprovantePendente: true, excluida: false },
+      })
+    : 0;
 
   return (
     <div className="min-h-screen">
@@ -19,6 +25,7 @@ export default async function LayoutPainel({ children }: { children: React.React
         mostrarAssessor={podeVerAssessor(acesso.papel)}
         mostrarAsaas={acesso.papel === "DONO"}
         mostrarAdmin={acesso.superadministrador}
+        comprovantesPendentes={comprovantesPendentes}
       />
       <div className="md:pl-64">
         <main id="conteudo" className="mx-auto w-full max-w-6xl px-4 py-6 md:px-8 md:py-10">

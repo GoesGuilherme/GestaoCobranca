@@ -43,6 +43,7 @@ type FaturaComNomes = {
   descricao: string | null;
   excluida: boolean;
   visualizada: boolean;
+  comprovantePendente?: boolean;
   atualizadoEm: Date;
   cliente: { nomeFantasia: string; whatsapp: string; email: string; reguaModo: string; reguaId: string | null };
   clienteServico: { servico: { nome: string } } | null;
@@ -111,6 +112,7 @@ function paraFatura(fatura: FaturaComNomes, promessaPendente: PromessaPendenteDT
     descricao: fatura.descricao,
     excluida: fatura.excluida,
     visualizada: fatura.visualizada,
+    comprovantePendente: fatura.comprovantePendente === true,
     atualizadoEm: fatura.atualizadoEm.toISOString(),
     whatsapp: fatura.cliente.whatsapp,
     email: fatura.cliente.email,
@@ -177,10 +179,16 @@ function filtroSituacao(situacao: SituacaoFatura) {
   const semRascunho = { notIn: [...statusBrutos("CRIANDO")] };
   if (situacao === "todas") return { status: semRascunho };
   if (situacao === "canceladas") return { excluida: true, status: semRascunho };
-  if (situacao === "vencidas") return { excluida: false, statusNormalizado: STATUS_NORMALIZADO.VENCIDO };
-  if (situacao === "pagas") return { excluida: false, statusNormalizado: STATUS_NORMALIZADO.PAGO };
+  if (situacao === "comprovante") return { excluida: false, comprovantePendente: true, status: semRascunho };
+  if (situacao === "vencidas") {
+    return { excluida: false, comprovantePendente: false, statusNormalizado: STATUS_NORMALIZADO.VENCIDO };
+  }
+  if (situacao === "pagas") {
+    return { excluida: false, comprovantePendente: false, statusNormalizado: STATUS_NORMALIZADO.PAGO };
+  }
   return {
     excluida: false,
+    comprovantePendente: false,
     statusNormalizado: { in: [STATUS_NORMALIZADO.PENDENTE, STATUS_NORMALIZADO.VENCIDO] },
   };
 }
@@ -234,14 +242,14 @@ async function buscarFaturas(autor: AutorEmpresa, filtro: FiltroListaFatura, whe
 
 async function agregarFaturas(where: Prisma.FaturaWhereInput): Promise<ResumoFaturasFiltradas> {
   const grupos = await prisma.fatura.groupBy({
-    by: ["statusNormalizado", "excluida"],
+    by: ["statusNormalizado", "excluida", "comprovantePendente"],
     where,
     _sum: { valor: true },
     _count: { _all: true },
   });
   return resumoDeContagens(
     grupos.map((grupo) => ({
-      tom: tomDoGrupoNormalizado(grupo.statusNormalizado, grupo.excluida),
+      tom: tomDoGrupoNormalizado(grupo.statusNormalizado, grupo.excluida, grupo.comprovantePendente),
       quantidade: grupo._count._all,
       total: grupo._sum.valor ? grupo._sum.valor.toFixed(2) : "0.00",
     })),

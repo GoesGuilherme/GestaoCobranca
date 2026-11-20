@@ -33,6 +33,7 @@ const GRUPOS: { tom: TomFatura; rotulo: string }[] = [
   { tom: "paga", rotulo: "Pagas" },
   { tom: "cancelada", rotulo: "Canceladas" },
   { tom: "estorno", rotulo: "Estornadas" },
+  { tom: "conferencia", rotulo: "Aguardando conferência" },
 ];
 
 export function resumoFaturasFiltradas(faturas: FaturaParaResumo[]): ResumoFaturasFiltradas {
@@ -64,7 +65,8 @@ export function resumoFaturasFiltradas(faturas: FaturaParaResumo[]): ResumoFatur
   };
 }
 
-export function tomDoGrupoNormalizado(status: string | null, excluida: boolean): TomFatura {
+export function tomDoGrupoNormalizado(status: string | null, excluida: boolean, comprovantePendente = false): TomFatura {
+  if (!excluida && comprovantePendente) return "conferencia";
   if (excluida) return "cancelada";
   if (status === STATUS_NORMALIZADO.CANCELADO) return "cancelada";
   if (status === STATUS_NORMALIZADO.VENCIDO) return "vencida";

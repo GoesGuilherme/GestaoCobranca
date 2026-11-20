@@ -11,6 +11,7 @@ const COR_ROTULO: Record<TomFatura, string> = {
   paga: "text-canopy",
   cancelada: "text-muted",
   estorno: "text-ink",
+  conferencia: "text-gold-ink",
 };
 
 export type FiltrosDoCardFaturas = {
