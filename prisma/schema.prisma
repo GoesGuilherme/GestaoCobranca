@@ -533,6 +533,10 @@ model Fatura {
   descricao         String?   @db.Text
   erroEmissao       String?   @map("erro_emissao") @db.Text
   excluida          Boolean   @default(false)
+  // Marca a baixa manual antes da chamada ao banco. O webhook de
+  // RECEIVED_IN_CASH (ou o cancelamento na Cora) não avisa o cliente de novo
+  // nem desfaz a fatura paga enquanto este instante estiver preenchido.
+  baixaManualEm     DateTime? @map("baixa_manual_em") @db.Timestamptz(3)
   // Primeira visualização: webhook PAYMENT_CHECKOUT_VIEWED / PAYMENT_BANK_SLIP_VIEWED
   // ou a data mais antiga de GET /payments/{id}/viewingInfo.
   // Não volta para false. visualizadaEm não muda depois de gravado.
@@ -628,6 +632,12 @@ model ConciliacaoPagamento {
   nota               String?            @db.Text
   usuarioId          String?            @map("usuario_id")
   referenciaExterna  String?            @map("referencia_externa")
+  // PIX, DINHEIRO, TRANSFERENCIA ou OUTRO. Nulo nas baixas anteriores a este campo.
+  formaRecebimento   String?            @map("forma_recebimento")
+  valorRecebido      Decimal?           @map("valor_recebido") @db.Decimal(12, 2)
+  // ASAAS_RECEBIDO_EM_DINHEIRO, CORA_CANCELADO ou SOMENTE_LOCAL.
+  efeitoBanco        String?            @map("efeito_banco")
+  avisoBanco         String?            @map("aviso_banco") @db.Text
   criadoEm           DateTime           @default(now()) @map("criado_em") @db.Timestamptz(3)
   empresa            Empresa            @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   fatura             Fatura             @relation(fields: [faturaId], references: [id], onDelete: Cascade)

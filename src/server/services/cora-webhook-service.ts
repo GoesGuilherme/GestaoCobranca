@@ -6,6 +6,7 @@ import type { ClienteHttpCora } from "@/server/cora/contrato";
 import { abrirClienteCora } from "@/server/cora/abrir";
 import { logCora, logCoraErro } from "@/server/cora/log";
 import { segredoWebhookCora } from "@/server/cora/ambiente";
+import { STATUS_NORMALIZADO } from "@/lib/status-pagamento";
 import { deFaturaCora } from "@/server/pagamentos/adaptador-cora";
 import { agenteWebhookCora, lerAvisoCora } from "@/server/pagamentos/webhook-cora";
 import { gravarCobrancaCora } from "./cora-cobranca";
@@ -49,6 +50,26 @@ function conflitoDeEvento(erro: unknown) {
 
 function brutoJson(valor: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(valor)) as Prisma.InputJsonValue;
+}
+
+// A baixa manual cancela o boleto na Cora e marca a fatura paga aqui.
+// O aviso de cancelamento não pode voltar o status local para cancelado.
+async function baixaManualProtegeCancelamento(
+  empresaId: string,
+  faturaId: string,
+  status: string | null,
+): Promise<boolean> {
+  if (status !== STATUS_NORMALIZADO.CANCELADO) return false;
+  const fatura = await prisma.fatura.findFirst({
+    where: { id: faturaId, empresaId },
+    select: { baixaManualEm: true },
+  });
+  if (fatura?.baixaManualEm) return true;
+  const manual = await prisma.conciliacaoPagamento.findFirst({
+    where: { empresaId, faturaId, origem: "MANUAL", efeitoBanco: "CORA_CANCELADO" },
+    select: { id: true },
+  });
+  return Boolean(manual);
 }
 
 // O aviso da Cora não traz o status e não é assinado. A baixa usa só a fatura
@@ -113,7 +134,8 @@ export async function processarWebhookCora(
     throw new ErroAplicacao("Não foi possível confirmar a fatura na Cora. O aviso será tentado de novo.", 503, "webhook_indisponivel");
   }
 
-  await gravarCobrancaCora(fatura.empresaId, fatura.id, cobranca);
+  const protegida = await baixaManualProtegeCancelamento(fatura.empresaId, fatura.id, cobranca.status);
+  if (!protegida) await gravarCobrancaCora(fatura.empresaId, fatura.id, cobranca);
   try {
     await prisma.eventoPagamento.create({
       data: {

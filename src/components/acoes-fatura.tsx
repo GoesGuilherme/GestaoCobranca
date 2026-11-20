@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { faturaPodeSerAlterada } from "@/lib/alteracao-fatura";
+import { faturaAceitaBaixaManual } from "@/lib/baixa-manual";
 import { documentoDaFatura } from "@/lib/baixar-fatura";
 import { PREFERENCIAS_COBRANCA_PADRAO } from "@/lib/cobranca";
 import { formatarDiaMes } from "@/lib/formatacao";
@@ -13,7 +14,7 @@ import { AcoesCompartilhar } from "./acoes-compartilhar";
 import { AcoesLembrete } from "./acoes-lembrete";
 import { BotaoCancelarFatura } from "./botao-cancelar-fatura";
 import { DialogoAlterarFatura } from "./dialogo-alterar-fatura";
-import { DialogoBaixaPix } from "./dialogo-baixa-pix";
+import { DialogoBaixaManual } from "./dialogo-baixa-manual";
 import { DialogoPromessa } from "./dialogo-promessa";
 import { classeBotaoSecundario } from "./estilos";
 
@@ -61,6 +62,7 @@ export function AcoesFatura({
   const podeAlterar = podeCancelar && faturaPodeSerAlterada(fatura);
   const aberta = statusEh(fatura.status, "REGUA_ABERTA", provedorCodigo(fatura.provedor));
   const pixDireto = fatura.provedor === "PIX_DIRETO";
+  const podeBaixa = podeCancelar && faturaAceitaBaixaManual(fatura);
 
   return (
     <details className="relative">
@@ -123,9 +125,9 @@ export function AcoesFatura({
             Alterar
           </button>
         ) : null}
-        {pixDireto && aberta && podeCancelar ? (
+        {podeBaixa ? (
           <button type="button" className="text-left text-sm font-medium text-canopy hover:underline" onClick={() => setBaixaAberta(true)}>
-            Marcar como pago
+            Dar baixa manual
           </button>
         ) : null}
         {podeCancelar ? <BotaoCancelarFatura id={fatura.id} recorrencia={recorrencia} /> : null}
@@ -133,7 +135,7 @@ export function AcoesFatura({
       {alterarAberta ? (
         <DialogoAlterarFatura fatura={fatura} aberto onFechar={() => setAlterarAberta(false)} />
       ) : null}
-      {baixaAberta ? <DialogoBaixaPix fatura={fatura} aberto onFechar={() => setBaixaAberta(false)} /> : null}
+      {baixaAberta ? <DialogoBaixaManual fatura={fatura} aberto onFechar={() => setBaixaAberta(false)} /> : null}
       {podePrometer ? (
         <DialogoPromessa
           aberto={promessaAberta}

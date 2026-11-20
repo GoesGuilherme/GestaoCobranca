@@ -145,16 +145,23 @@ describe("Pix por chave própria", () => {
     expect(alterada.fatura.pixCopiaCola).toContain("5406180.00");
     expect(brCodeValido(alterada.fatura.pixCopiaCola ?? "")).toBe(true);
 
-    await expect(marcarFaturaPixPaga(autor(vizinhaId), fatura.id, { pagoEm: "2026-11-13", confirmar: true })).rejects.toMatchObject({
+    const entradaBaixa = {
+      pagoEm: "2026-11-13",
+      valorRecebido: "180.00",
+      forma: "PIX" as const,
+      nota: "caiu na conta",
+      enviarConfirmacao: true,
+    };
+    await expect(marcarFaturaPixPaga(autor(vizinhaId), fatura.id, entradaBaixa)).rejects.toMatchObject({
       status: 409,
     });
-    await expect(marcarFaturaPixPaga(autor(empresaId, "SUPORTE"), fatura.id, { pagoEm: "2026-11-13", confirmar: true })).rejects.toMatchObject({
+    await expect(marcarFaturaPixPaga(autor(empresaId, "SUPORTE"), fatura.id, entradaBaixa)).rejects.toMatchObject({
       status: 403,
     });
     const paga = await marcarFaturaPixPaga(
       autor(empresaId, "FINANCEIRO"),
       fatura.id,
-      { pagoEm: "2026-11-13", nota: "caiu na conta", confirmar: true },
+      entradaBaixa,
       new Date("2026-11-13T18:00:00.000Z"),
     );
     expect(paga.status).toBe("PAGA");
@@ -162,6 +169,8 @@ describe("Pix por chave própria", () => {
     const baixa = await prisma.conciliacaoPagamento.findFirstOrThrow({ where: { faturaId: fatura.id, empresaId } });
     expect(baixa.origem).toBe("MANUAL");
     expect(baixa.nota).toBe("caiu na conta");
+    expect(baixa.formaRecebimento).toBe("PIX");
+    expect(baixa.valorRecebido?.toFixed(2)).toBe("180.00");
     const fila = await prisma.filaWhatsapp.findFirst({ where: { faturaId: fatura.id, tipo: "PAGO" } });
     expect(fila?.tipo).toBe("PAGO");
     const fechado = await obterPagamentoPublico(token, new Date("2026-11-13T18:00:00.000Z"));

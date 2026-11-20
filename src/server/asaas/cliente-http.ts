@@ -333,6 +333,14 @@ export function criarClienteHttpAsaas(opcoes: {
       await pedir("DELETE", `/payments/${idAsaasSeguro(id)}`);
     },
 
+    async receberEmDinheiro(id, dados) {
+      if (!dataIsoValida(dados.pagamentoEm)) throw new ErroAsaas("Data inválida para o Asaas.", 400);
+      if (!/^\d+\.\d{2}$/.test(dados.valor)) throw new ErroAsaas("Valor inválido para o Asaas.", 400);
+      const corpo = `{"paymentDate":"${dados.pagamentoEm}","value":${dados.valor},"notifyCustomer":false}`;
+      const { json } = await pedir("POST", `/payments/${idAsaasSeguro(id)}/receiveInCash`, corpo);
+      return lerCobranca(json);
+    },
+
     async obterCobranca(id) {
       const { json } = await pedir("GET", `/payments/${idAsaasSeguro(id)}`);
       return lerCobranca(json);

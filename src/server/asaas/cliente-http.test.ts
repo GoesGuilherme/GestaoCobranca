@@ -355,6 +355,31 @@ describe("cliente HTTP do Asaas", () => {
     expect(cobranca.descricao).toBe("Mensalidade revista");
   });
 
+  it("confirma recebimento em dinheiro sem avisar o cliente pelo Asaas", async () => {
+    const pedidos: { url: string; method: string; body?: string }[] = [];
+    const fetchImpl: typeof fetch = async (entrada, init) => {
+      pedidos.push({ url: String(entrada), method: init?.method ?? "GET", body: init?.body ? String(init.body) : undefined });
+      return resposta(200, {
+        id: "pay_cash",
+        customer: "cus_1",
+        value: 350,
+        dueDate: "2026-11-10",
+        status: "RECEIVED_IN_CASH",
+        billingType: "BOLETO",
+        clientPaymentDate: "2026-11-20",
+      });
+    };
+    const cliente = criarClienteHttpAsaas({ baseUrl: URL_ASAAS.SANDBOX, apiKey: CHAVE, fetchImpl });
+    const cobranca = await cliente.receberEmDinheiro("pay_cash", { pagamentoEm: "2026-11-20", valor: "350.00" });
+    expect(pedidos[0]).toMatchObject({
+      url: "https://api-sandbox.asaas.com/v3/payments/pay_cash/receiveInCash",
+      method: "POST",
+    });
+    expect(pedidos[0]?.body).toBe('{"paymentDate":"2026-11-20","value":350.00,"notifyCustomer":false}');
+    expect(cobranca.status).toBe("RECEIVED_IN_CASH");
+    expect(cobranca.pagoEm).toBe("2026-11-20");
+  });
+
   it("recusa o modo simulado em produção", () => {
     expect(mockAsaasLigado({ ASAAS_MOCK: "true", NODE_ENV: "production" })).toBe(false);
     expect(mockAsaasLigado({ ASAAS_MOCK: "true", NODE_ENV: "development" })).toBe(true);
