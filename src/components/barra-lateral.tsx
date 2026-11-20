@@ -35,6 +35,7 @@ export function BarraLateral({
   mostrarAssessor,
   mostrarAsaas,
   mostrarAdmin,
+  comprovantesPendentes = 0,
 }: {
   nome: string;
   email: string;
@@ -45,6 +46,7 @@ export function BarraLateral({
   mostrarAssessor: boolean;
   mostrarAsaas: boolean;
   mostrarAdmin: boolean;
+  comprovantesPendentes?: number;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -126,7 +128,12 @@ export function BarraLateral({
           ligado ? "bg-canopy text-white" : "text-white/90 hover:bg-white/10 hover:text-white"
         }`}
       >
-        {item.rotulo}
+        <span className="flex-1">{item.rotulo}</span>
+        {item.href === "/faturas" && comprovantesPendentes > 0 ? (
+          <span className="rounded-full bg-gold px-2 py-0.5 text-xs font-semibold text-forest-deep" aria-label={`${comprovantesPendentes} comprovantes aguardando conferência`}>
+            {comprovantesPendentes}
+          </span>
+        ) : null}
       </Link>
     );
   }

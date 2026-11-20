@@ -98,6 +98,7 @@ export const SITUACOES_FATURA: { valor: SituacaoFatura; rotulo: string }[] = [
   { valor: "vencidas", rotulo: "Vencidas" },
   { valor: "pagas", rotulo: "Pagas" },
   { valor: "canceladas", rotulo: "Canceladas" },
+  { valor: "comprovante", rotulo: "Aguardando conferência" },
   { valor: "todas", rotulo: "Todas" },
 ];
 

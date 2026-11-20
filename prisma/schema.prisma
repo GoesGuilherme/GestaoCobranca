@@ -173,6 +173,8 @@ model Empresa {
   telefone         String
   status           StatusEmpresa    @default(ATIVA)
   plano            String           @default("basico")
+  // Leitura de comprovante no WhatsApp. Independente do atendimento por IA. Desligada até o dono ligar.
+  lerComprovantesWhatsapp Boolean  @default(false) @map("ler_comprovantes_whatsapp")
   criadoEm         DateTime         @default(now()) @map("criado_em") @db.Timestamptz(3)
   atualizadoEm     DateTime         @updatedAt @map("atualizado_em") @db.Timestamptz(3)
   usuarios         Usuario[]
@@ -184,6 +186,7 @@ model Empresa {
   configuracoesPagamento ConfiguracaoPagamento[]
   preferenciaCobranca PreferenciaCobranca?
   faturas          Fatura[]
+  comprovantes     ComprovantePagamento[]
   eventosAsaas     EventoAsaas[]
   eventosPagamento EventoPagamento[]
   configuracaoRegua ConfiguracaoRegua?
@@ -332,6 +335,7 @@ model Cliente {
   tokensPromessaWhatsapp TokenPromessaWhatsapp[]
   conversasPromessaWhatsapp ConversaPromessaWhatsapp[]
   conversasAtendimentoIa    ConversaAtendimentoIa[]
+  comprovantes              ComprovantePagamento[]
 
   @@index([asaasCustomerId])
   @@index([idExterno])
@@ -537,6 +541,8 @@ model Fatura {
   // RECEIVED_IN_CASH (ou o cancelamento na Cora) não avisa o cliente de novo
   // nem desfaz a fatura paga enquanto este instante estiver preenchido.
   baixaManualEm     DateTime? @map("baixa_manual_em") @db.Timestamptz(3)
+  // Conferência de comprovante. Não muda o status da cobrança e não conta como paga.
+  comprovantePendente Boolean @default(false) @map("comprovante_pendente")
   // Primeira visualização: webhook PAYMENT_CHECKOUT_VIEWED / PAYMENT_BANK_SLIP_VIEWED
   // ou a data mais antiga de GET /payments/{id}/viewingInfo.
   // Não volta para false. visualizadaEm não muda depois de gravado.
@@ -554,9 +560,11 @@ model Fatura {
   conversasPromessaWhatsapp ConversaPromessaWhatsapp[]
   conciliacoes     ConciliacaoPagamento[]
   transacoesOfx    TransacaoOfx[]
+  comprovantes     ComprovantePagamento[]
 
   @@unique([empresaId, asaasPaymentId])
   @@unique([empresaId, chaveIdempotencia])
+  @@index([empresaId, comprovantePendente])
   @@index([empresaId, excluida, status])
   @@index([empresaId, excluida, statusNormalizado])
   @@index([empresaId, visualizada])
@@ -645,6 +653,52 @@ model ConciliacaoPagamento {
   @@index([empresaId, faturaId])
   @@index([empresaId, referenciaExterna])
   @@map("conciliacoes_pagamento")
+}
+
+enum SituacaoComprovante {
+  PENDENTE
+  CONFIRMADO
+  REJEITADO
+  SEM_FATURA
+
+  @@map("situacao_comprovante")
+}
+
+// Arquivo enviado no WhatsApp. O binário fica nesta tabela, como a logo.
+// A leitura passa por rota autenticada da empresa. Não há URL pública.
+model ComprovantePagamento {
+  id                  String               @id @default(cuid())
+  empresaId           String               @map("empresa_id")
+  clienteId           String?              @map("cliente_id")
+  faturaId            String?              @map("fatura_id")
+  messageSid          String               @map("message_sid")
+  hashConteudo        String               @map("hash_conteudo")
+  e2e                 String?
+  mime                String
+  conteudo            Bytes
+  valorExtraido       Decimal?             @map("valor_extraido") @db.Decimal(12, 2)
+  pagoEm              DateTime?            @map("pago_em") @db.Date
+  hora                String?
+  pagador             String?
+  recebedorNome       String?              @map("recebedor_nome")
+  recebedorDocumento  String?              @map("recebedor_documento")
+  recebedorChave      String?              @map("recebedor_chave")
+  alertas             Json                 @default("[]")
+  situacao            SituacaoComprovante  @default(PENDENTE)
+  motivoRejeicao      String?              @map("motivo_rejeicao") @db.Text
+  usuarioId           String?              @map("usuario_id")
+  criadoEm            DateTime             @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm        DateTime             @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  empresa             Empresa              @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  cliente             Cliente?             @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+  fatura              Fatura?              @relation(fields: [faturaId], references: [id], onDelete: SetNull)
+
+  @@unique([empresaId, messageSid])
+  @@index([empresaId, situacao])
+  @@index([empresaId, hashConteudo])
+  @@index([empresaId, e2e])
+  @@index([faturaId])
+  @@map("comprovantes_pagamento")
 }
 
 // Um envio de extrato. Os créditos ficam em transacoes_ofx, um FITID por conta.

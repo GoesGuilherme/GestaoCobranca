@@ -448,6 +448,12 @@ export async function processarFilaWhatsapp(
     });
     if (reivindicado.count !== 1) continue;
 
+    if (item.tipo !== "PAGO" && item.fatura.comprovantePendente) {
+      await marcar(item.id, { status: "IGNORADO", motivo: "comprovante em conferência", destino: null });
+      resultado.ignorados += 1;
+      continue;
+    }
+
     if (item.tipo !== "PAGO" && promessasAtivas.has(`${item.empresaId}:${item.faturaId}`)) {
       await marcar(item.id, { status: "IGNORADO", motivo: "promessa de pagamento", destino: null });
       resultado.ignorados += 1;

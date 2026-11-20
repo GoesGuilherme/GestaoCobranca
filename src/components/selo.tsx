@@ -1,3 +1,4 @@
+import { ROTULO_COMPROVANTE_PENDENTE } from "@/lib/comprovante";
 import { tomFatura, type TomFatura } from "@/lib/fatura-situacao";
 import {
   rotuloSegmento,
@@ -23,6 +24,7 @@ const coresFatura: Record<TomFatura, string> = {
   paga: "bg-leaf text-ok ring-1 ring-ok/30",
   cancelada: "bg-sand text-ink ring-1 ring-line",
   estorno: "bg-[#f8e6d4] text-[#9a3412] ring-1 ring-[#9a3412]/30",
+  conferencia: "bg-gold-soft text-gold-ink ring-1 ring-gold/60",
 };
 
 export function Selo({
@@ -50,9 +52,17 @@ export function Selo({
   );
 }
 
-export function SeloFatura({ status, excluida }: { status: string; excluida: boolean }) {
-  const tom = tomFatura(status, excluida);
-  const rotulo = rotuloStatusFatura(status, excluida);
+export function SeloFatura({
+  status,
+  excluida,
+  comprovantePendente = false,
+}: {
+  status: string;
+  excluida: boolean;
+  comprovantePendente?: boolean;
+}) {
+  const tom = tomFatura(status, excluida, comprovantePendente);
+  const rotulo = comprovantePendente && !excluida ? ROTULO_COMPROVANTE_PENDENTE : rotuloStatusFatura(status, excluida);
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${coresFatura[tom]}`}

@@ -5,13 +5,16 @@ export const STATUS_ABERTAS = statusBrutos("PENDENTE");
 export const STATUS_VENCIDAS = statusBrutos("VENCIDO");
 export const STATUS_PAGAS = statusBrutos("PAGO");
 
-export type TomFatura = "aberto" | "vencida" | "paga" | "cancelada" | "estorno";
+export type TomFatura = "aberto" | "vencida" | "paga" | "cancelada" | "estorno" | "conferencia";
 
-type FaturaSituacao = { status: string; excluida: boolean };
+type FaturaSituacao = { status: string; excluida: boolean; comprovantePendente?: boolean };
 
 export function faturaNaSituacao(fatura: FaturaSituacao, situacao: SituacaoFatura): boolean {
+  const conferencia = fatura.comprovantePendente === true && !fatura.excluida;
+  if (situacao === "comprovante") return conferencia;
   if (situacao === "todas") return true;
   if (situacao === "canceladas") return fatura.excluida;
+  if (conferencia) return false;
   if (fatura.excluida) return false;
   const normalizado = statusNormalizado(fatura.status);
   if (situacao === "vencidas") return normalizado === STATUS_NORMALIZADO.VENCIDO;
@@ -19,7 +22,8 @@ export function faturaNaSituacao(fatura: FaturaSituacao, situacao: SituacaoFatur
   return normalizado === STATUS_NORMALIZADO.PENDENTE || normalizado === STATUS_NORMALIZADO.VENCIDO;
 }
 
-export function tomFatura(status: string, excluida: boolean): TomFatura {
+export function tomFatura(status: string, excluida: boolean, comprovantePendente = false): TomFatura {
+  if (!excluida && comprovantePendente) return "conferencia";
   if (excluida) return "cancelada";
   const normalizado = statusNormalizado(status);
   if (normalizado === STATUS_NORMALIZADO.CANCELADO) return "cancelada";

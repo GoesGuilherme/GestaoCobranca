@@ -7,7 +7,8 @@ import { textoLivreAtendimento, type TrabalhoAtendimentoIa } from "@/lib/atendim
 import { processarEntradaAssessor } from "@/server/services/assessor-service";
 import { corpoVisivelPromessa } from "@/lib/whatsapp-promessa";
 import { processarPromessaWhatsapp } from "@/server/services/promessa-whatsapp";
-import type { ClienteTwilio } from "@/server/twilio/contrato";
+import { registrarComprovanteRecebido } from "@/server/services/comprovante-service";
+import type { ClienteTwilio, CredencialTwilio } from "@/server/twilio/contrato";
 import { clienteTwilioPadrao } from "@/server/twilio/fabrica";
 import { credenciaisPaiTwilio, numeroTesteWhatsapp, urlWebhookTwilio } from "@/server/twilio/fabrica";
 import {
@@ -27,7 +28,7 @@ function conflito(erro: unknown) {
   return typeof erro === "object" && erro !== null && "code" in erro && erro.code === "P2002";
 }
 
-function recusar() {
+function recusar(): never {
   throw new ErroAplicacao("Assinatura da Twilio recusada.", 403, "twilio_assinatura");
 }
 
@@ -105,6 +106,37 @@ async function empresasDoClienteOficial(de: string | null): Promise<string[]> {
   return [...new Set(linhas.map((linha) => linha.empresaId))];
 }
 
+async function lerComprovantesDaEntrada(
+  empresaId: string,
+  de: string,
+  para: string | null,
+  messageSid: string,
+  midia: { url: string; mime: string }[],
+  opcoes: {
+    twilio?: ClienteTwilio;
+    agora?: Date;
+    conta?: CredencialTwilio;
+    baixarMidia?: (url: string) => Promise<{ bytes: Uint8Array; mime: string }>;
+  },
+) {
+  const baixar = opcoes.baixarMidia;
+  if (!baixar) return;
+  for (const item of midia) {
+    const arquivo = await baixar(item.url);
+    await registrarComprovanteRecebido({
+      empresaId,
+      messageSid: midia.length > 1 ? `${messageSid}:${item.url.slice(-12)}` : messageSid,
+      de,
+      para,
+      bytes: arquivo.bytes,
+      mime: arquivo.mime || item.mime,
+      agora: opcoes.agora,
+      twilio: opcoes.twilio,
+      conta: opcoes.conta,
+    });
+  }
+}
+
 async function registrarEntrada(empresaId: string, dados: {
   messageSid: string;
   de: string | null;
@@ -112,11 +144,14 @@ async function registrarEntrada(empresaId: string, dados: {
   corpo: string | null;
   buttonPayload: string | null;
   optOutType: string;
+  midia?: { url: string; mime: string }[];
 }, opcoes: {
   assessor?: boolean;
   twilio?: ClienteTwilio;
   agora?: Date;
   agendarAtendimentoIa?: (trabalho: TrabalhoAtendimentoIa) => void;
+  conta?: CredencialTwilio;
+  baixarMidia?: (url: string) => Promise<{ bytes: Uint8Array; mime: string }>;
 } = {}) {
   const digitos = digitosWhatsapp((dados.de ?? "").replace(/^whatsapp:/i, ""));
   const decisao = decisaoOptOut({ corpo: dados.corpo ?? "", optOutType: dados.optOutType });
@@ -164,6 +199,13 @@ async function registrarEntrada(empresaId: string, dados: {
       where: { empresaId, messageSid: dados.messageSid, tipo: "INBOUND" },
       data: { status: promessa.status },
     });
+  }
+  if (dados.midia && dados.midia.length > 0 && dados.de) {
+    try {
+      await lerComprovantesDaEntrada(empresaId, dados.de, dados.para, dados.messageSid, dados.midia, opcoes);
+    } catch (erro) {
+      console.error("comprovante_whatsapp", erro instanceof Error ? erro.name : "falha");
+    }
   }
   if (promessa.tratado) return { recebido: true, duplicado: false };
   const livre = textoLivreAtendimento(dados.corpo, dados.buttonPayload);
@@ -232,7 +274,31 @@ function eventoAutenticado(parametros: Record<string, string>) {
     errorCode: texto(parametros.ErrorCode, 20),
     errorMessage: texto(parametros.ErrorMessage, 180),
     optOutType: parametros.OptOutType ?? "",
+    midia: midiasDe(parametros),
   };
+}
+
+async function baixarMidiaTwilio(url: string, conta: CredencialTwilio): Promise<{ bytes: Uint8Array; mime: string }> {
+  const autorizacao = Buffer.from(`${conta.accountSid}:${conta.authToken}`).toString("base64");
+  const resposta = await fetch(url, {
+    headers: { authorization: `Basic ${autorizacao}` },
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!resposta.ok) throw new Error("midia");
+  const mime = resposta.headers.get("content-type")?.split(";")[0]?.trim() || "application/octet-stream";
+  return { bytes: new Uint8Array(await resposta.arrayBuffer()), mime };
+}
+
+function midiasDe(parametros: Record<string, string>): { url: string; mime: string }[] {
+  const quantidade = Number(parametros.NumMedia ?? "0");
+  if (!Number.isInteger(quantidade) || quantidade <= 0) return [];
+  const lista: { url: string; mime: string }[] = [];
+  for (let i = 0; i < Math.min(quantidade, 3); i += 1) {
+    const url = texto(parametros[`MediaUrl${i}`], 500);
+    const mime = texto(parametros[`MediaContentType${i}`], 80);
+    if (url && mime) lista.push({ url, mime });
+  }
+  return lista;
 }
 
 function e164De(valor: string | null): string | null {
@@ -261,11 +327,14 @@ export async function processarWebhookTwilio(dados: {
   agora?: Date;
   agendarAtendimentoIa?: (trabalho: TrabalhoAtendimentoIa) => void;
 }) {
-  const opcoesEntrada = (extra: { assessor?: boolean } = {}) => ({
+  const opcoesEntrada = (extra: { assessor?: boolean; conta?: CredencialTwilio } = {}) => ({
     ...extra,
     twilio: dados.twilio,
     agora: dados.agora,
     agendarAtendimentoIa: dados.agendarAtendimentoIa,
+    baixarMidia: extra.conta
+      ? (url: string) => baixarMidiaTwilio(url, extra.conta as CredencialTwilio)
+      : undefined,
   });
   const accountSid = dados.parametros.AccountSid?.trim() ?? "";
   const assinatura = dados.assinatura?.trim() ?? "";
@@ -291,7 +360,9 @@ export async function processarWebhookTwilio(dados: {
     if (!evento.inbound && evento.messageStatus) {
       return registrarStatus(config.empresaId, { ...evento, messageStatus: evento.messageStatus });
     }
-    return registrarEntrada(config.empresaId, evento, opcoesEntrada());
+    return registrarEntrada(config.empresaId, evento, opcoesEntrada({
+      conta: { accountSid, authToken },
+    }));
   }
 
   // O envio pela subconta usa esta mesma URL em StatusCallback. A assinatura
@@ -322,7 +393,9 @@ export async function processarWebhookTwilio(dados: {
     if (!evento.inbound && evento.messageStatus) {
       return registrarStatus(subconta.empresaId, { ...evento, messageStatus: evento.messageStatus });
     }
-    return registrarEntrada(subconta.empresaId, evento, opcoesEntrada());
+    return registrarEntrada(subconta.empresaId, evento, opcoesEntrada({
+      conta: { accountSid, authToken },
+    }));
   }
 
   const sandbox = sandboxWhatsappLigado();
@@ -340,6 +413,7 @@ export async function processarWebhookTwilio(dados: {
     recusar();
   }
   const permitirGlobal = sandbox || oficial;
+  const credencialPai: CredencialTwilio = { accountSid: pai.accountSid, authToken: pai.authToken };
 
   const evento = eventoAutenticado(dados.parametros);
   if (!evento.inbound && evento.messageStatus) {
@@ -372,7 +446,7 @@ export async function processarWebhookTwilio(dados: {
     if (evento.para?.toLowerCase().startsWith("whatsapp:") && e164Para) {
       const empresas = await empresasDoNumero(e164Para, "WHATSAPP");
       if (empresas.length > 1) return { recebido: true, duplicado: false };
-      if (empresas.length === 1) return registrarEntrada(empresas[0] ?? "", evento, opcoesEntrada());
+      if (empresas.length === 1) return registrarEntrada(empresas[0] ?? "", evento, opcoesEntrada({ conta: credencialPai }));
     }
     recusar();
   }
@@ -380,7 +454,7 @@ export async function processarWebhookTwilio(dados: {
   if (evento.para === REMETENTE_OFICIAL_WHATSAPP) {
     const empresas = await empresasDoClienteOficial(evento.de);
     for (const empresaId of empresas) {
-      await registrarEntrada(empresaId, evento, opcoesEntrada({ assessor: false }));
+      await registrarEntrada(empresaId, evento, opcoesEntrada({ assessor: false, conta: credencialPai }));
     }
     return { recebido: true, duplicado: false };
   }
@@ -389,11 +463,11 @@ export async function processarWebhookTwilio(dados: {
   if (evento.para?.toLowerCase().startsWith("whatsapp:") && e164Para) {
     const empresas = await empresasDoNumero(e164Para, "WHATSAPP");
     if (empresas.length > 1) return { recebido: true, duplicado: false };
-    if (empresas.length === 1) return registrarEntrada(empresas[0] ?? "", evento, opcoesEntrada());
+    if (empresas.length === 1) return registrarEntrada(empresas[0] ?? "", evento, opcoesEntrada({ conta: credencialPai }));
   }
 
   if (!sandbox) return { recebido: true, duplicado: false };
   const empresaId = await empresaUnicaDoSandbox(evento.de);
   if (!empresaId) return { recebido: true, duplicado: false };
-  return registrarEntrada(empresaId, evento, opcoesEntrada());
+  return registrarEntrada(empresaId, evento, opcoesEntrada({ conta: credencialPai }));
 }

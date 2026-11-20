@@ -35,6 +35,7 @@ export function usarBancoDeTeste() {
     await prisma.eventoPagamento.deleteMany();
     await prisma.transacaoOfx.deleteMany();
     await prisma.importacaoOfx.deleteMany();
+    await prisma.comprovantePagamento.deleteMany();
     await prisma.conciliacaoPagamento.deleteMany();
     await prisma.fatura.deleteMany();
     await prisma.configuracaoPixProprio.deleteMany();

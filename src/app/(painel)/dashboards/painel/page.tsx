@@ -6,6 +6,7 @@ import { classeBotaoPrimario } from "@/components/estilos";
 import { formatarReais } from "@/lib/dinheiro";
 import { formatarNumero } from "@/lib/formatacao";
 import { podeVerFaturas } from "@/lib/permissoes";
+import { prisma } from "@/server/db";
 import { SecaoPromessasPainel } from "@/components/secao-promessas-painel";
 import type { StatusCliente } from "@/lib/tipos";
 import { cnpjCollabPendente } from "@/lib/collab";
@@ -55,6 +56,11 @@ function Dica({ id, texto, clara = false }: { id: string; texto: string; clara?:
 export default async function PaginaPainel() {
   const acesso = await acessoDaPagina();
   const painel = await obterPainel(acesso.empresaId);
+  const comprovantes = podeVerFaturas(acesso.papel)
+    ? await prisma.fatura.count({
+        where: { empresaId: acesso.empresaId, comprovantePendente: true, excluida: false },
+      })
+    : 0;
 
   return (
     <>
@@ -68,6 +74,15 @@ export default async function PaginaPainel() {
           </Link>
         }
       />
+
+      {comprovantes > 0 ? (
+        <p className="mb-6 rounded-2xl border border-gold/40 bg-gold-soft px-4 py-3 text-sm text-gold-ink">
+          {comprovantes === 1 ? "1 comprovante aguarda conferência." : `${comprovantes} comprovantes aguardam conferência.`}{" "}
+          <Link href="/faturas?situacao=comprovante" className="font-medium text-canopy hover:underline">
+            Abrir faturas
+          </Link>
+        </p>
+      ) : null}
 
       {acesso.papel === "DONO" && cnpjCollabPendente(acesso.cnpjEmpresa) ? (
         <p className="mb-6 rounded-2xl border border-gold/40 bg-gold-soft px-4 py-3 text-sm text-gold-ink">

@@ -98,6 +98,7 @@ export async function executarRegua(
         where: {
           empresaId: config.empresaId,
           excluida: false,
+          comprovantePendente: false,
           OR: ABERTAS_POR_PROVEDOR,
           ...(opcoes.somenteEmissao ? { criadoEm: { gte: desdeEmissao } } : {}),
           ...(opcoes.faturaIds?.length ? { id: { in: opcoes.faturaIds } } : {}),

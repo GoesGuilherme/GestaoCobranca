@@ -98,7 +98,9 @@ export function TabelaFaturas({
         const passosEnvio = reguasEnvio
           ? opcoesDaReguaAplicavel({ modo: fatura.reguaModo, reguaId: fatura.reguaId }, reguasEnvio)
           : passosRegua;
-        const rotulo = hoje
+        const rotulo = fatura.comprovantePendente
+          ? { fase: "antes" as const, texto: "Pausada — comprovante", aria: "Régua pausada enquanto o comprovante é conferido" }
+          : hoje
           ? rotuloReguaDaFatura({
               status: fatura.status,
               excluida: fatura.excluida,
@@ -121,7 +123,7 @@ export function TabelaFaturas({
         const situacao = (
           <span className="inline-flex shrink-0 items-center gap-2">
             {fatura.visualizada ? <OlhoVisualizada /> : null}
-            <SeloFatura status={fatura.status} excluida={fatura.excluida} />
+            <SeloFatura status={fatura.status} excluida={fatura.excluida} comprovantePendente={fatura.comprovantePendente} />
           </span>
         );
         const motivoSelecao = selecaoBoletos?.motivo(fatura) ?? null;

@@ -233,7 +233,7 @@ export type Resultado = {
 
 export type AmbienteAsaas = "SANDBOX" | "PRODUCAO";
 export type FormaCobranca = "BOLETO" | "PIX" | "UNDEFINED" | "CREDIT_CARD";
-export type SituacaoFatura = "em_aberto" | "vencidas" | "pagas" | "canceladas" | "todas";
+export type SituacaoFatura = "em_aberto" | "vencidas" | "pagas" | "canceladas" | "comprovante" | "todas";
 export type FiltroVisualizacao = "todas" | "vistas" | "nao_vistas";
 
 export type CanalPromessa = "WHATSAPP" | "TELEFONE" | "EMAIL" | "PRESENCIAL" | "OUTRO";
@@ -284,6 +284,7 @@ export type FaturaDTO = {
   descricao: string | null;
   excluida: boolean;
   visualizada: boolean;
+  comprovantePendente?: boolean;
   atualizadoEm: string;
   whatsapp: string;
   email: string;

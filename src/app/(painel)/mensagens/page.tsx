@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { CabecalhoPagina } from "@/components/cabecalho";
 import { CaixaMensagens } from "@/components/caixa-mensagens";
+import { PainelComprovantes } from "@/components/painel-comprovantes";
 import { urlSemAbasMensagens } from "@/lib/caixa-mensagens";
 import { dataHojeIso } from "@/lib/data";
 import { podeVerMensagens } from "@/lib/permissoes";
@@ -12,6 +13,7 @@ import {
   listarCaixaMensagens,
   obterMensagem,
 } from "@/server/services/mensagens-service";
+import { listarComprovantesPendentes } from "@/server/services/comprovante-service";
 
 export const metadata = { title: "Mensagens" };
 
@@ -54,16 +56,19 @@ export default async function PaginaMensagens({ searchParams }: { searchParams: 
   const hoje = dataHojeIso();
   const filtro = lerFiltroMensagens({ ...params, periodo: params.periodo ?? "todos" }, hoje);
   const filtroConversa = { ...filtro, status: "" as const, busca: "" };
-  const [pagina, clientes, conversa] = await Promise.all([
+  const [pagina, clientes, conversa, comprovantes] = await Promise.all([
     listarCaixaMensagens(acesso, filtro),
     clientesComMensagem(acesso),
     params.conversa ? abrirConversaMensagens(acesso, params.conversa, { filtro: filtroConversa, limite: 40 }) : Promise.resolve(null),
+    listarComprovantesPendentes(acesso),
   ]);
   const conversas = conversa
     ? pagina.itens.map((item) => (item.telefone === conversa.telefone ? { ...item, naoLidas: 0 } : item))
     : pagina.itens;
 
   return (
+    <>
+    <PainelComprovantes comprovantes={comprovantes} />
     <CaixaMensagens
       filtro={{
         periodo: filtro.periodo,
@@ -80,5 +85,6 @@ export default async function PaginaMensagens({ searchParams }: { searchParams: 
       conversa={conversa}
       agoraIso={new Date().toISOString()}
     />
+    </>
   );
 }

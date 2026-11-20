@@ -15,6 +15,8 @@ import { AcoesLembrete } from "./acoes-lembrete";
 import { BotaoCancelarFatura } from "./botao-cancelar-fatura";
 import { DialogoAlterarFatura } from "./dialogo-alterar-fatura";
 import { DialogoBaixaManual } from "./dialogo-baixa-manual";
+import { DialogoComprovante } from "./dialogo-comprovante";
+import type { ComprovanteDTO } from "@/server/services/comprovante-service";
 import { DialogoPromessa } from "./dialogo-promessa";
 import { classeBotaoSecundario } from "./estilos";
 
@@ -51,6 +53,7 @@ export function AcoesFatura({
   const [promessaAberta, setPromessaAberta] = useState(false);
   const [alterarAberta, setAlterarAberta] = useState(false);
   const [baixaAberta, setBaixaAberta] = useState(false);
+  const [comprovante, setComprovante] = useState<ComprovanteDTO | null>(null);
   if (fatura.excluida) {
     return <p className="text-sm text-muted">Cancelada em {formatarDiaMes(fatura.atualizadoEm)}</p>;
   }
@@ -125,6 +128,21 @@ export function AcoesFatura({
             Alterar
           </button>
         ) : null}
+        {fatura.comprovantePendente && podeCancelar ? (
+          <button
+            type="button"
+            className="text-left text-sm font-medium text-canopy hover:underline"
+            onClick={() => {
+              void fetch(`/api/faturas/${fatura.id}/comprovante`)
+                .then((resposta) => resposta.json())
+                .then((corpo: { comprovante?: ComprovanteDTO | null }) => {
+                  if (corpo.comprovante) setComprovante(corpo.comprovante);
+                });
+            }}
+          >
+            Conferir comprovante
+          </button>
+        ) : null}
         {podeBaixa ? (
           <button type="button" className="text-left text-sm font-medium text-canopy hover:underline" onClick={() => setBaixaAberta(true)}>
             Dar baixa manual
@@ -136,6 +154,7 @@ export function AcoesFatura({
         <DialogoAlterarFatura fatura={fatura} aberto onFechar={() => setAlterarAberta(false)} />
       ) : null}
       {baixaAberta ? <DialogoBaixaManual fatura={fatura} aberto onFechar={() => setBaixaAberta(false)} /> : null}
+      {comprovante ? <DialogoComprovante comprovante={comprovante} aberto onFechar={() => setComprovante(null)} /> : null}
       {podePrometer ? (
         <DialogoPromessa
           aberto={promessaAberta}

@@ -32,6 +32,11 @@ const ABAS: { valor: SituacaoFatura; rotulo: string; legenda: string }[] = [
     legenda: "Canceladas deste cliente, da mais recente para a mais antiga.",
   },
   {
+    valor: "comprovante",
+    rotulo: "Conferência",
+    legenda: "Comprovante recebido no WhatsApp, aguardando alguém conferir se o dinheiro entrou.",
+  },
+  {
     valor: "todas",
     rotulo: "Todas",
     legenda: "Todas as faturas deste cliente, da data de vencimento mais recente para a mais antiga.",
