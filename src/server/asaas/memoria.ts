@@ -59,6 +59,8 @@ export class AsaasMemoria implements ClienteHttpAsaas {
   lancarDepoisDeCriarCobranca = false;
   lancarDepoisDeCriarAssinatura = false;
   cancelarCobrancaLanca = false;
+  receberEmDinheiroLanca = false;
+  recebimentosEmDinheiro: { id: string; pagamentoEm: string; valor: string; notifyCustomer: false }[] = [];
   cancelarAssinaturaLanca = false;
   atualizarCobrancaLanca = false;
   atualizacoes = 0;
@@ -156,6 +158,26 @@ export class AsaasMemoria implements ClienteHttpAsaas {
     const cobranca = this.cobrancas.get(id);
     if (!cobranca) throw new ErroAsaas("Cobrança não encontrada.", 404);
     cobranca.excluida = true;
+  }
+
+  async receberEmDinheiro(id: string, dados: { pagamentoEm: string; valor: string }) {
+    if (this.receberEmDinheiroLanca) throw new ErroAsaas("Não foi possível falar com o Asaas.", 502);
+    const cobranca = this.cobrancas.get(id);
+    if (!cobranca || cobranca.excluida) throw new ErroAsaas("Cobrança não encontrada.", 404);
+    if (!ABERTAS.has(cobranca.status) && cobranca.status !== "RECEIVED_IN_CASH") {
+      throw new ErroAsaas("Esta cobrança não aceita recebimento em dinheiro.", 400);
+    }
+    this.recebimentosEmDinheiro.push({
+      id,
+      pagamentoEm: dados.pagamentoEm,
+      valor: dados.valor,
+      notifyCustomer: false,
+    });
+    if (cobranca.status !== "RECEIVED_IN_CASH") {
+      cobranca.status = "RECEIVED_IN_CASH";
+      cobranca.pagoEm = dados.pagamentoEm;
+    }
+    return cobranca;
   }
 
   async obterCobranca(id: string) {

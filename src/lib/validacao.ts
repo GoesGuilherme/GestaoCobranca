@@ -468,15 +468,17 @@ export const esquemaIgnorarOfx = z.object({
   transacaoId: z.string().trim().min(1, "Informe a sugestão.").max(64),
 });
 
+export const FORMAS_BAIXA_MANUAL = ["PIX", "DINHEIRO", "TRANSFERENCIA", "OUTRO"] as const;
+
 export const esquemaBaixaManual = z.object({
   pagoEm: z
     .string()
     .trim()
     .refine((valor) => dataIsoValida(valor), "Informe a data do pagamento."),
+  valorRecebido: esquemaValorPositivo,
+  forma: z.enum(FORMAS_BAIXA_MANUAL, "Escolha como o valor foi recebido."),
   nota: z.string().trim().max(500, "A observação pode ter no máximo 500 caracteres.").optional(),
-  confirmar: z
-    .boolean("Confirme que o Pix foi recebido.")
-    .refine((valor) => valor, "Confirme que o Pix foi recebido."),
+  enviarConfirmacao: z.boolean().optional(),
 });
 
 export const esquemaAlteracaoFatura = z.object({

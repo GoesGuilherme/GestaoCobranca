@@ -4,7 +4,7 @@ import { dataHojeIso } from "@/lib/data";
 import { montarBrCode } from "@/lib/pix-brcode";
 import { caminhoPagamentoPix } from "@/lib/pix-link";
 import type { FaturaDTO } from "@/lib/tipos";
-import { esquemaBaixaManual, esquemaFatura } from "@/lib/validacao";
+import { esquemaFatura } from "@/lib/validacao";
 import type { AutorEmpresa } from "@/server/auth/papeis";
 import { exigirCobranca } from "@/server/auth/papeis";
 import { prisma } from "@/server/db";
@@ -270,17 +270,7 @@ export async function marcarFaturaPixPaga(
   entrada: unknown,
   agora = new Date(),
 ): Promise<FaturaDTO> {
-  exigirCobranca(autor);
-  const dados = lerEsquema(esquemaBaixaManual, entrada);
-  const nota = dados.nota?.trim() ? dados.nota.trim() : null;
-  const baixou = await liquidarFaturaPix(
-    autor,
-    faturaId,
-    { pagoEm: dados.pagoEm, nota, origem: "MANUAL" },
-    agora,
-  );
-  if (!baixou) {
-    throw new ErroAplicacao("Só dá para marcar como pago uma cobrança Pix em aberto ou vencida.", 409, "fatura_fechada");
-  }
-  return faturaPronta(autor, faturaId);
+  const { darBaixaManual } = await import("./baixa-manual");
+  const resultado = await darBaixaManual(autor, faturaId, entrada, { agora });
+  return resultado.fatura;
 }

@@ -113,6 +113,13 @@ export type AtualizacaoCobrancaAsaas = {
   descricao?: string | null;
 };
 
+// POST /v3/payments/{id}/receiveInCash. notifyCustomer fica false: o aviso ao
+// cliente, se houver, sai pelo Taguaro e não pelo Asaas.
+export type RecebimentoEmDinheiroAsaas = {
+  pagamentoEm: string;
+  valor: string;
+};
+
 export interface ClienteHttpAsaas {
   testarConexao(): Promise<{ nome: string }>;
   buscarClientePorDocumento(cpfCnpj: string): Promise<ClienteAsaas | null>;
@@ -122,6 +129,7 @@ export interface ClienteHttpAsaas {
   atualizarCobranca(id: string, dados: AtualizacaoCobrancaAsaas): Promise<CobrancaAsaas>;
   buscarCobrancaPorReferencia(referencia: string): Promise<CobrancaAsaas | null>;
   cancelarCobranca(id: string): Promise<void>;
+  receberEmDinheiro(id: string, dados: RecebimentoEmDinheiroAsaas): Promise<CobrancaAsaas>;
   obterCobranca(id: string): Promise<CobrancaAsaas>;
   obterLinhaDigitavel(id: string): Promise<string | null>;
   obterPix(id: string): Promise<string | null>;

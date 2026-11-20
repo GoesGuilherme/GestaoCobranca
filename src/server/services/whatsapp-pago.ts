@@ -41,6 +41,14 @@ export async function enfileirarPagoDoPagamento(
     include: { cliente: true },
   });
   if (!fatura) return;
+  // Baixa manual já decidiu se avisa o cliente. O webhook RECEIVED_IN_CASH
+  // (e qualquer confirmação seguinte) não liquida de novo nem manda outro PAGO.
+  if (fatura.baixaManualEm) return;
+  const manual = await prisma.conciliacaoPagamento.findFirst({
+    where: { empresaId, faturaId: fatura.id, origem: "MANUAL" },
+    select: { id: true },
+  });
+  if (manual) return;
   const regua = await prisma.configuracaoRegua.findUnique({ where: { empresaId } });
   await enfileirarPagoWhatsapp(prisma, fatura, regua?.modoTeste ?? true, agora);
 }
